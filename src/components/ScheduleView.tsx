@@ -110,7 +110,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   dayWeights,
   cascadeStartDate,
   updateCascadeTrigger,
-  signatories,
+  signatories: _signatories, // Reserved for future use in print header
 }) => {
   // Use hooks for schedule operations
   const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
@@ -353,49 +353,18 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       </div>
 
       <div className="print-only print-header-container">
-        <div className="row align-items-center mb-1">
-          <div className="col-1">
-            <div
-              className="d-flex align-items-center justify-content-center"
-              style={{
-                width: '60px',
-                height: '60px',
-                border: '2px solid #000',
-                borderRadius: '50%',
-              }}
-            >
-              <i className="fas fa-shield-alt fa-2x"></i>
-            </div>
-          </div>
-          <div className="col-10" style={{ paddingTop: '6px' }}>
-            <h2 className="fw-bold text-uppercase m-0">ВАРТА-2026</h2>
-            <h6 className="text-uppercase letter-spacing-1">Система автоматизованого розподілу</h6>
+        <div className="text-end mb-2">
+          <div className="fw-bold">ЗАТВЕРДЖУЮ</div>
+          <div style={{ borderBottom: '1px solid #000', width: '250px', marginLeft: 'auto', height: '15px' }}></div>
+          <div style={{ borderBottom: '1px solid #000', width: '250px', marginLeft: 'auto', height: '15px', marginTop: '5px' }}></div>
+          <div className="d-flex justify-content-end gap-2 mt-1">
+            <span>"___"</span>
+            <span style={{ borderBottom: '1px solid #000', width: '150px', display: 'inline-block' }}></span>
+            <span>20__ року</span>
           </div>
         </div>
-        <div className="row align-items-start">
-          <div className="col-6">
-            <h4 className="fw-bold mt-2">ГРАФІК ДОБОВИХ НАРЯДІВ</h4>
-            <p className="mb-0">
-              на період з {weekDates[0]} по {weekDates[6]}
-            </p>
-          </div>
-          <div className="col-6 text-end">
-            <div className="approval-container">
-              <div className="approval-title">ЗАТВЕРДЖУЮ</div>
-              <div className="approval-line">{signatories.approverPos}</div>
-              <div className="approval-row-flex">
-                <div className="flex-grow">
-                  <div className="signature-line"></div>
-                  <span className="approval-subtext">{signatories.approverRank}</span>
-                </div>
-                <div className="flex-grow">
-                  <div className="signature-line"></div>
-                  <span className="approval-subtext">{signatories.approverName}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <h4 className="fw-bold text-center mt-3 mb-1">ГРАФІК</h4>
+        <div className="text-center mb-3" style={{ borderBottom: '2px solid #000', paddingBottom: '8px' }}></div>
       </div>
 
       <div className="view-table">
@@ -469,15 +438,19 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                       const isPast = new Date(d) < new Date(todayStr);
 
                       let cls = 'compact-cell';
-                      let content = '';
+                      let screenContent = '';
+                      let printContent = '';
+                      
                       if (isMe) {
                         cls += isPast
                           ? ' past-locked'
                           : ' assigned' + (entry.isLocked ? ' locked' : '');
-                        content = 'НАРЯД' + (entry.isLocked ? ' 🔒' : '');
+                        screenContent = 'НАРЯД' + (entry.isLocked ? ' 🔒' : '');
+                        printContent = '08:00';
                       } else if (!available) {
                         cls += ' unavailable';
                       }
+                      
                       return (
                         <td
                           key={d}
@@ -488,7 +461,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                             setSwapMode('replace');
                           }}
                         >
-                          {content}
+                          <span className="no-print">{screenContent}</span>
+                          <span className="print-only">{printContent}</span>
                         </td>
                       );
                     })}
