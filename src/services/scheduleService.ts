@@ -41,7 +41,7 @@ export const deleteScheduleEntry = async (date: string): Promise<void> => {
 
 /**
  * Remove assignment with optional karma handling.
- * reason='request' → karma decreases by day weight (soldier asked to be removed — owes system)
+ * reason='request' → karma decreases + owedDays for that day-of-week incremented
  * reason='work' → no karma change (official reason)
  */
 export const removeAssignmentWithDebt = async (
@@ -55,7 +55,10 @@ export const removeAssignmentWithDebt = async (
   if (reason === 'request') {
     const dayIdx = new Date(date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
-    await userService.updateUserDebt(entry.userId, -weight); // karma goes negative
+    // Karma goes negative (general fairness)
+    await userService.updateUserDebt(entry.userId, -weight);
+    // Must repay THIS specific day of week
+    await userService.updateOwedDays(entry.userId, dayIdx, 1);
   }
 
   await db.schedule.delete(date);

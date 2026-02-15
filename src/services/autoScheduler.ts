@@ -132,7 +132,8 @@ export const autoFillSchedule = async (
 };
 
 /**
- * Save auto-generated schedule and update owed days + reduce debt
+ * Save auto-generated schedule and update owed days + karma.
+ * Karma restores towards 0 only when an owedDay is repaid (same day-of-week).
  */
 export const saveAutoSchedule = async (
   entries: ScheduleEntry[],
@@ -148,18 +149,17 @@ export const saveAutoSchedule = async (
 
         const dayIdx = new Date(entry.date).getDay();
 
-        // Reduce owedDays for specific day
+        // If user owes THIS day of week — repay it and restore karma
         if (user.owedDays && user.owedDays[dayIdx] > 0) {
           user.owedDays[dayIdx]--;
           await db.users.update(user.id!, { owedDays: user.owedDays });
-        }
 
-        // Restore karma towards 0 when auto-assigned (compensate previous removals)
-        if (user.debt < 0) {
-          const weight = dayWeights[dayIdx] || 1.0;
-          const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
-          await db.users.update(user.id!, { debt: newDebt });
-          await db.users.update(user.id!, { debt: newDebt });
+          // Restore karma by the weight of this day (owed day repaid)
+          if (user.debt < 0) {
+            const weight = dayWeights[dayIdx] || 1.0;
+            const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+            await db.users.update(user.id!, { debt: newDebt });
+          }
         }
       }
     }

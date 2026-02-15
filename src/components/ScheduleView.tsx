@@ -287,16 +287,21 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                 </div>
                 {swapMode === 'replace' && (
                   <div className="list-group" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    {getFreeUsers(selectedCell.date).map((u) => (
-                      <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
-                        <div>
-                          <span className="fw-bold">{u.name}</span>
-                          {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
-                          <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
-                        </div>
-                        <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
-                      </button>
-                    ))}
+                    {getFreeUsers(selectedCell.date).map((u) => {
+                      const dayIdx = new Date(selectedCell.date).getDay();
+                      const owes = (u.owedDays && u.owedDays[dayIdx]) || 0;
+                      return (
+                        <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
+                          <div>
+                            <span className="fw-bold">{u.name}</span>
+                            {owes > 0 && <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>}
+                            {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
+                            <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
+                          </div>
+                          <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 {swapMode === 'remove' && (
@@ -309,16 +314,21 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
               </div>
             ) : (
               <div className="list-group" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {getFreeUsers(selectedCell.date).map((u) => (
-                  <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
-                    <div>
-                      <span className="fw-bold">{u.name}</span>
-                      {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
-                      <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
-                    </div>
-                    <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
-                  </button>
-                ))}
+                {getFreeUsers(selectedCell.date).map((u) => {
+                  const dayIdx = new Date(selectedCell.date).getDay();
+                  const owes = (u.owedDays && u.owedDays[dayIdx]) || 0;
+                  return (
+                    <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
+                      <div>
+                        <span className="fw-bold">{u.name}</span>
+                        {owes > 0 && <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>}
+                        {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
+                        <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
+                      </div>
+                      <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
