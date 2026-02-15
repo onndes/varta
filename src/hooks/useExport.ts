@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as exportService from '../services/exportService';
+import * as auditService from '../services/auditService';
 
 /**
  * Custom hook for import/export operations
@@ -113,6 +114,13 @@ export const useExport = () => {
     checkExportStatus();
   }, [checkExportStatus]);
 
+  // Log action wrapper
+  const logAction = useCallback(async (action: string, details: string) => {
+    await auditService.logAction(action, details);
+    await markAsNeedsExport();
+    await checkExportStatus();
+  }, [markAsNeedsExport, checkExportStatus]);
+
   return {
     needsExport,
     lastExportDate,
@@ -121,6 +129,7 @@ export const useExport = () => {
     error,
     exportData,
     importData,
+    logAction,
     getExportData,
     markAsNeedsExport,
     clearNeedsExport,
