@@ -3,7 +3,9 @@ import React from 'react';
 interface ScheduleControlsProps {
   weekDates: string[];
   cascadeStartDate: string | null;
+  shouldShowCascade: boolean;
   conflictsCount: number;
+  criticalConflictsCount: number;
   onPrevWeek: () => void;
   onNextWeek: () => void;
   onToday: () => void;
@@ -21,7 +23,9 @@ interface ScheduleControlsProps {
 const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   weekDates,
   cascadeStartDate,
+  shouldShowCascade,
   conflictsCount,
+  criticalConflictsCount,
   onPrevWeek,
   onNextWeek,
   onToday,
@@ -62,16 +66,22 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
       </div>
 
       <div className="d-flex justify-content-end gap-2 flex-wrap">
-        {cascadeStartDate && (
-          <button className="btn btn-sm btn-recalc" onClick={onCascadeRecalc}>
-            <i className="fas fa-sync-alt me-2"></i>
-            ПЕРЕРАХУВАТИ (Зміни з {cascadeStartDate})
+        {criticalConflictsCount > 0 && (
+          <button className="btn btn-sm btn-danger shadow" onClick={onFixConflicts}>
+            <i className="fas fa-exclamation-triangle me-2"></i>
+            ЗАМІНИТИ БЛОКОВАНИХ ({criticalConflictsCount})
           </button>
         )}
-        {conflictsCount > 0 && (
-          <button className="btn btn-sm btn-danger" onClick={onFixConflicts}>
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            ВИПРАВИТИ ({conflictsCount})
+        {conflictsCount > 0 && criticalConflictsCount === 0 && (
+          <button className="btn btn-sm btn-warning" onClick={onFixConflicts}>
+            <i className="fas fa-exclamation-circle me-2"></i>
+            Виправити конфлікти ({conflictsCount})
+          </button>
+        )}
+        {cascadeStartDate && shouldShowCascade && (
+          <button className="btn btn-sm btn-outline-info" onClick={onCascadeRecalc}>
+            <i className="fas fa-sync-alt me-2"></i>
+            Оптимізувати (з {cascadeStartDate})
           </button>
         )}
         <button className="btn btn-sm btn-outline-primary" onClick={onFillGaps}>

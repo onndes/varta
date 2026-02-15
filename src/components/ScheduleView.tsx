@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { User, ScheduleEntry, DayWeights, Signatories } from '../types';
 import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
 import { countUserDaysOfWeek, countUserAssignments } from '../services/scheduleService';
@@ -19,6 +19,7 @@ interface ScheduleViewProps {
   dayWeights: DayWeights;
   cascadeStartDate: string | null;
   updateCascadeTrigger: (date: string) => Promise<void>;
+  clearCascadeTrigger: () => Promise<void>;
   signatories: Signatories;
 }
 
@@ -35,6 +36,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   dayWeights,
   cascadeStartDate,
   updateCascadeTrigger,
+  clearCascadeTrigger,
   signatories: _signatories, // eslint-disable-line @typescript-eslint/no-unused-vars
 }) => {
   const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
@@ -70,20 +72,29 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const scheduleIssues = useMemo(() => {
     const conflicts: string[] = [];
+    const criticalConflicts: string[] = []; // User assigned but blocked (vacation/sick)
     const gaps: string[] = [];
     const checkStart = weekDates[0];
 
     Object.entries(schedule).forEach(([date, entry]) => {
       if (date < checkStart) return;
       const user = users.find((u) => u.id === entry.userId);
-      if (user && !isUserAvailable(user, date)) conflicts.push(date);
+      if (user && !isUserAvailable(user, date)) {
+        conflicts.push(date);
+        // Critical: user is blocked by vacation/sick leave
+        if (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') {
+          if (user.statusFrom && user.statusTo && date >= user.statusFrom && date <= user.statusTo) {
+            criticalConflicts.push(date);
+          }
+        }
+      }
     });
 
     weekDates.forEach((d) => {
       if (!schedule[d]) gaps.push(d);
     });
 
-    return { conflicts, gaps };
+    return { conflicts, criticalConflicts, gaps };
   }, [schedule, users, weekDates]);
 
   const shiftWeek = (offset: number) => {
@@ -107,7 +118,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     setCurrentMonday(new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))));
   };
 
-  const getFreeUsers = (dateStr: string) => {
+  const getFreeUsers = useCallback((dateStr: string) => {
     const dayIndex = new Date(dateStr).getDay();
     const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
 
@@ -134,7 +145,29 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         const loadB = calculateEffectiveLoad(b);
         return loadA - loadB;
       });
-  };
+  }, [weekDates, schedule, users, calculateEffectiveLoad]);
+
+  // Check if cascade recalc could improve assignments (after getFreeUsers defined)
+  const shouldShowCascadeRecalc = useMemo(() => {
+    if (!cascadeStartDate) return false;
+    const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
+    
+    // Check if there are unlocked entries that could be improved
+    return Object.entries(schedule).some(([date, entry]) => {
+      if (date < start || entry.type === 'manual') return false;
+      
+      const currentUser = users.find(u => u.id === entry.userId);
+      if (!currentUser) return false;
+      
+      // Get other available candidates
+      const freeUsers = getFreeUsers(date).filter(u => u.id !== currentUser.id);
+      if (freeUsers.length === 0) return false;
+      
+      // Check if any candidate has better priority
+      const currentLoad = calculateEffectiveLoad(currentUser);
+      return freeUsers.some(u => calculateEffectiveLoad(u) < currentLoad - 0.5);
+    });
+  }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
   const runFillGaps = async () => {
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
@@ -147,14 +180,21 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const runFixConflicts = async () => {
     if (scheduleIssues.conflicts.length === 0) return;
-    if (!confirm(`Видалити ${scheduleIssues.conflicts.length} конфліктних записів?`)) return;
+    
+    const isCritical = scheduleIssues.criticalConflicts.length > 0;
+    const message = isCritical 
+      ? `Замінити ${scheduleIssues.criticalConflicts.length} блокованих працівників?`
+      : `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?`;
+    
+    if (!confirm(message)) return;
 
+    // Remove conflicts
     await bulkDelete(scheduleIssues.conflicts);
-    await logAction('AUTO_FIX', `Видалено конфлікти`);
-
-    const sorted = scheduleIssues.conflicts.sort();
-    if (sorted.length > 0) await updateCascadeTrigger(sorted[0]);
-
+    
+    // Immediately fill the gaps with available users
+    await fillGaps(scheduleIssues.conflicts);
+    
+    await logAction('AUTO_FIX', `Замінено ${scheduleIssues.conflicts.length} конфліктів`);
     await refreshData();
   };
 
@@ -177,6 +217,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     if (!confirm(`Перерахувати АВТОМАТИЧНІ призначення з ${start}?`)) return;
 
     await recalculateFrom(start);
+    await clearCascadeTrigger(); // Clear trigger after successful recalc
     await logAction('CASCADE', `Перерахунок з ${start}`);
     await refreshData();
   };
@@ -243,7 +284,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       <ScheduleControls
         weekDates={weekDates}
         cascadeStartDate={cascadeStartDate}
+        shouldShowCascade={shouldShowCascadeRecalc}
         conflictsCount={scheduleIssues.conflicts.length}
+        criticalConflictsCount={scheduleIssues.criticalConflicts.length}
         onPrevWeek={() => shiftWeek(-1)}
         onNextWeek={() => shiftWeek(1)}
         onToday={goToToday}

@@ -25,7 +25,7 @@ const App = () => {
   // Use custom hooks
   const { users, loading: usersLoading, loadUsers } = useUsers();
   const { schedule, dayWeights, loading: scheduleLoading, loadSchedule } = useSchedule(users);
-  const { signatories, cascadeStartDate, saveDayWeights, saveSignatories, updateCascadeTrigger } =
+  const { signatories, cascadeStartDate, saveDayWeights, saveSignatories, updateCascadeTrigger, clearCascadeTrigger } =
     useSettings();
   const {
     needsExport,
@@ -107,6 +107,7 @@ const App = () => {
               dayWeights={dayWeights}
               cascadeStartDate={cascadeStartDate}
               updateCascadeTrigger={updateCascadeTrigger}
+              clearCascadeTrigger={clearCascadeTrigger}
               signatories={signatories}
             />
           )}
