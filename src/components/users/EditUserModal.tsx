@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import type { User } from '../../types';
 import { RANKS, STATUSES } from '../../utils/constants';
 import Modal from '../Modal';
@@ -10,28 +10,29 @@ interface EditUserModalProps {
   onClose: () => void;
 }
 
+const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+
 const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, onClose }) => {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const dateFromRef = useRef<HTMLInputElement | null>(null);
+  const dateToRef = useRef<HTMLInputElement | null>(null);
+  const blockedDays = user.blockedDays || [];
+
+  const toggleDay = (dayIdx: number) => {
+    const newBlocked = blockedDays.includes(dayIdx)
+      ? blockedDays.filter(d => d !== dayIdx)
+      : [...blockedDays, dayIdx].sort();
+    onChange({ ...user, blockedDays: newBlocked });
+  };
+
   return (
-    <Modal show={true} onClose={onClose} title="Редагування" size="modal-lg">
-      <div className="row">
-        <div className="col-md-6 mb-3">
-          <label className="small text-muted">Військове звання</label>
-          <select
-            className="form-select"
-            value={user.rank}
-            onChange={(e) => onChange({ ...user, rank: e.target.value })}
-          >
-            {RANKS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="col-md-6 mb-3">
+    <Modal show={true} onClose={onClose} title={`Редагування: ${user.name}`} size="modal-lg">
+      {/* Main fields */}
+      <div className="row mb-3">
+        <div className="col-md-6">
           <label className="small text-muted">Статус</label>
           <select
-            className="form-select"
+            className="form-select form-select-sm"
             value={user.status}
             onChange={(e) => onChange({ ...user, status: e.target.value as User['status'] })}
           >
@@ -42,64 +43,204 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
             ))}
           </select>
         </div>
+        <div className="col-md-6">
+          <label className="small text-muted">Посада / Примітка</label>
+          <input
+            className="form-control form-control-sm"
+            value={user.note || ''}
+            onChange={(e) => onChange({ ...user, note: e.target.value })}
+            placeholder="Наприклад: водій, комендант"
+          />
+          <small className="text-muted">Звання відображається окремо</small>
+        </div>
       </div>
 
+      {/* Status dates */}
       {user.status !== 'ACTIVE' && (
-        <div className="row">
-          <div className="col-md-6 mb-3">
-            <label className="small text-muted">Дата початку</label>
-            <input
-              type="date"
-              className="form-control"
-              value={user.statusFrom}
-              onChange={(e) => onChange({ ...user, statusFrom: e.target.value })}
-            />
-          </div>
-          <div className="col-md-6 mb-3">
-            <label className="small text-muted">Дата завершення</label>
-            <input
-              type="date"
-              className="form-control"
-              value={user.statusTo}
-              onChange={(e) => onChange({ ...user, statusTo: e.target.value })}
-            />
-          </div>
-          <div className="col-12 mb-3">
-            <div className="form-check">
-              <input
-                type="checkbox"
-                className="form-check-input"
-                checked={user.restAfterStatus}
-                onChange={(e) => onChange({ ...user, restAfterStatus: e.target.checked })}
-              />
-              <label className="form-check-label small">Відпочинок після завершення статусу</label>
+        <div className="card bg-light mb-3">
+          <div className="card-body">
+            <h6 className="card-title mb-3">Період статусу</h6>
+            <div className="row">
+              <div className="col-md-6 mb-3">
+                <label className="small text-muted d-flex align-items-center mb-1">
+                  Дата початку
+                </label>
+                <div className="input-group">
+                  <input
+                    type="date"
+                    ref={el => { dateFromRef.current = el; }}
+                    className="form-control"
+                    value={user.statusFrom || ''}
+                    onChange={(e) => onChange({ ...user, statusFrom: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => dateFromRef.current?.showPicker()}
+                  >
+                    <i className="fas fa-calendar-alt"></i>
+                  </button>
+                </div>
+              </div>
+              <div className="col-md-6 mb-3">
+                <label className="small text-muted d-flex align-items-center mb-1">
+                  Дата завершення
+                </label>
+                <div className="input-group">
+                  <input
+                    type="date"
+                    ref={el => { dateToRef.current = el; }}
+                    className="form-control"
+                    value={user.statusTo || ''}
+                    onChange={(e) => onChange({ ...user, statusTo: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    onClick={() => dateToRef.current?.showPicker()}
+                  >
+                    <i className="fas fa-calendar-alt"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="row">
+              <div className="col-md-6">
+                <div className="form-check form-switch">
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="restBefore"
+                    checked={user.restBeforeStatus || false}
+                    onChange={(e) => onChange({ ...user, restBeforeStatus: e.target.checked })}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <label className="form-check-label" htmlFor="restBefore" style={{ cursor: 'pointer' }}>
+                    <i className="fas fa-bed me-2 text-warning"></i>
+                    Відпочинок день до події
+                  </label>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="form-check form-switch">
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="restAfter"
+                    checked={user.restAfterStatus || false}
+                    onChange={(e) => onChange({ ...user, restAfterStatus: e.target.checked })}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <label className="form-check-label" htmlFor="restAfter" style={{ cursor: 'pointer' }}>
+                    <i className="fas fa-bed me-2 text-info"></i>
+                    Відпочинок день після події
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="mb-3">
-        <label className="small text-muted">Посада / Примітка</label>
-        <input
-          className="form-control"
-          value={user.note}
-          onChange={(e) => onChange({ ...user, note: e.target.value })}
-        />
-      </div>
-
-      <div className="mb-3">
-        <div className="form-check">
-          <input
-            type="checkbox"
-            className="form-check-input"
-            checked={user.isActive}
-            onChange={(e) => onChange({ ...user, isActive: e.target.checked })}
-          />
-          <label className="form-check-label">Активний (бере участь у варті)</label>
+      {/* Active checkbox */}
+      <div className="card border-primary mb-3">
+        <div className="card-body">
+          <div className="form-check form-switch">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="isActive"
+              checked={user.isActive}
+              onChange={(e) => onChange({ ...user, isActive: e.target.checked })}
+              style={{ cursor: 'pointer' }}
+            />
+            <label className="form-check-label fw-bold" htmlFor="isActive" style={{ cursor: 'pointer' }}>
+              <i className="fas fa-user-check me-2 text-primary"></i>
+              Бере участь у варті
+            </label>
+            <div className="small text-muted mt-1">
+              Якщо відмічено — бере участь в <strong>автоматичному</strong> розподіленні. 
+              Ручне призначення можливе завжди.
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Blocked days */}
+      <div className="card mb-3">
+        <div className="card-body">
+          <h6 className="card-title">
+            <i className="fas fa-ban me-2 text-danger"></i>
+            Блокування днів тижня
+          </h6>
+          <div className="small text-muted mb-2">
+            Виберіть дні, коли користувач НЕ може дежурити (виключено з автоматичного розподілення)
+          </div>
+          <div className="btn-group w-100" role="group">
+            {WEEKDAYS.map((day, idx) => {
+              const mondayIdx = idx + 1; // 1=Monday...7=Sunday
+              const isBlocked = blockedDays.includes(mondayIdx);
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`btn btn-sm ${isBlocked ? 'btn-danger' : 'btn-outline-secondary'}`}
+                  onClick={() => toggleDay(mondayIdx)}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced settings (collapsible) */}
+      <div className="mb-3">
+        <button 
+          className="btn btn-sm btn-link text-decoration-none p-0" 
+          onClick={() => setShowAdvanced(!showAdvanced)}
+        >
+          <i className={`fas fa-chevron-${showAdvanced ? 'down' : 'right'} me-2`}></i>
+          Додаткові налаштування
+        </button>
+      </div>
+
+      {showAdvanced && (
+        <div className="card bg-light mb-3">
+          <div className="card-body">
+            <div className="row">
+              <div className="col-md-6 mb-3">
+                <label className="small text-muted">Військове звання</label>
+                <select
+                  className="form-select form-select-sm"
+                  value={user.rank}
+                  onChange={(e) => onChange({ ...user, rank: e.target.value })}
+                >
+                  {RANKS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-md-6 mb-3">
+                <label className="small text-muted">ПІБ</label>
+                <input
+                  className="form-control form-control-sm"
+                  value={user.name}
+                  onChange={(e) => onChange({ ...user, name: e.target.value })}
+                  placeholder="Прізвище І.Б."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button className="btn btn-primary w-100" onClick={onSave}>
+        <i className="fas fa-save me-2"></i>
         ЗБЕРЕГТИ
       </button>
     </Modal>

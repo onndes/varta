@@ -44,3 +44,14 @@ body {
   flex: 1 0 auto;
   padding-bottom: 50px;
 }
+
+// Input group focus - extend focus to button
+.input-group:focus-within {
+  .btn {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  .form-control {
+    border-right: none;
+  }
+}

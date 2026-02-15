@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface ModalProps {
   show: boolean;
@@ -17,6 +17,18 @@ const Modal: React.FC<ModalProps> = ({
   size = 'modal-lg',
   centered = true,
 }) => {
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (show) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [show]);
+
   if (!show) return null;
   return (
     <div

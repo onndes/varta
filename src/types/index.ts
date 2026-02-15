@@ -28,7 +28,9 @@ export interface User {
   isActive: boolean;
   note?: string;
   debt: number;
+  restBeforeStatus?: boolean;
   restAfterStatus?: boolean;
+  blockedDays?: number[]; // Array of day indices (1=Mon, 7=Sun)
   owedDays?: Record<number, number>;
 }
 
