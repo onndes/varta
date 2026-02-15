@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { db } from '../db/db';
 import type { User, ScheduleEntry, DayWeights, Signatories } from '../types';
 import { STATUSES } from '../utils/constants';
 import {
@@ -8,7 +9,6 @@ import {
   formatRank,
   formatNameForPrint,
 } from '../utils/helpers';
-import { useSchedule, useAutoScheduler } from '../hooks';
 import Modal from './Modal';
 
 // --- Helper Functions (Pure, outside component) ---
@@ -112,10 +112,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   updateCascadeTrigger,
   signatories,
 }) => {
-  // Use hooks for schedule operations
-  const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
-  const { fillGaps, recalculateFrom } = useAutoScheduler(users, schedule, dayWeights);
-
   // Начальное состояние: текущая неделя
   const [currentMonday, setCurrentMonday] = useState(() => {
     const d = new Date();
@@ -146,6 +142,20 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     Object.keys(schedule).forEach((dateStr) => weeks.add(getWeekNumber(new Date(dateStr))));
     return weeks;
   }, [schedule]);
+
+  // --- Логика доступности и веса ---
+
+  // Подсчет эффективной нагрузки (Реальная + Карма)
+  const calculateTotalLoad = (user: User, currentSchedule = schedule) => {
+    if (!user.id) return 0;
+    const assignments = Object.values(currentSchedule).filter((s) => s.userId === user.id);
+    let load = 0;
+    assignments.forEach((s) => {
+      const day = new Date(s.date).getDay();
+      load += dayWeights[day] || 1.0;
+    });
+    return load + (user.debt || 0);
+  };
 
   // --- Поиск конфликтов и пропусков (useMemo instead of useEffect+useState) ---
   const scheduleIssues = useMemo(() => {
@@ -201,9 +211,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
         if (oweA !== oweB) return oweB - oweA;
 
-        // Приоритет 2: Общая нагрузка + Карма (from hook)
-        const loadA = calculateEffectiveLoad(a);
-        const loadB = calculateEffectiveLoad(b);
+        // Приоритет 2: Общая нагрузка + Карма
+        const loadA = calculateTotalLoad(a);
+        const loadB = calculateTotalLoad(b);
         return loadA - loadB;
       });
   };
@@ -211,24 +221,32 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   // --- Автоматизация ---
   const runFillGaps = async () => {
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
-    if (datesToFill.length === 0) return;
-
-    await fillGaps(datesToFill);
-    await logAction('AUTO_FILL', `Заповнено ${datesToFill.length} днів`);
-    await refreshData();
+    if (datesToFill.length > 0) await runAutoScheduleForRange(datesToFill);
   };
 
   const runFixConflicts = async () => {
     if (scheduleIssues.conflicts.length === 0) return;
     if (!confirm(`Видалити ${scheduleIssues.conflicts.length} конфліктних записів?`)) return;
 
-    await bulkDelete(scheduleIssues.conflicts);
+    await db.transaction('rw', db.schedule, db.auditLog, db.appState, async () => {
+      await db.schedule.bulkDelete(scheduleIssues.conflicts);
+      // Используем logAction для логирования (через пропс)
+      // Но внутри транзакции Dexie безопаснее писать напрямую, если logAction делает что-то сложное.
+      // Однако для чистоты используем то, что передали, или пишем в лог напрямую, если logAction асинхронный и внешний.
+      // В данном случае, чтобы не нарушать транзакцию, лучше писать напрямую в базу,
+      // либо вынести logAction за пределы транзакции.
+      // Для простоты и устранения ошибки линтера, будем использовать logAction ПОСЛЕ транзакции или внутри, если это просто запись.
+      // Здесь для надежности транзакции пишем напрямую, а logAction вызовем для уведомления, если нужно.
+      // НО! Чтобы убрать ошибку "unused logAction", мы будем использовать его.
+    });
+
+    // Вызываем logAction (это также обновит флаг экспорта в App)
     await logAction('AUTO_FIX', `Видалено конфлікти`);
 
     const sorted = scheduleIssues.conflicts.sort();
     if (sorted.length > 0) await updateCascadeTrigger(sorted[0]);
 
-    await refreshData();
+    refreshData();
   };
 
   const runFullAutoSchedule = async () => {
@@ -238,10 +256,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       return;
     }
     if (validTargets.some((d) => schedule[d]) && !confirm('Перезаписати пусті місця?')) return;
-
-    await fillGaps(validTargets);
-    await logAction('AUTO_SCHEDULE', `Автоматичне планування тижня`);
-    await refreshData();
+    await runAutoScheduleForRange(validTargets);
   };
 
   const runCascadeRecalc = async () => {
@@ -249,25 +264,131 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
     if (!confirm(`Перерахувати АВТОМАТИЧНІ призначення з ${start}?`)) return;
 
-    await recalculateFrom(start);
+    const allDates = Object.keys(schedule).sort();
+    const lastDate = allDates[allDates.length - 1];
+    const d = new Date(start);
+    const endD = new Date(lastDate);
+    const datesToRegen: string[] = [];
+
+    while (d <= endD) {
+      const iso = toLocalISO(d);
+      if (!schedule[iso] || !schedule[iso].isLocked) datesToRegen.push(iso);
+      d.setDate(d.getDate() + 1);
+    }
+
+    await db.transaction('rw', db.schedule, async () => {
+      await db.schedule.bulkDelete(datesToRegen);
+    });
+
     await logAction('CASCADE', `Перерахунок з ${start}`);
-    await refreshData();
+
+    await runAutoScheduleForRange(datesToRegen);
+    await db.appState.put({ key: 'cascadeStartDate', value: null });
+    refreshData();
+  };
+
+  const runAutoScheduleForRange = async (targetDates: string[]) => {
+    const updates: ScheduleEntry[] = [];
+    const tempSchedule = { ...schedule };
+    targetDates.forEach((d) => delete tempSchedule[d]);
+
+    const tempLoadOffset: Record<number, number> = {};
+    users.forEach((u) => {
+      if (u.id) tempLoadOffset[u.id] = 0;
+    });
+
+    for (const dateStr of targetDates) {
+      if (dateStr < todayStr) continue;
+      if (schedule[dateStr]?.isLocked) {
+        tempSchedule[dateStr] = schedule[dateStr];
+        continue;
+      }
+
+      const dayIdx = new Date(dateStr).getDay();
+      const w = dayWeights[dayIdx] || 1.0;
+
+      const pool = users.filter((u) => u.isActive && isUserAvailable(u, dateStr));
+
+      pool.sort((a, b) => {
+        if (!a.id || !b.id) return 0;
+        const oweA = (a.owedDays && a.owedDays[dayIdx]) || 0;
+        const oweB = (b.owedDays && b.owedDays[dayIdx]) || 0;
+        if (oweA !== oweB) return oweB - oweA;
+
+        const loadA = calculateTotalLoad(a, tempSchedule) + tempLoadOffset[a.id];
+        const loadB = calculateTotalLoad(b, tempSchedule) + tempLoadOffset[b.id];
+        return loadA - loadB;
+      });
+
+      const prevDate = new Date(dateStr);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevUser = tempSchedule[toLocalISO(prevDate)]?.userId;
+
+      let selected = pool[0];
+      if (selected && selected.id === prevUser && pool.length > 1) selected = pool[1];
+
+      if (selected && selected.id) {
+        updates.push({ date: dateStr, userId: selected.id, type: 'auto' });
+        tempSchedule[dateStr] = { date: dateStr, userId: selected.id, type: 'auto' };
+        tempLoadOffset[selected.id] += w;
+      } else {
+        updates.push({ date: dateStr, userId: null, type: 'critical' });
+      }
+    }
+
+    await db.transaction('rw', db.schedule, db.users, async () => {
+      for (const item of updates) {
+        await db.schedule.put(item);
+        if (item.userId) {
+          const u = await db.users.get(item.userId);
+          const dayIdx = new Date(item.date).getDay();
+          if (u && u.owedDays && u.owedDays[dayIdx] > 0) {
+            u.owedDays[dayIdx]--;
+            await db.users.update(u.id, { owedDays: u.owedDays });
+          }
+        }
+      }
+    });
+
+    await logAction('AUTO_FILL', `Заповнено ${updates.length}`);
+
+    refreshData();
   };
 
   // --- Ручные действия ---
   const handleAssign = async (userId: number | undefined) => {
     if (!userId || !selectedCell) return;
-
-    await assignUser(selectedCell.date, userId, true); // manual assignment with lock
-    await updateCascadeTrigger(selectedCell.date);
-
-    const u = users.find((user) => user.id === userId);
     const dayIdx = new Date(selectedCell.date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
+
+    await db.transaction('rw', db.schedule, db.users, db.appState, async () => {
+      await db.schedule.put({
+        date: selectedCell.date,
+        userId: userId,
+        isLocked: true,
+        type: 'manual',
+      });
+
+      const u = await db.users.get(userId);
+      if (u && u.id) {
+        const oldDebt = u.debt || 0;
+        await db.users.update(u.id, { debt: Number((oldDebt + weight).toFixed(2)) });
+
+        if (u.owedDays && u.owedDays[dayIdx] > 0) {
+          u.owedDays[dayIdx]--;
+          await db.users.update(u.id, { owedDays: u.owedDays });
+        }
+
+        await updateCascadeTrigger(selectedCell.date);
+      }
+    });
+
+    // Логируем после транзакции для чистоты
+    const u = users.find((user) => user.id === userId);
     if (u) await logAction('MANUAL', `${u.name} (Баланс +${weight})`);
 
     setSelectedCell(null);
-    await refreshData();
+    refreshData();
   };
 
   const handleRemove = async (reason: 'request' | 'work') => {
@@ -276,8 +397,22 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const dayIdx = new Date(date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
 
-    await removeAssignment(date, reason);
-    await updateCascadeTrigger(date);
+    await db.transaction('rw', db.schedule, db.users, db.appState, async () => {
+      await db.schedule.delete(date);
+      const u = await db.users.get(entry.userId!);
+
+      if (u && u.id) {
+        if (reason === 'request') {
+          const oldDebt = u.debt || 0;
+          await db.users.update(u.id, { debt: Number((oldDebt - weight).toFixed(2)) });
+
+          if (!u.owedDays) u.owedDays = {};
+          u.owedDays[dayIdx] = (u.owedDays[dayIdx] || 0) + 1;
+          await db.users.update(entry.userId!, { owedDays: u.owedDays });
+        }
+        await updateCascadeTrigger(date);
+      }
+    });
 
     const u = users.find((user) => user.id === entry.userId);
     if (u) {
@@ -289,7 +424,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     }
 
     setSelectedCell(null);
-    await refreshData();
+    refreshData();
   };
 
   return (
@@ -563,7 +698,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                         <div>
                           <span className="fw-bold">{u.name}</span>
                           <div className="small text-muted">
-                            Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}
+                            Ефект. навант: {calculateTotalLoad(u).toFixed(1)}
                           </div>
                         </div>
                         <span
@@ -606,7 +741,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                     <div>
                       <span className="fw-bold">{u.name}</span>
                       <div className="small text-muted">
-                        Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}
+                        Ефект. навант: {calculateTotalLoad(u).toFixed(1)}
                       </div>
                     </div>
                     <span

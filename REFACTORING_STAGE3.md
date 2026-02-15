@@ -85,13 +85,77 @@ UsersView був вже добре структурований - він в ос
 - ✅ Можна переиспользувати логіку
 - ✅ Централізована обробка помилок в хуках
 
+### 4. ScheduleView.tsx - ГОТОВО! ✅
+**Було:** 765 рядків  
+**Стало:** 632 рядків  
+**Скорочення:** -133 рядки (-17%) 🏆
+
+#### Зміни:
+- ✅ Видалено `import { db }` - більше немає прямих викликів БД
+- ✅ Додано `import { useSchedule, useAutoScheduler }` - використовуємо хуки
+- ✅ Видалено всю функцію `runAutoScheduleForRange` (66 рядків) - замінена на `fillGaps`
+- ✅ Видалено функцію `calculateTotalLoad` - замінена на `calculateEffectiveLoad`
+- ✅ Спрощено `runCascadeRecalc`: 30 рядків → 7 рядків
+- ✅ Спрощено `runFixConflicts`: 20 рядків → 9 рядків
+- ✅ Спрощено `handleAssign`: 26 рядків → 13 рядків
+- ✅ Спрощено `handleRemove`: 23 рядків → 14 рядків
+- ✅ Замінено всі `db.transaction` на виклики хуків
+- ✅ Видалено всі прямі виклики `db.schedule.*`, `db.users.*`
+
+#### Покращення:
+```typescript
+// БУЛО (66 рядків складної логіки):
+const runAutoScheduleForRange = async (targetDates: string[]) => {
+  const updates: ScheduleEntry[] = [];
+  const tempSchedule = { ...schedule };
+  // ... 60+ рядків логіки автопланування
+  await db.transaction('rw', db.schedule, db.users, async () => {
+    for (const item of updates) {
+      await db.schedule.put(item);
+      // ... більше логіки
+    }
+  });
+};
+
+// СТАЛО (1 рядок):
+await fillGaps(datesToFill);
+```
+
+**Це найбільше скорочення коду в Stage 3!**
+
 ## 📊 Статистика
 
 | Файл       | Було    | Стало   | Різниця  | Тип змін |
 | ---------- | ------- | ------- | -------- | -------- |
 | App.tsx    | 346     | 229     | -117 (-34%) | Логіка → Хуки |
 | UsersView.tsx | 412  | 434     | +22 (+5%)   | DB → Hooks |
-| **Всього** | **758** | **663** | **-95 (-13%)** | **2/3 готово** |
+| ScheduleView.tsx | 765 | 632  | -133 (-17%) | DB → Hooks |
+| **Всього** | **1523** | **1295** | **-228 (-15%)** | **3/3 готово ✅** |
+
+## 🎯 ОСНОВНІ ДОСЯГНЕННЯ
+
+### App.tsx (-117 рядків, -34%)
+- ✅ Видалено функцію `loadData()` - замінена на хуки
+- ✅ Видалено ручне управління state (users, schedule, dayWeights, etc)
+- ✅ Замінено `handleImport`/`handleExport` на хуки
+- ✅ Додано автоматичну перевірку бекапу через `isBackupNeeded`
+
+### UsersView.tsx (+22 рядки, але архітектурно краще)
+- ✅ Замінено `db.users.add` → `createUser`
+- ✅ Замінено `db.users.update` → `updateUser`
+- ✅ Замінено `db.users.delete` → `deleteUser`
+- ✅ Замінено `db.users.update` (debt) → `resetUserDebt`
+- ⚠️ Файл трохи більший через додані коментарі, але логіка чистіша
+
+### ScheduleView.tsx (-133 рядки, -17%) 🏆
+**Найбільше скорочення!**
+- ✅ Видалено всю функцію `runAutoScheduleForRange` (66 рядків) - замінена на `fillGaps` з хука
+- ✅ Видалено функцію `calculateTotalLoad` - замінена на `calculateEffectiveLoad` з хука
+- ✅ Спрощено `runCascadeRecalc` з 30 рядків → 7 рядків
+- ✅ Спрощено `handleAssign` з 26 рядків → 13 рядків  
+- ✅ Спрощено `handleRemove` з 23 рядків → 14 рядків
+- ✅ Замінено всі `db.transaction` на виклики хуків
+- ✅ Видалено всі прямі виклики `db.schedule.*`, `db.users.*`
 
 ## 🔄 TODO
 
