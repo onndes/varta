@@ -1,0 +1,74 @@
+// Week Navigator
+.week-nav-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  justify-content: center;
+}
+
+.week-square {
+  width: 24px;
+  height: 24px;
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #6c757d;
+  position: relative;
+
+  &:hover {
+    border-color: #0d6efd;
+    transform: scale(1.1);
+    z-index: 10;
+    color: #0d6efd;
+  }
+
+  &.current {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+  }
+
+  &.past {
+    background-color: #e9ecef;
+    color: #adb5bd;
+  }
+
+  &.selected {
+    border: 2px solid #000;
+    font-weight: bold;
+  }
+
+  &.has-schedule:not(.current) {
+    background-color: #e8f5e9;
+    border-color: #28a745;
+    color: #198754;
+  }
+
+  .week-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  &:hover .week-tooltip {
+    display: block;
+  }
+}

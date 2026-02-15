@@ -1,0 +1,88 @@
+// Table Styles
+.compact-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    background: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  th,
+  td {
+    border: 1px solid #e0e0e0;
+    padding: 4px;
+    text-align: center;
+    vertical-align: middle;
+    height: 45px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  th {
+    font-weight: 600;
+    color: #495057;
+    background-color: #f8f9fa;
+  }
+}
+
+.compact-cell {
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:hover {
+    background-color: #e3f2fd;
+  }
+
+  &.assigned {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+    font-weight: 700;
+    border: 2px solid #a5d6a7;
+  }
+
+  &.assigned-future {
+    background-color: #cff4fc;
+    color: #055160;
+    font-weight: 700;
+    border: 2px solid #9eeaf9;
+  }
+
+  &.conflict {
+    background-color: #f8d7da;
+    color: #842029;
+    font-weight: 700;
+    border: 2px solid #f5c2c7;
+    animation: pulse-border 1.5s infinite;
+  }
+
+  &.past-locked {
+    background-color: #f0f0f0;
+    color: #999;
+    cursor: not-allowed;
+  }
+
+  &.unavailable {
+    background-color: #f5f5f5;
+    color: #ccc;
+  }
+}
+
+.user-row-inactive {
+  opacity: 0.5;
+  background: #f8f9fa;
+}
+
+.rank-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #7f8c8d;
+  display: block;
+  line-height: 1;
+}

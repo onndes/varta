@@ -1,0 +1,120 @@
+// 5. PRINT STYLES
+@media print {
+  @page {
+    size: landscape;
+    margin: 5mm;
+  }
+  body,
+  html,
+  #root,
+  .main-container {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    display: block !important;
+    box-shadow: none !important;
+  }
+  .no-print,
+  .header-simple,
+  .view-table {
+    display: none !important;
+  }
+  .print-only,
+  .col-user-print {
+    display: block !important;
+  }
+  .col-user-screen {
+    display: none !important;
+  }
+
+  .px-4,
+  .tab-content,
+  .schedule-view-wrapper {
+    display: contents !important;
+  }
+
+  .view-calendar {
+    display: flex !important;
+    flex-direction: column;
+    height: 90vh;
+  }
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border: 2px solid #000;
+    flex-grow: 1;
+  }
+  .calendar-col {
+    border-right: 1px solid #000;
+  }
+  .calendar-col:last-child {
+    border-right: none;
+  }
+
+  .print-cal-cell {
+    padding: 5px;
+    border-bottom: 1px solid #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+  }
+  .print-cal-header {
+    border-bottom: 1px solid #000;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .print-cal-slot {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+
+  .weekend-bg {
+    background-color: #f0f0f0 !important;
+  }
+
+  .print-footer-container {
+    margin-top: 10px;
+    width: 100%;
+  }
+  .approval-container {
+    width: 350px;
+    margin-left: auto;
+    font-family: 'Times New Roman', serif;
+  }
+  .approval-title {
+    font-weight: bold;
+    text-align: left;
+  }
+  .approval-line {
+    border-bottom: 1px solid #000;
+    height: 20px;
+    margin-bottom: 5px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .approval-row-flex {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .signature-line {
+    border-bottom: 1px solid #000;
+    flex-grow: 1;
+  }
+  .approval-subtext {
+    font-size: 0.7rem;
+    text-align: center;
+    display: block;
+  }
+}
