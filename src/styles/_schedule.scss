@@ -85,3 +85,21 @@
 .view-table {
   display: none;
 }
+
+// Screen-only styles for schedule views
+.view-calendar {
+  display: block;
+}
+
+.view-table {
+  display: none;
+}
+
+.print-only,
+.col-user-print {
+  display: none;
+}
+
+.col-user-screen {
+  display: block;
+}
