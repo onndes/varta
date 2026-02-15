@@ -1,4 +1,5 @@
 // src/utils/constants.ts
+import type { Signatories } from '../types';
 
 export const RANKS = [
   'Полковник',
@@ -75,10 +76,14 @@ export const DEFAULT_DAY_WEIGHTS = { 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.5, 6: 
 
 export const MAX_DEBT = 4.0;
 
-export const DEFAULT_SIGNATORIES = {
-  approverPos: 'Начальник штабу',
-  approverRank: 'Майор',
-  approverName: 'Петро ПЕТРЕНКО',
-  creatorRank: 'Капітан',
-  creatorName: 'Іван ІВАНЕНКО',
+export const DEFAULT_SIGNATORIES: Signatories = {
+  approverPos: '',
+  approverRank: '',
+  approverName: '',
+  creatorPos: '',
+  creatorRank: '',
+  creatorName: '',
+  scheduleTitle: '',
+  scheduleSubtitle: '',
+  scheduleLine3: '',
 };

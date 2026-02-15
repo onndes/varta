@@ -8,8 +8,12 @@ export interface Signatories {
   approverPos: string;
   approverRank: string;
   approverName: string;
+  creatorPos: string;
   creatorRank: string;
   creatorName: string;
+  scheduleTitle: string;
+  scheduleSubtitle: string;
+  scheduleLine3: string;
 }
 
 // Теперь value имеет конкретные возможные типы вместо any

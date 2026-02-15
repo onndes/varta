@@ -1,6 +1,6 @@
 import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
-import { formatRank, formatNameForPrint } from '../../utils/helpers';
+import { formatRank, splitFormattedName } from '../../utils/helpers';
 
 interface PrintCalendarProps {
   weekDates: string[];
@@ -33,8 +33,12 @@ const PrintCalendar: React.FC<PrintCalendarProps> = ({ weekDates, schedule, user
               </div>
               {user && (
                 <div className="print-cal-slot">
-                  <div style={{ fontSize: '0.8em' }}>{formatRank(user.rank)}</div>
-                  <div>{formatNameForPrint(user.name)}</div>
+                  <div style={{ fontSize: '1em' }}>{formatRank(user.rank)}</div>
+                  <div>
+                    <p className="print-cal-fio">{splitFormattedName(user.name).surname}</p>
+                    <p className="print-cal-fio">{splitFormattedName(user.name).firstName}</p>
+                    <p className="print-cal-fio">{splitFormattedName(user.name).middleName}</p>
+                  </div>
                 </div>
               )}
             </div>

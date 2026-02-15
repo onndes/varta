@@ -15,6 +15,30 @@ export const formatNameForPrint = (fullName: string) => {
   return `${surname} ${others}`;
 };
 
+export const splitFormattedName = (fullName: string) => {
+  if (!fullName) {
+    return {
+      surname: '',
+      firstName: '',
+      middleName: '',
+    };
+  }
+  const parts = fullName.trim().split(/\s+/);
+  const surname = parts[0]?.toUpperCase() || '';
+  const firstName = parts[1]
+    ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase()
+    : '';
+  const middleName = parts[2]
+    ? parts[2].charAt(0).toUpperCase() + parts[2].slice(1).toLowerCase()
+    : '';
+
+  return {
+    surname,
+    firstName,
+    middleName,
+  };
+};
+
 export const toLocalISO = (date: Date) => {
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().split('T')[0];

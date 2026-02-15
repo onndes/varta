@@ -13,8 +13,12 @@ export const useSettings = () => {
     approverPos: '',
     approverRank: '',
     approverName: '',
+    creatorPos: '',
     creatorRank: '',
     creatorName: '',
+    scheduleTitle: '',
+    scheduleSubtitle: '',
+    scheduleLine3: '',
   });
   const [cascadeStartDate, setCascadeStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

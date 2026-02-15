@@ -4,7 +4,7 @@ interface HeaderProps {
   needsExport: boolean;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onExport: () => void;
-  onPrint: (mode: 'calendar' | 'table') => void;
+  onPrint: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ needsExport, onImport, onExport, onPrint }) => {
@@ -18,8 +18,8 @@ const Header: React.FC<HeaderProps> = ({ needsExport, onImport, onExport, onPrin
           <i className="fas fa-shield-alt fa-lg"></i>
         </div>
         <div>
-          <h4 className="m-0 fw-bold text-dark">ВАРТА-2026</h4>
-          <small className="text-muted">Система розподілу</small>
+          <h4 className="m-0 fw-bold text-dark">ВАРТА</h4>
+          <small className="text-muted">Система розподілу чергувань</small>
         </div>
       </div>
       <div className="d-flex gap-2">
@@ -33,30 +33,9 @@ const Header: React.FC<HeaderProps> = ({ needsExport, onImport, onExport, onPrin
         >
           <i className="fas fa-download me-1"></i>Експорт
         </button>
-        <div className="btn-group">
-          <button className="btn btn-dark btn-sm" onClick={() => onPrint('calendar')}>
-            <i className="fas fa-print me-1"></i>Друк
-          </button>
-          <button
-            className="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            <span className="visually-hidden">Варіанти друку</span>
-          </button>
-          <ul className="dropdown-menu dropdown-menu-end">
-            <li>
-              <button className="dropdown-item" onClick={() => onPrint('calendar')}>
-                <i className="fas fa-calendar-alt me-2"></i>Календар
-              </button>
-            </li>
-            <li>
-              <button className="dropdown-item" onClick={() => onPrint('table')}>
-                <i className="fas fa-table me-2"></i>Таблиця
-              </button>
-            </li>
-          </ul>
-        </div>
+        <button className="btn btn-dark btn-sm" onClick={onPrint}>
+          <i className="fas fa-print me-1"></i>Друк
+        </button>
       </div>
     </div>
   );

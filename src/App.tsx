@@ -7,7 +7,6 @@ import { useUsers, useSchedule, useSettings, useExport } from './hooks';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import BackupAlert from './components/BackupAlert';
-import PrintFooter from './components/PrintFooter';
 import ScheduleView from './components/ScheduleView';
 import UsersView from './components/UsersView';
 import StatsView from './components/StatsView';
@@ -19,7 +18,6 @@ import './styles/main.scss';
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('schedule');
-  const [printMode, setPrintMode] = useState<'calendar' | 'table'>('calendar');
   const [showBackupAlert, setShowBackupAlert] = useState(false);
 
   // Use custom hooks
@@ -66,15 +64,12 @@ const App = () => {
   };
 
   // Handle print
-  const handlePrint = (mode: 'calendar' | 'table') => {
-    setPrintMode(mode);
+  const handlePrint = () => {
     setTimeout(window.print, 100);
   };
 
   return (
-    <div
-      className={`main-container ${printMode === 'calendar' ? 'show-print-calendar' : 'show-print-table'}`}
-    >
+    <div className="main-container show-print-calendar">
       {loading && (
         <div className="loading-overlay">
           <div className="spinner-border text-primary"></div>
@@ -135,8 +130,6 @@ const App = () => {
           {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
         </div>
       </div>
-
-      <PrintFooter signatories={signatories} />
     </div>
   );
 };

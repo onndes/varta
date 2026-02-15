@@ -94,6 +94,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       value={sigs.approverRank}
                       onChange={(e) => setSigs({ ...sigs, approverRank: e.target.value })}
                     >
+                      <option value="">-- Виберіть --</option>
                       {RANKS.map((r) => (
                         <option key={r} value={r}>
                           {r}
@@ -115,6 +116,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 <h6 className="fw-bold text-primary border-bottom pb-2">
                   ГРАФІК СКЛАВ (Низ сторінки)
                 </h6>
+                <div className="mb-2">
+                  <label className="small text-muted">Посада</label>
+                  <input
+                    className="form-control form-control-sm"
+                    value={sigs.creatorPos || ''}
+                    onChange={(e) => setSigs({ ...sigs, creatorPos: e.target.value })}
+                    placeholder="Наприклад: Заступник командира частини"
+                  />
+                </div>
                 <div className="row g-2">
                   <div className="col-5">
                     <label className="small text-muted">Звання</label>
@@ -123,6 +133,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       value={sigs.creatorRank}
                       onChange={(e) => setSigs({ ...sigs, creatorRank: e.target.value })}
                     >
+                      <option value="">-- Виберіть --</option>
                       {RANKS.map((r) => (
                         <option key={r} value={r}>
                           {r}
@@ -140,6 +151,47 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Schedule Title Section */}
+        <div className="card shadow-sm border-0 mb-4">
+          <div className="card-header bg-white py-3">
+            <h5 className="mb-0 fw-bold">
+              <i className="fas fa-heading me-2"></i>Заголовок графіка (для друку)
+            </h5>
+          </div>
+          <div className="card-body">
+            <div className="mb-3">
+              <label className="small text-muted">Назва документа</label>
+              <input
+                className="form-control form-control-sm"
+                value={sigs.scheduleTitle || ''}
+                onChange={(e) => setSigs({ ...sigs, scheduleTitle: e.target.value })}
+                placeholder="ГРАФІК"
+              />
+              <small className="text-muted">Якщо порожньо — "ГРАФІК"</small>
+            </div>
+            <div className="mb-3">
+              <label className="small text-muted">Підзаголовок (1 рядок)</label>
+              <input
+                className="form-control form-control-sm"
+                value={sigs.scheduleSubtitle || ''}
+                onChange={(e) => setSigs({ ...sigs, scheduleSubtitle: e.target.value })}
+                placeholder="добового чергування на ... (автоматично з дат тижня)"
+              />
+              <small className="text-muted">Якщо порожньо — автоматично з дат поточного тижня</small>
+            </div>
+            <div className="mb-3">
+              <label className="small text-muted">Додатковий рядок (2 рядок)</label>
+              <input
+                className="form-control form-control-sm"
+                value={sigs.scheduleLine3 || ''}
+                onChange={(e) => setSigs({ ...sigs, scheduleLine3: e.target.value })}
+                placeholder="Наприклад: в/ч А1234 на період з ... по ..."
+              />
+              <small className="text-muted">Додатковий рядок під підзаголовком (необов'язково)</small>
             </div>
           </div>
         </div>

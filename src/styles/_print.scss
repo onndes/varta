@@ -1,4 +1,5 @@
 // 5. PRINT STYLES
+// print or screen
 @media print {
   @page {
     size: A4 landscape;
@@ -70,7 +71,7 @@
   }
 
   .print-approval-block {
-    width: 280px;
+    width: 320px;
     text-align: left;
     font-size: 11pt;
     line-height: 1.6;
@@ -83,7 +84,16 @@
   }
 
   .approval-text {
+    font-size: 10pt;
+    word-wrap: break-word;
+    max-width: 100%;
+  }
+
+  .approval-filled-row {
+    display: flex;
+    align-items: baseline;
     font-size: 11pt;
+    white-space: nowrap;
   }
 
   .approval-name-row {
@@ -99,34 +109,40 @@
   }
 
   .approval-line-empty {
-    border-bottom: 1px solid #000;
-    height: 18px;
+    border-bottom: 0.5px solid #000;
+    height: 24px;
   }
 
   .approval-line-short {
-    border-bottom: 1px solid #000;
+    border-bottom: 0.5px solid #000;
     width: 120px;
     display: inline-block;
     height: 14px;
   }
 
   .signature-line {
-    border-bottom: 1px solid #000;
+    border-bottom: 0.5px solid #000;
     flex-grow: 1;
     min-width: 60px;
     height: 14px;
   }
 
   .approval-date-row {
-    margin-top: 4px;
+    margin-top: 10px;
     font-size: 10pt;
+    display: flex;
+    align-items: center;
   }
 
   .approval-date-line {
-    border-bottom: 1px solid #000;
+    border-bottom: 0.5px solid #000;
     width: 100px;
     display: inline-block;
     height: 14px;
+  }
+
+  .print-title-spacer {
+    height: 90px;
   }
 
   .print-title {
@@ -144,7 +160,7 @@
 
   // ===== PRINT FOOTER =====
   .print-footer-container {
-    margin-top: 10px;
+    margin-top: 40px;
     width: 100%;
     page-break-inside: avoid;
   }
@@ -159,10 +175,24 @@
     margin-bottom: 4px;
   }
 
+  .creator-pos {
+    font-size: 10pt;
+    margin-bottom: 2px;
+    word-wrap: break-word;
+    max-width: 400px;
+  }
+
+  .creator-filled-row {
+    display: flex;
+    align-items: baseline;
+    font-size: 11pt;
+    white-space: nowrap;
+  }
+
   .creator-row {
     display: flex;
     align-items: flex-end;
-    gap: 20px;
+    gap: 40px;
     width: 450px;
   }
 
@@ -176,61 +206,26 @@
   }
 
   .creator-line-short {
-    border-bottom: 1px solid #000;
+    border-bottom: 0.5px solid #000;
     width: 120px;
     display: inline-block;
     height: 14px;
   }
 
-  // ===== Calendar mode =====
-  .show-print-calendar {
-    .view-table {
-      display: none !important;
-    }
-    .view-calendar {
-      display: flex !important;
-      flex-direction: column;
-    }
+  .creator-line-empty {
+    border-bottom: 0.5px solid #000;
+    height: 24px;
+    width: 300px;
   }
 
-  // ===== Table mode =====
-  .show-print-table {
-    .view-calendar {
-      display: none !important;
-    }
-    .view-table {
-      display: block !important;
+  // Hide table completely in print, show only calendar
+  .view-table {
+    display: none !important;
+  }
 
-      .card {
-        box-shadow: none !important;
-        border: none !important;
-      }
-
-      .compact-table {
-        font-size: 9pt;
-        border-collapse: collapse;
-        width: 100%;
-
-        th, td {
-          border: 1px solid #000 !important;
-          padding: 3px 5px;
-          height: auto;
-        }
-
-        th {
-          background-color: #e8e8e8 !important;
-          font-weight: bold;
-          font-size: 9pt;
-        }
-
-        .compact-cell.assigned,
-        .compact-cell.assigned-future {
-          background-color: #d4edda !important;
-          border: 1px solid #000 !important;
-          font-weight: bold;
-        }
-      }
-    }
+  .view-calendar {
+    display: flex !important;
+    flex-direction: column;
   }
 
   // ===== Calendar grid =====
@@ -250,7 +245,7 @@
 
   .print-cal-cell {
     padding: 4px;
-    border-bottom: 1px solid #000;
+    border-bottom: 0.5px solid #000;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -258,7 +253,7 @@
   }
 
   .print-cal-header {
-    border-bottom: 1px solid #000;
+    border-bottom: 0.5px solid #000;
     width: 100%;
     display: flex;
     justify-content: space-between;
@@ -275,6 +270,13 @@
     text-align: center;
     font-weight: bold;
     font-size: 11pt;
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  .print-cal-fio {
+    margin-bottom: 3px;
+    line-height: 1.2;
   }
 
   .weekend-bg {
