@@ -34,7 +34,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   dayWeights,
   cascadeStartDate,
   updateCascadeTrigger,
-  signatories: _signatories,
+  signatories: _signatories, // eslint-disable-line @typescript-eslint/no-unused-vars
 }) => {
   const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
   const { fillGaps, recalculateFrom } = useAutoScheduler(users, schedule, dayWeights);
