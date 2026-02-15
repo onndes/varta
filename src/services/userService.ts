@@ -24,7 +24,7 @@ export const getUserById = async (id: number): Promise<User | undefined> => {
 /**
  * Create new user
  */
-export const createUser = async (user: Omit<User, 'id'>): Promise<number> => {
+export const createUser = async (user: Omit<User, 'id'>): Promise<number | undefined> => {
   return await db.users.add(user);
 };
 

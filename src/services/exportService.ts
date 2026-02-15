@@ -14,22 +14,25 @@ export interface ExportData {
   users: unknown[];
   schedule: unknown[];
   auditLog: unknown[];
-  dayWeights: { key: string; value: DayWeights } | undefined;
-  signatories: { key: string; value: Signatories } | undefined;
+  dayWeights?: { key: string; value: DayWeights };
+  signatories?: { key: string; value: Signatories };
 }
 
 /**
  * Export all data to JSON
  */
 export const exportData = async (): Promise<ExportData> => {
+  const dayWeightsRec = await db.appState.get('dayWeights');
+  const signatoriesRec = await db.appState.get('signatories');
+
   const data: ExportData = {
     version: 6,
     timestamp: new Date().toISOString(),
     users: await db.users.toArray(),
     schedule: await db.schedule.toArray(),
     auditLog: await db.auditLog.toArray(),
-    dayWeights: await db.appState.get('dayWeights'),
-    signatories: await db.appState.get('signatories'),
+    dayWeights: dayWeightsRec as { key: string; value: DayWeights } | undefined,
+    signatories: signatoriesRec as { key: string; value: Signatories } | undefined,
   };
 
   return data;

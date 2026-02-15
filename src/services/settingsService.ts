@@ -77,7 +77,10 @@ export const clearCascadeTrigger = async (): Promise<void> => {
 /**
  * Get app setting by key
  */
-export const getAppSetting = async <T>(key: string, defaultValue: T): Promise<T> => {
+export const getAppSetting = async <T extends DayWeights | Signatories | string | number | boolean | null>(
+  key: string,
+  defaultValue: T
+): Promise<T> => {
   const record = await db.appState.get(key);
   return record ? (record.value as T) : defaultValue;
 };
@@ -85,7 +88,10 @@ export const getAppSetting = async <T>(key: string, defaultValue: T): Promise<T>
 /**
  * Save app setting
  */
-export const saveAppSetting = async <T>(key: string, value: T): Promise<void> => {
+export const saveAppSetting = async (
+  key: string,
+  value: DayWeights | Signatories | string | number | boolean | null
+): Promise<void> => {
   await db.appState.put({ key, value });
 };
 

@@ -119,7 +119,7 @@ export const autoFillSchedule = async (
 /**
  * Save auto-generated schedule and update owed days
  */
-export const saveAutoSchedule = async (entries: ScheduleEntry[], users: User[]): Promise<void> => {
+export const saveAutoSchedule = async (entries: ScheduleEntry[]): Promise<void> => {
   await db.transaction('rw', db.schedule, db.users, async () => {
     for (const entry of entries) {
       await db.schedule.put(entry);
@@ -204,7 +204,7 @@ export const recalculateScheduleFrom = async (
 
   // Regenerate
   const updates = await autoFillSchedule(datesToRegen, users, schedule, dayWeights);
-  await saveAutoSchedule(updates, users);
+  await saveAutoSchedule(updates);
 };
 
 /**

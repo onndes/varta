@@ -2,7 +2,6 @@
 
 import { db } from '../db/db';
 import type { ScheduleEntry, DayWeights, User } from '../types';
-import { toLocalISO } from '../utils/dateUtils';
 
 /**
  * Service for managing schedule
