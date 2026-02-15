@@ -1,0 +1,87 @@
+@import './variables';
+
+// Week Navigator
+.week-nav-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: $light-color;
+  border-radius: $border-radius;
+  justify-content: center;
+}
+
+.week-square {
+  width: 24px;
+  height: 24px;
+  background-color: white;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-size-sm;
+  color: $gray-600;
+  position: relative;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: $primary-color;
+    transform: scale(1.1);
+    z-index: 10;
+    color: $primary-color;
+  }
+
+  &.current {
+    background-color: $primary-color;
+    border-color: $primary-color;
+    color: white;
+  }
+
+  &.past {
+    background-color: $gray-200;
+    color: $gray-500;
+  }
+
+  &.selected {
+    border: 2px solid black;
+    font-weight: bold;
+  }
+
+  &.has-schedule:not(.current) {
+    background-color: #e8f5e9;
+    border-color: $success-color;
+    color: $success-color;
+  }
+
+  .week-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: $border-radius-sm;
+    white-space: nowrap;
+    z-index: 20;
+    pointer-events: none;
+    font-size: 0.7rem;
+  }
+
+  &:hover .week-tooltip {
+    display: block;
+  }
+}
+
+// Schedule view specific
+.view-calendar {
+  display: block;
+}
+
+.view-table {
+  display: none;
+}

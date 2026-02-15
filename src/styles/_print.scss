@@ -1,0 +1,50 @@
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .main-container {
+    box-shadow: none;
+    max-width: 100%;
+  }
+
+  body {
+    background: white;
+  }
+
+  .print-footer-container {
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    padding: 0 30px;
+  }
+
+  // Print mode toggles
+  .show-print-calendar {
+    .view-calendar {
+      display: block !important;
+    }
+    .view-table {
+      display: none !important;
+    }
+  }
+
+  .show-print-table {
+    .view-calendar {
+      display: none !important;
+    }
+    .view-table {
+      display: block !important;
+    }
+  }
+}
+
+// Print footer (visible only on print)
+.print-footer-container {
+  display: none;
+}

@@ -1,0 +1,59 @@
+@import './variables';
+
+// Buttons
+.btn-export-dirty {
+  animation: pulse 2s cubic-bez-ier(0.4, 0, 0.6, 1) infinite;
+}
+
+.btn-recalc {
+  animation: glow 1.5s ease-in-out infinite;
+}
+
+// Badges
+.rank-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background-color: $gray-200;
+  border-radius: $border-radius-sm;
+  font-size: $font-size-sm;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: $gray-700;
+}
+
+// Tables
+.compact-table {
+  width: 100%;
+  font-size: 0.9rem;
+
+  th {
+    background-color: $light-color;
+    font-weight: 600;
+    border-bottom: 2px solid $border-color;
+    padding: 8px;
+  }
+
+  td {
+    padding: 6px 8px;
+    border-bottom: 1px solid $gray-200;
+  }
+}
+
+.compact-cell {
+  padding: 4px 6px !important;
+  font-size: 0.85rem;
+}
+
+.user-row-inactive {
+  opacity: 0.5;
+  background-color: $gray-100;
+}
+
+// Modal overrides
+.modal-content {
+  border-radius: $border-radius;
+}
+
+.modal-header {
+  border-bottom: 2px solid $gray-200;
+}
