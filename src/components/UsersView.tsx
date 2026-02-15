@@ -260,9 +260,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                     type="checkbox"
                     style={{ width: '3em', height: '1.5em' }}
                     checked={editingUser.isActive}
-                    onChange={(e) =>
-                      setEditingUser({ ...editingUser, status: e.target.value as User['status'] })
-                    }
+                    onChange={(e) => setEditingUser({ ...editingUser, isActive: e.target.checked })}
                   />
                 </div>
               </div>
