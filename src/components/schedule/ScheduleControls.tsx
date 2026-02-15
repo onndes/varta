@@ -1,0 +1,88 @@
+import React from 'react';
+
+interface ScheduleControlsProps {
+  weekDates: string[];
+  cascadeStartDate: string | null;
+  conflictsCount: number;
+  onPrevWeek: () => void;
+  onNextWeek: () => void;
+  onToday: () => void;
+  onDatePick: (date: string) => void;
+  onFillGaps: () => void;
+  onFixConflicts: () => void;
+  onAutoSchedule: () => void;
+  onCascadeRecalc: () => void;
+}
+
+/**
+ * Schedule Controls Component
+ * Navigation and automation buttons
+ */
+const ScheduleControls: React.FC<ScheduleControlsProps> = ({
+  weekDates,
+  cascadeStartDate,
+  conflictsCount,
+  onPrevWeek,
+  onNextWeek,
+  onToday,
+  onDatePick,
+  onFillGaps,
+  onFixConflicts,
+  onAutoSchedule,
+  onCascadeRecalc,
+}) => {
+  const startDate = new Date(weekDates[0]);
+  const endDate = new Date(weekDates[6]);
+
+  return (
+    <div className="card border-0 shadow-sm p-3 mb-3 no-print">
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <div className="d-flex align-items-center gap-2">
+          <button className="btn btn-outline-secondary btn-sm" onClick={onPrevWeek}>
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          <button className="btn btn-outline-secondary btn-sm" onClick={onNextWeek}>
+            <i className="fas fa-chevron-right"></i>
+          </button>
+          <button className="btn btn-light btn-sm ms-2" onClick={onToday}>
+            Поточний тиждень
+          </button>
+          <input
+            type="date"
+            className="form-control form-control-sm ms-2"
+            style={{ width: '130px' }}
+            onChange={(e) => onDatePick(e.target.value)}
+            value={weekDates[0]}
+          />
+        </div>
+        <div className="fw-bold fs-5">
+          {startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} —{' '}
+          {endDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </div>
+      </div>
+
+      <div className="d-flex justify-content-end gap-2 flex-wrap">
+        {cascadeStartDate && (
+          <button className="btn btn-sm btn-recalc" onClick={onCascadeRecalc}>
+            <i className="fas fa-sync-alt me-2"></i>
+            ПЕРЕРАХУВАТИ (Зміни з {cascadeStartDate})
+          </button>
+        )}
+        {conflictsCount > 0 && (
+          <button className="btn btn-sm btn-danger" onClick={onFixConflicts}>
+            <i className="fas fa-exclamation-triangle me-2"></i>
+            ВИПРАВИТИ ({conflictsCount})
+          </button>
+        )}
+        <button className="btn btn-sm btn-outline-primary" onClick={onFillGaps}>
+          <i className="fas fa-fill-drip me-2"></i>Заповнити
+        </button>
+        <button className="btn btn-sm btn-primary" onClick={onAutoSchedule}>
+          <i className="fas fa-magic me-2"></i>Генерація
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default ScheduleControls;
