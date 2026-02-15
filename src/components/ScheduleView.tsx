@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { User, ScheduleEntry, DayWeights, Signatories } from '../types';
 import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
+import { countUserDaysOfWeek, countUserAssignments } from '../services/scheduleService';
 import { useSchedule, useAutoScheduler } from '../hooks';
 import Modal from './Modal';
 import WeekNavigator from './schedule/WeekNavigator';
@@ -113,10 +114,22 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return users
       .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
       .sort((a, b) => {
+        // Priority 1: Owed days for this day of week
         const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
         const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
         if (oweA !== oweB) return oweB - oweA;
 
+        // Priority 2: Day-of-week balance ("ladder")
+        const dowA = countUserDaysOfWeek(a.id!, schedule)[dayIndex] || 0;
+        const dowB = countUserDaysOfWeek(b.id!, schedule)[dayIndex] || 0;
+        if (dowA !== dowB) return dowA - dowB;
+
+        // Priority 3: Total assignments
+        const totalA = countUserAssignments(a.id!, schedule);
+        const totalB = countUserAssignments(b.id!, schedule);
+        if (totalA !== totalB) return totalA - totalB;
+
+        // Priority 4: Effective load (weighted + debt)
         const loadA = calculateEffectiveLoad(a);
         const loadB = calculateEffectiveLoad(b);
         return loadA - loadB;
@@ -168,8 +181,21 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     await refreshData();
   };
 
+  const isOnRestDay = (userId: number, dateStr: string): boolean => {
+    const prevDate = new Date(dateStr);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const prevEntry = schedule[toLocalISO(prevDate)];
+    return prevEntry?.userId === userId;
+  };
+
   const handleAssign = async (userId: number | undefined) => {
     if (!userId || !selectedCell) return;
+
+    if (isOnRestDay(userId, selectedCell.date)) {
+      if (!confirm('⚠️ Цей боєць вчора був на чергуванні (відсипний день). Все одно призначити?')) {
+        return;
+      }
+    }
 
     await assignUser(selectedCell.date, userId, true);
     await updateCascadeTrigger(selectedCell.date);
@@ -177,7 +203,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const u = users.find((user) => user.id === userId);
     const dayIdx = new Date(selectedCell.date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
-    if (u) await logAction('MANUAL', `${u.name} (Баланс +${weight})`);
+    if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
 
     setSelectedCell(null);
     await refreshData();
@@ -195,7 +221,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const u = users.find((user) => user.id === entry.userId);
     if (u) {
       if (reason === 'request') {
-        await logAction('REMOVE', `${u.name} рапорт (Баланс -${weight})`);
+        await logAction('REMOVE', `${u.name} рапорт (Карма -${weight})`);
       } else {
         await logAction('REMOVE', `Службова`);
       }
@@ -262,33 +288,35 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                 {swapMode === 'replace' && (
                   <div className="list-group" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                     {getFreeUsers(selectedCell.date).map((u) => (
-                      <button key={u.id} className="list-group-item list-group-item-action d-flex justify-content-between align-items-center" onClick={() => handleAssign(u.id)}>
+                      <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
                         <div>
                           <span className="fw-bold">{u.name}</span>
+                          {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
                           <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
                         </div>
-                        <span className={u.debt > 0 ? 'text-success' : u.debt < 0 ? 'text-danger' : 'text-muted'}>Баланс: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
+                        <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
                       </button>
                     ))}
                   </div>
                 )}
                 {swapMode === 'remove' && (
                   <div className="d-grid gap-2">
-                    <button className="btn btn-outline-danger" onClick={() => handleRemove('request')}>За рапортом (Баланс МІНУС)</button>
+                    <button className="btn btn-outline-danger" onClick={() => handleRemove('request')}>За рапортом (Карма МІНУС)</button>
                     <div className="small text-muted text-center">Боєць буде "винен" системі.</div>
-                    <button className="btn btn-outline-secondary" onClick={() => handleRemove('work')}>Службова (Баланс 0)</button>
+                    <button className="btn btn-outline-secondary" onClick={() => handleRemove('work')}>Службова (Карма 0)</button>
                   </div>
                 )}
               </div>
             ) : (
               <div className="list-group" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                 {getFreeUsers(selectedCell.date).map((u) => (
-                  <button key={u.id} className="list-group-item list-group-item-action d-flex justify-content-between align-items-center" onClick={() => handleAssign(u.id)}>
+                  <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
                     <div>
                       <span className="fw-bold">{u.name}</span>
+                      {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
                       <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
                     </div>
-                    <span className={u.debt > 0 ? 'text-success' : u.debt < 0 ? 'text-danger' : 'text-muted'}>Баланс: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
+                    <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
                   </button>
                 ))}
               </div>

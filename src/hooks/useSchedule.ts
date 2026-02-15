@@ -53,7 +53,7 @@ export const useSchedule = (users: User[]) => {
         if (user) {
           const dayIdx = new Date(date).getDay();
           const weight = dayWeights[dayIdx] || 1.0;
-          await auditService.logAction('ASSIGN', `${user.name} на ${date} (Баланс +${weight})`);
+          await auditService.logAction('ASSIGN', `${user.name} на ${date} (Карма +${weight})`);
         }
 
         await loadSchedule();
@@ -72,17 +72,18 @@ export const useSchedule = (users: User[]) => {
         const entry = await scheduleService.getScheduleByDate(date);
         if (!entry || !entry.userId) return;
 
-        await scheduleService.deleteScheduleEntry(date);
-
         const user = users.find((u) => u.id === entry.userId);
+
+        await scheduleService.removeAssignmentWithDebt(date, reason, dayWeights);
+
         if (user) {
           const dayIdx = new Date(date).getDay();
           const weight = dayWeights[dayIdx] || 1.0;
 
           if (reason === 'request') {
-            await auditService.logAction('REMOVE', `${user.name} рапорт (Баланс -${weight})`);
+            await auditService.logAction('REMOVE', `${user.name} рапорт (Карма -${weight})`);
           } else {
-            await auditService.logAction('REMOVE', 'Службова');
+            await auditService.logAction('REMOVE', `${user.name} службова (Карма 0)`);
           }
         }
 

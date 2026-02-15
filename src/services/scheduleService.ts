@@ -1,7 +1,8 @@
 // src/services/scheduleService.ts
 
 import { db } from '../db/db';
-import type { ScheduleEntry, DayWeights, User } from '../types';
+import type { ScheduleEntry, User, DayWeights } from '../types';
+import * as userService from './userService';
 
 /**
  * Service for managing schedule
@@ -35,6 +36,28 @@ export const saveScheduleEntry = async (entry: ScheduleEntry): Promise<string> =
  * Delete schedule entry
  */
 export const deleteScheduleEntry = async (date: string): Promise<void> => {
+  await db.schedule.delete(date);
+};
+
+/**
+ * Remove assignment with optional karma handling.
+ * reason='request' → karma decreases by day weight (soldier asked to be removed — owes system)
+ * reason='work' → no karma change (official reason)
+ */
+export const removeAssignmentWithDebt = async (
+  date: string,
+  reason: 'request' | 'work',
+  dayWeights: DayWeights
+): Promise<void> => {
+  const entry = await db.schedule.get(date);
+  if (!entry || !entry.userId) return;
+
+  if (reason === 'request') {
+    const dayIdx = new Date(date).getDay();
+    const weight = dayWeights[dayIdx] || 1.0;
+    await userService.updateUserDebt(entry.userId, -weight); // karma goes negative
+  }
+
   await db.schedule.delete(date);
 };
 
@@ -86,6 +109,33 @@ export const calculateUserLoad = (
     load += dayWeights[day] || 1.0;
   });
   return load;
+};
+
+/**
+ * Count how many times a user is assigned to each day of the week
+ */
+export const countUserDaysOfWeek = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>
+): Record<number, number> => {
+  const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  Object.values(schedule).forEach((s) => {
+    if (s.userId === userId) {
+      const day = new Date(s.date).getDay();
+      counts[day]++;
+    }
+  });
+  return counts;
+};
+
+/**
+ * Count total assignments for a user
+ */
+export const countUserAssignments = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>
+): number => {
+  return Object.values(schedule).filter((s) => s.userId === userId).length;
 };
 
 /**

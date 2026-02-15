@@ -2,6 +2,7 @@
 
 import { db } from '../db/db';
 import type { User } from '../types';
+import { MAX_DEBT } from '../utils/constants';
 
 /**
  * Service for managing users
@@ -50,12 +51,15 @@ export const resetUserDebt = async (id: number): Promise<void> => {
 };
 
 /**
- * Update user debt
+ * Update user debt/karma (capped at -MAX_DEBT..0 range for negative, uncapped for positive)
+ * Negative = soldier owes system (was removed by request)
+ * Positive = soldier helped out (manually assigned to harder day)
  */
 export const updateUserDebt = async (id: number, amount: number): Promise<void> => {
   const user = await db.users.get(id);
   if (user) {
-    const newDebt = Number(((user.debt || 0) + amount).toFixed(2));
+    const rawDebt = Number(((user.debt || 0) + amount).toFixed(2));
+    const newDebt = Math.max(-MAX_DEBT, rawDebt);
     await db.users.update(id, { debt: newDebt });
   }
 };

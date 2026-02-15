@@ -40,7 +40,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
             <tr>
               <th>Боєць</th>
               <th>Фактичне навантаження (бали)</th>
-              <th>Баланс (Карма)</th>
+              <th>Карма</th>
               <th>Рейтинг (для черги)</th>
             </tr>
           </thead>
@@ -54,10 +54,10 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                 <td>{u.realLoad.toFixed(1)}</td>
                 <td
                   className={
-                    u.balance > 0
-                      ? 'text-success fw-bold'
-                      : u.balance < 0
-                        ? 'text-danger fw-bold'
+                    u.balance < 0
+                      ? 'text-danger fw-bold'
+                      : u.balance > 0
+                        ? 'text-success fw-bold'
                         : ''
                   }
                 >
@@ -75,11 +75,11 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
             <strong>Фактичне навантаження</strong>: Сума балів за всі відпрацьовані наряди.
           </li>
           <li>
-            <strong>Баланс (Карма)</strong>: Плюс (+) коли виручив (поставили вручну). Мінус (-)
-            коли знявся за рапортом.
+            <strong>Карма</strong>: Мінус (-) коли знявся з наряду за рапортом (винен системі). Плюс (+)
+            коли виручив (поставили вручну на важчий день).
           </li>
           <li>
-            <strong>Рейтинг</strong>: Фактичне + Баланс. Чим менше це число, тим швидше система
+            <strong>Рейтинг</strong>: Фактичне + Карма. Чим менше це число, тим швидше система
             призначить наряд.
           </li>
         </ul>

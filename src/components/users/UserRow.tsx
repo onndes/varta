@@ -50,9 +50,8 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         </div>
       </td>
       <td>
-        <span className={u.debt > 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}>
-          {u.debt > 0 ? '+' : ''}
-          {u.debt.toFixed(1)}
+        <span className={u.debt < 0 ? 'text-danger fw-bold' : u.debt > 0 ? 'text-success fw-bold' : 'text-muted fw-bold'}>
+          {u.debt > 0 ? '+' : ''}{u.debt.toFixed(1)}
         </span>
       </td>
       <td className="text-end">

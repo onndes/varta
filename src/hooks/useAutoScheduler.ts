@@ -39,7 +39,7 @@ export const useAutoScheduler = (
           dayWeights
         );
 
-        await autoScheduler.saveAutoSchedule(updates);
+        await autoScheduler.saveAutoSchedule(updates, dayWeights);
         await auditService.logAction('AUTO_FILL', `Заповнено ${updates.length} записів`);
 
         if (onComplete) onComplete();
@@ -130,7 +130,7 @@ export const useAutoScheduler = (
           }
         );
 
-        await autoScheduler.saveAutoSchedule(updates);
+        await autoScheduler.saveAutoSchedule(updates, dayWeights);
         await auditService.logAction('AUTO_GEN', `Згенеровано тиждень (${validDates.length} днів)`);
 
         if (onComplete) onComplete();

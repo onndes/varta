@@ -4,7 +4,7 @@ import { db } from '../db/db';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
 import { isUserAvailable } from './userService';
-import { calculateUserLoad } from './scheduleService';
+import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
 
 /**
  * Service for automatic schedule generation
@@ -58,42 +58,57 @@ export const autoFillSchedule = async (
     const weight = dayWeights[dayIdx] || 1.0;
 
     // Get available users
-    const pool = users.filter((u) => u.isActive && isUserAvailable(u, dateStr));
+    let pool = users.filter((u) => u.isActive && isUserAvailable(u, dateStr));
 
-    // Sort by priority
+    // Sort by priority (ladder + fairness algorithm)
     pool.sort((a, b) => {
       if (!a.id || !b.id) return 0;
 
-      // Priority 1: Owed Days (debt for specific day)
+      // Priority 1: Owed Days (debt for specific day of week)
       if (options.respectOwedDays) {
         const oweA = (a.owedDays && a.owedDays[dayIdx]) || 0;
         const oweB = (b.owedDays && b.owedDays[dayIdx]) || 0;
         if (oweA !== oweB) return oweB - oweA;
       }
 
-      // Priority 2: Total load + karma
       if (options.considerLoad) {
-        const loadA = calculateUserLoad(a.id, tempSchedule, dayWeights) + tempLoadOffset[a.id];
-        const loadB = calculateUserLoad(b.id, tempSchedule, dayWeights) + tempLoadOffset[b.id];
+        // Priority 2: Day-of-week balance ("ladder" principle)
+        // Prefer user who has fewer assignments on THIS specific day of week
+        const dowA = countUserDaysOfWeek(a.id, tempSchedule)[dayIdx] || 0;
+        const dowB = countUserDaysOfWeek(b.id, tempSchedule)[dayIdx] || 0;
+        if (dowA !== dowB) return dowA - dowB;
+
+        // Priority 3: Total assignment count (overall fairness)
+        const totalA = countUserAssignments(a.id, tempSchedule) + tempLoadOffset[a.id];
+        const totalB = countUserAssignments(b.id, tempSchedule) + tempLoadOffset[b.id];
+        if (totalA !== totalB) return totalA - totalB;
+
+        // Priority 4: Weighted load + debt (fine-grained balance)
+        const loadA = calculateUserLoad(a.id, tempSchedule, dayWeights) + tempLoadOffset[a.id] + (a.debt || 0);
+        const loadB = calculateUserLoad(b.id, tempSchedule, dayWeights) + tempLoadOffset[b.id] + (b.debt || 0);
         return loadA - loadB;
       }
 
       return 0;
     });
 
-    // Avoid consecutive days if enabled
-    let selected = pool[0];
-    if (options.avoidConsecutiveDays && selected) {
+    // Avoid consecutive days: filter out users who were on duty yesterday (rest day)
+    if (options.avoidConsecutiveDays) {
       const prevDate = new Date(dateStr);
       prevDate.setDate(prevDate.getDate() - 1);
-      const prevUser = tempSchedule[toLocalISO(prevDate)]?.userId;
+      const prevUserId = tempSchedule[toLocalISO(prevDate)]?.userId;
 
-      if (selected.id === prevUser && pool.length > 1) {
-        selected = pool[1];
+      if (prevUserId) {
+        const filtered = pool.filter((u) => u.id !== prevUserId);
+        // Only use filtered list if it's not empty (avoid leaving day unassigned)
+        if (filtered.length > 0) {
+          pool = filtered;
+        }
       }
     }
 
-    // Assign selected user
+    // Assign selected user (best from filtered pool)
+    const selected = pool[0];
     if (selected && selected.id) {
       const entry: ScheduleEntry = {
         date: dateStr,
@@ -117,21 +132,34 @@ export const autoFillSchedule = async (
 };
 
 /**
- * Save auto-generated schedule and update owed days
+ * Save auto-generated schedule and update owed days + reduce debt
  */
-export const saveAutoSchedule = async (entries: ScheduleEntry[]): Promise<void> => {
+export const saveAutoSchedule = async (
+  entries: ScheduleEntry[],
+  dayWeights: DayWeights
+): Promise<void> => {
   await db.transaction('rw', db.schedule, db.users, async () => {
     for (const entry of entries) {
       await db.schedule.put(entry);
 
-      // Update owed days if user was assigned
       if (entry.userId) {
         const user = await db.users.get(entry.userId);
+        if (!user) continue;
+
         const dayIdx = new Date(entry.date).getDay();
 
-        if (user && user.owedDays && user.owedDays[dayIdx] > 0) {
+        // Reduce owedDays for specific day
+        if (user.owedDays && user.owedDays[dayIdx] > 0) {
           user.owedDays[dayIdx]--;
           await db.users.update(user.id!, { owedDays: user.owedDays });
+        }
+
+        // Restore karma towards 0 when auto-assigned (compensate previous removals)
+        if (user.debt < 0) {
+          const weight = dayWeights[dayIdx] || 1.0;
+          const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+          await db.users.update(user.id!, { debt: newDebt });
+          await db.users.update(user.id!, { debt: newDebt });
         }
       }
     }
@@ -153,7 +181,7 @@ export const getFreeUsersForDate = (
   // Get IDs of users already assigned this week
   const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
 
-  // Filter available users and sort by priority
+  // Filter available users and sort by priority (ladder + fairness)
   return users
     .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
     .sort((a, b) => {
@@ -162,7 +190,17 @@ export const getFreeUsersForDate = (
       const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
       if (oweA !== oweB) return oweB - oweA;
 
-      // Priority 2: Effective load
+      // Priority 2: Day-of-week balance ("ladder")
+      const dowA = countUserDaysOfWeek(a.id!, schedule)[dayIndex] || 0;
+      const dowB = countUserDaysOfWeek(b.id!, schedule)[dayIndex] || 0;
+      if (dowA !== dowB) return dowA - dowB;
+
+      // Priority 3: Total assignments
+      const totalA = countUserAssignments(a.id!, schedule);
+      const totalB = countUserAssignments(b.id!, schedule);
+      if (totalA !== totalB) return totalA - totalB;
+
+      // Priority 4: Effective load
       const loadA = calculateUserLoad(a.id!, schedule, dayWeights) + (a.debt || 0);
       const loadB = calculateUserLoad(b.id!, schedule, dayWeights) + (b.debt || 0);
       return loadA - loadB;
@@ -204,7 +242,7 @@ export const recalculateScheduleFrom = async (
 
   // Regenerate
   const updates = await autoFillSchedule(datesToRegen, users, schedule, dayWeights);
-  await saveAutoSchedule(updates);
+  await saveAutoSchedule(updates, dayWeights);
 };
 
 /**
@@ -221,13 +259,23 @@ export const calculateOptimalAssignment = (
 
   if (available.length === 0) return null;
 
-  // Sort by priority
+  // Sort by priority (ladder + fairness)
   available.sort((a, b) => {
     if (!a.id || !b.id) return 0;
 
     const oweA = (a.owedDays && a.owedDays[dayIdx]) || 0;
     const oweB = (b.owedDays && b.owedDays[dayIdx]) || 0;
     if (oweA !== oweB) return oweB - oweA;
+
+    // Day-of-week balance
+    const dowA = countUserDaysOfWeek(a.id, schedule)[dayIdx] || 0;
+    const dowB = countUserDaysOfWeek(b.id, schedule)[dayIdx] || 0;
+    if (dowA !== dowB) return dowA - dowB;
+
+    // Total assignments
+    const totalA = countUserAssignments(a.id, schedule);
+    const totalB = countUserAssignments(b.id, schedule);
+    if (totalA !== totalB) return totalA - totalB;
 
     const loadA = calculateUserLoad(a.id, schedule, dayWeights) + (a.debt || 0);
     const loadB = calculateUserLoad(b.id, schedule, dayWeights) + (b.debt || 0);

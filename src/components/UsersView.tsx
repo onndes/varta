@@ -77,7 +77,7 @@ const UsersView: React.FC<UsersViewProps> = ({
   };
 
   const handleResetDebt = async (u: User) => {
-    if (!u.id || !confirm('Скинути баланс (карму) в 0?')) return;
+    if (!u.id || !confirm('Скинути карму в 0?')) return;
     await resetUserDebt(u.id);
     await refreshData();
   };
@@ -95,7 +95,7 @@ const UsersView: React.FC<UsersViewProps> = ({
               <tr>
                 <th>Боєць</th>
                 <th>Статус</th>
-                <th>Баланс</th>
+                <th>Карма</th>
                 <th className="text-end">Дії</th>
               </tr>
             </thead>
