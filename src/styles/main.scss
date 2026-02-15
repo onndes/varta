@@ -1,12 +1,412 @@
-// External libraries
+// 1. IMPORTS
 @import 'bootstrap/dist/css/bootstrap.min.css';
 @import '@fortawesome/fontawesome-free/css/all.css';
 
-// Project modules
-@import './variables';
-@import './global';
-@import './layout';
-@import './components';
-@import './schedule';
-@import './animations';
-@import './print';
+// 2. GLOBAL RESET
+html {
+  /* Убираем жесткую высоту, чтобы работал скролл */
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f8f9fa;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Для корректной печати */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  overflow-x: hidden; /* Только горизонтальный скролл убираем */
+}
+
+/* Сбрасываем #root в обычный блок */
+#root {
+  min-height: 100vh;
+  width: 100%;
+  /* display: flex; <--- УБРАЛИ ЭТО, оно ломало верстку */
+}
+
+/* 3. MAIN CONTAINER */
+.main-container {
+  /* Центрирование классическим способом */
+  margin: 0 auto;
+  max-width: 1400px;
+  width: 100%;
+  background: white;
+  min-height: 100vh;
+
+  /* Внутренняя структура */
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+  position: relative; /* На всякий случай */
+}
+
+/* Хедер */
+.header-simple {
+  background-color: #fff;
+  border-bottom: 1px solid #dee2e6;
+  padding: 20px 30px;
+  /* Гарантируем, что хедер не сожмется */
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 101; /* Поверх всего */
+}
+
+/* Контент */
+.px-4 {
+  /* Растягиваем контент на всю оставшуюся высоту */
+  flex: 1 0 auto;
+  padding-bottom: 50px; /* Отступ снизу */
+}
+
+/* 4. COMPONENTS */
+
+/* Week Navigator */
+.week-nav-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  justify-content: center;
+}
+
+.week-square {
+  width: 24px;
+  height: 24px;
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #6c757d;
+  position: relative;
+
+  &:hover {
+    border-color: #0d6efd;
+    transform: scale(1.1);
+    z-index: 10;
+    color: #0d6efd;
+  }
+
+  &.current {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+  }
+
+  &.past {
+    background-color: #e9ecef;
+    color: #adb5bd;
+  }
+
+  &.selected {
+    border: 2px solid #000;
+    font-weight: bold;
+  }
+
+  &.has-schedule:not(.current) {
+    background-color: #e8f5e9;
+    border-color: #28a745;
+    color: #198754;
+  }
+
+  .week-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  &:hover .week-tooltip {
+    display: block;
+  }
+}
+
+/* Table Styles */
+.compact-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 90; /* Чуть меньше хедера */
+    background: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  th,
+  td {
+    border: 1px solid #e0e0e0;
+    padding: 4px;
+    text-align: center;
+    vertical-align: middle;
+    height: 45px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  th {
+    font-weight: 600;
+    color: #495057;
+    background-color: #f8f9fa;
+  }
+}
+
+.compact-cell {
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:hover {
+    background-color: #e3f2fd;
+  }
+
+  &.assigned {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+    font-weight: 700;
+    border: 2px solid #a5d6a7;
+  }
+
+  &.assigned-future {
+    background-color: #cff4fc;
+    color: #055160;
+    font-weight: 700;
+    border: 2px solid #9eeaf9;
+  }
+
+  &.conflict {
+    background-color: #f8d7da;
+    color: #842029;
+    font-weight: 700;
+    border: 2px solid #f5c2c7;
+    animation: pulse-border 1.5s infinite;
+  }
+
+  &.past-locked {
+    background-color: #f0f0f0;
+    color: #999;
+    cursor: not-allowed;
+  }
+
+  &.unavailable {
+    background-color: #f5f5f5;
+    color: #ccc;
+  }
+}
+
+.user-row-inactive {
+  opacity: 0.5;
+  background: #f8f9fa;
+}
+.rank-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #7f8c8d;
+  display: block;
+  line-height: 1;
+}
+
+@keyframes pulse-border {
+  0% {
+    border-color: #f5c2c7;
+  }
+  50% {
+    border-color: #dc3545;
+  }
+  100% {
+    border-color: #f5c2c7;
+  }
+}
+
+/* Animations buttons */
+.btn-export-dirty {
+  animation: pulse-red 2s infinite;
+}
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+.btn-recalc {
+  animation: pulse-orange 2s infinite;
+  background-color: #fd7e14;
+  border-color: #fd7e14;
+  color: white;
+}
+@keyframes pulse-orange {
+  0% {
+    box-shadow: 0 0 0 0 rgba(253, 126, 20, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(253, 126, 20, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(253, 126, 20, 0);
+  }
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 5. PRINT STYLES */
+@media print {
+  @page {
+    size: landscape;
+    margin: 5mm;
+  }
+  body,
+  html,
+  #root,
+  .main-container {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    display: block !important;
+    box-shadow: none !important;
+  }
+  .no-print,
+  .header-simple,
+  .view-table {
+    display: none !important;
+  }
+  .print-only,
+  .col-user-print {
+    display: block !important;
+  }
+  .col-user-screen {
+    display: none !important;
+  }
+
+  .px-4,
+  .tab-content,
+  .schedule-view-wrapper {
+    display: contents !important;
+  }
+
+  .view-calendar {
+    display: flex !important;
+    flex-direction: column;
+    height: 90vh;
+  }
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border: 2px solid #000;
+    flex-grow: 1;
+  }
+  .calendar-col {
+    border-right: 1px solid #000;
+  }
+  .calendar-col:last-child {
+    border-right: none;
+  }
+
+  .print-cal-cell {
+    padding: 5px;
+    border-bottom: 1px solid #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+  }
+  .print-cal-header {
+    border-bottom: 1px solid #000;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .print-cal-slot {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+
+  .weekend-bg {
+    background-color: #f0f0f0 !important;
+  }
+
+  .print-footer-container {
+    margin-top: 10px;
+    width: 100%;
+  }
+  .approval-container {
+    width: 350px;
+    margin-left: auto;
+    font-family: 'Times New Roman', serif;
+  }
+  .approval-title {
+    font-weight: bold;
+    text-align: left;
+  }
+  .approval-line {
+    border-bottom: 1px solid #000;
+    height: 20px;
+    margin-bottom: 5px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .approval-row-flex {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .signature-line {
+    border-bottom: 1px solid #000;
+    flex-grow: 1;
+  }
+  .approval-subtext {
+    font-size: 0.7rem;
+    text-align: center;
+    display: block;
+  }
+}
+
+.print-only,
+.col-user-print,
+.view-calendar {
+  display: none;
+}
