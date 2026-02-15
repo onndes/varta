@@ -4,12 +4,15 @@ import React, { useState } from 'react';
 import { useUsers, useSchedule, useSettings, useExport } from './hooks';
 
 // Components
+import Header from './components/Header';
+import Navigation from './components/Navigation';
+import BackupAlert from './components/BackupAlert';
+import PrintFooter from './components/PrintFooter';
 import ScheduleView from './components/ScheduleView';
 import UsersView from './components/UsersView';
 import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
-import Modal from './components/Modal';
 
 // Styles
 import './styles/main.scss';
@@ -62,7 +65,12 @@ const App = () => {
     }
   };
 
-  // Render
+  // Handle print
+  const handlePrint = () => {
+    setPrintMode('calendar');
+    setTimeout(window.print, 100);
+  };
+
   return (
     <div
       className={`main-container ${printMode === 'calendar' ? 'show-print-calendar' : 'show-print-table'}`}
@@ -73,103 +81,21 @@ const App = () => {
         </div>
       )}
 
-      <Modal
+      <BackupAlert
         show={showBackupAlert}
         onClose={() => setShowBackupAlert(false)}
-        title="УВАГА: ПОТРІБЕН БЕКАП"
-        size="modal-md"
-      >
-        <div className="text-center">
-          <div className="text-danger mb-3">
-            <i className="fas fa-exclamation-circle fa-4x"></i>
-          </div>
-          <h5>Давно не було резервного копіювання!</h5>
-          <button className="btn btn-danger btn-lg w-100 mt-3" onClick={handleExport}>
-            <i className="fas fa-file-download me-2"></i>ЕКСПОРТ
-          </button>
-        </div>
-      </Modal>
+        onExport={handleExport}
+      />
 
-      {/* HEADER */}
-      <div className="header-simple d-flex justify-content-between align-items-center no-print">
-        <div className="d-flex align-items-center">
-          <div
-            className="bg-dark text-white rounded p-2 me-3 d-flex align-items-center justify-content-center"
-            style={{ width: 45, height: 45 }}
-          >
-            <i className="fas fa-shield-alt fa-lg"></i>
-          </div>
-          <div>
-            <h4 className="m-0 fw-bold text-dark">ВАРТА-2026</h4>
-            <small className="text-muted">Система розподілу</small>
-          </div>
-        </div>
-        <div className="d-flex gap-2">
-          <label className="btn btn-outline-secondary btn-sm">
-            <i className="fas fa-upload me-1"></i>Імпорт
-            <input type="file" hidden onChange={handleImport} accept=".json" />
-          </label>
-          <button
-            className={`btn btn-sm ${needsExport ? 'btn-danger btn-export-dirty' : 'btn-outline-secondary'}`}
-            onClick={handleExport}
-          >
-            <i className="fas fa-download me-1"></i>Експорт
-          </button>
-          <button
-            className="btn btn-dark btn-sm"
-            onClick={() => {
-              setPrintMode('calendar');
-              setTimeout(window.print, 100);
-            }}
-          >
-            <i className="fas fa-print me-1"></i>Друк
-          </button>
-        </div>
-      </div>
+      <Header
+        needsExport={needsExport}
+        onImport={handleImport}
+        onExport={handleExport}
+        onPrint={handlePrint}
+      />
 
       <div className="px-4">
-        <ul className="nav nav-tabs mb-4 no-print">
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'schedule' ? 'active fw-bold' : ''}`}
-              onClick={() => setActiveTab('schedule')}
-            >
-              Графік
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'users' ? 'active fw-bold' : ''}`}
-              onClick={() => setActiveTab('users')}
-            >
-              Особовий склад
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'stats' ? 'active fw-bold' : ''}`}
-              onClick={() => setActiveTab('stats')}
-            >
-              Статистика
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'settings' ? 'active fw-bold' : ''}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              Налаштування
-            </button>
-          </li>
-          <li className="nav-item ms-auto">
-            <button
-              className={`nav-link ${activeTab === 'dev' ? 'active fw-bold text-danger' : 'text-muted'}`}
-              onClick={() => setActiveTab('dev')}
-            >
-              DEV
-            </button>
-          </li>
-        </ul>
+        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
 
         <div className="tab-content">
           {activeTab === 'schedule' && (
@@ -209,19 +135,7 @@ const App = () => {
         </div>
       </div>
 
-      {/* PRINT FOOTER */}
-      <div className="print-only print-footer-container">
-        <div className="d-flex align-items-end">
-          <div style={{ marginRight: '15px', fontWeight: 'bold', paddingBottom: '20px' }}>
-            Графік склав:
-          </div>
-          <div style={{ width: '350px' }}>
-            <div className="fw-bold text-center">{signatories.creatorRank}</div>
-            <div style={{ borderBottom: '1px solid black', width: '100%', height: '20px' }}></div>
-            <div className="fw-bold text-center">{signatories.creatorName}</div>
-          </div>
-        </div>
-      </div>
+      <PrintFooter signatories={signatories} />
     </div>
   );
 };
