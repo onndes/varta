@@ -7,6 +7,7 @@ import Modal from './Modal';
 import WeekNavigator from './schedule/WeekNavigator';
 import ScheduleControls from './schedule/ScheduleControls';
 import PrintHeader from './schedule/PrintHeader';
+import PrintFooter from './PrintFooter';
 import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
 import { isUserAvailable } from './schedule/availability.utils';
@@ -37,7 +38,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   cascadeStartDate,
   updateCascadeTrigger,
   clearCascadeTrigger,
-  signatories: _signatories, // eslint-disable-line @typescript-eslint/no-unused-vars
+  signatories,
 }) => {
   const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
   const { fillGaps, recalculateFrom } = useAutoScheduler(users, schedule, dayWeights);
@@ -297,7 +298,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onCascadeRecalc={runCascadeRecalc}
       />
 
-      <PrintHeader />
+      <PrintHeader signatories={signatories} weekDates={weekDates} />
 
       <ScheduleTable
         users={users}
@@ -311,6 +312,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       />
 
       <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
+
+      <PrintFooter signatories={signatories} />
 
       <Modal
         show={!!selectedCell}

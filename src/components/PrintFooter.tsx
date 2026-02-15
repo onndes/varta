@@ -5,11 +5,31 @@ interface PrintFooterProps {
   signatories: Signatories;
 }
 
-const PrintFooter: React.FC<PrintFooterProps> = () => {
+/**
+ * Print Footer - ЗСУ document format
+ * Shows who created the schedule
+ */
+const PrintFooter: React.FC<PrintFooterProps> = ({ signatories }) => {
+  const hasCreator = signatories.creatorRank || signatories.creatorName;
+
   return (
     <div className="print-only print-footer-container">
-      <div style={{ borderBottom: '2px solid #000', marginBottom: '15px' }}></div>
-      <div style={{ borderBottom: '1px solid #000', width: '350px', height: '15px', marginBottom: '10px' }}></div>
+      <div className="print-creator-block">
+        <div className="creator-label">Графік склав:</div>
+        {hasCreator ? (
+          <div className="creator-row">
+            <span className="creator-rank">{signatories.creatorRank || '____________'}</span>
+            <span className="signature-line"></span>
+            <span className="creator-name">{signatories.creatorName || '______________________'}</span>
+          </div>
+        ) : (
+          <div className="creator-row">
+            <span className="creator-line-short"></span>
+            <span className="signature-line"></span>
+            <span className="creator-line-short"></span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

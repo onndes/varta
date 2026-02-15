@@ -1,44 +1,64 @@
 import React from 'react';
+import type { Signatories } from '../../types';
+
+interface PrintHeaderProps {
+  signatories: Signatories;
+  weekDates: string[];
+}
 
 /**
- * Print Header Component
- * Displayed only when printing
+ * Print Header - ЗСУ document format
+ * Logo left, ЗАТВЕРДЖУЮ right, title center
  */
-const PrintHeader: React.FC = () => {
+const PrintHeader: React.FC<PrintHeaderProps> = ({ signatories, weekDates }) => {
+  const startDate = new Date(weekDates[0]);
+  const endDate = new Date(weekDates[6]);
+  const dateRange = `${startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} — ${endDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+
+  const hasApprover = signatories.approverPos || signatories.approverName;
+
   return (
     <div className="print-only print-header-container">
-      <div className="text-end mb-2">
-        <div className="fw-bold">ЗАТВЕРДЖУЮ</div>
-        <div
-          style={{
-            borderBottom: '1px solid #000',
-            width: '250px',
-            marginLeft: 'auto',
-            height: '15px',
-          }}
-        ></div>
-        <div
-          style={{
-            borderBottom: '1px solid #000',
-            width: '250px',
-            marginLeft: 'auto',
-            height: '15px',
-            marginTop: '5px',
-          }}
-        ></div>
-        <div className="d-flex justify-content-end gap-2 mt-1">
-          <span>"___"</span>
-          <span
-            style={{ borderBottom: '1px solid #000', width: '150px', display: 'inline-block' }}
-          ></span>
-          <span>20__ року</span>
+      <div className="print-top-row">
+        {/* Logo and app name - left */}
+        <div className="print-logo-block">
+          <div className="print-app-name">ВАРТА</div>
+          <div className="print-app-sub">Система чергувань</div>
+        </div>
+
+        {/* ЗАТВЕРДЖУЮ - right */}
+        <div className="print-approval-block">
+          <div className="approval-title">ЗАТВЕРДЖУЮ</div>
+          {hasApprover ? (
+            <>
+              <div className="approval-text">{signatories.approverPos || '______________________________'}</div>
+              <div className="approval-text">{signatories.approverRank || '____________'}</div>
+              <div className="approval-name-row">
+                <span className="signature-line"></span>
+                <span className="approval-name">{signatories.approverName || '______________________'}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="approval-line-empty"></div>
+              <div className="approval-line-empty"></div>
+              <div className="approval-name-row">
+                <span className="signature-line"></span>
+                <span className="approval-line-short"></span>
+              </div>
+            </>
+          )}
+          <div className="approval-date-row">
+            <span>"___" </span>
+            <span className="approval-date-line"></span>
+            <span> 20__ року</span>
+          </div>
         </div>
       </div>
-      <h4 className="fw-bold text-center mt-3 mb-1">ГРАФІК</h4>
-      <div
-        className="text-center mb-3"
-        style={{ borderBottom: '2px solid #000', paddingBottom: '8px' }}
-      ></div>
+
+      {/* Title */}
+      <h4 className="print-title">ГРАФІК</h4>
+      <div className="print-subtitle">добового чергування на {dateRange}</div>
     </div>
   );
 };
