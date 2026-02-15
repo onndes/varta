@@ -1,33 +1,68 @@
-// Импорт библиотек
-@import 'bootstrap/scss/bootstrap';
+// 1. IMPORTS
+@import 'bootstrap/dist/css/bootstrap.min.css';
 @import '@fortawesome/fontawesome-free/css/all.css';
 
-// Основные стили проекта
+// 2. GLOBAL RESET
+html {
+  /* Убираем жесткую высоту, чтобы работал скролл */
+  min-height: 100%;
+}
+
 body {
+  margin: 0;
+  padding: 0;
   background-color: #f8f9fa;
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Для корректной печати */
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  overflow-x: hidden; /* Только горизонтальный скролл убираем */
 }
 
-/* --- LAYOUT --- */
+/* Сбрасываем #root в обычный блок */
+#root {
+  min-height: 100vh;
+  width: 100%;
+  /* display: flex; <--- УБРАЛИ ЭТО, оно ломало верстку */
+}
+
+/* 3. MAIN CONTAINER */
 .main-container {
-  max-width: 1400px;
+  /* Центрирование классическим способом */
   margin: 0 auto;
+  max-width: 1400px;
+  width: 100%;
   background: white;
   min-height: 100vh;
+
+  /* Внутренняя структура */
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
-  padding-bottom: 50px;
+  position: relative; /* На всякий случай */
 }
 
+/* Хедер */
 .header-simple {
   background-color: #fff;
   border-bottom: 1px solid #dee2e6;
   padding: 20px 30px;
-  margin-bottom: 20px;
+  /* Гарантируем, что хедер не сожмется */
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 101; /* Поверх всего */
 }
 
-/* --- WEEK GRID NAVIGATOR --- */
+/* Контент */
+.px-4 {
+  /* Растягиваем контент на всю оставшуюся высоту */
+  flex: 1 0 auto;
+  padding-bottom: 50px; /* Отступ снизу */
+}
+
+/* 4. COMPONENTS */
+
+/* Week Navigator */
 .week-nav-container {
   display: flex;
   flex-wrap: wrap;
@@ -46,134 +81,148 @@ body {
   border: 1px solid #dee2e6;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.7rem;
   color: #6c757d;
+  position: relative;
+
+  &:hover {
+    border-color: #0d6efd;
+    transform: scale(1.1);
+    z-index: 10;
+    color: #0d6efd;
+  }
+
+  &.current {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+  }
+
+  &.past {
+    background-color: #e9ecef;
+    color: #adb5bd;
+  }
+
+  &.selected {
+    border: 2px solid #000;
+    font-weight: bold;
+  }
+
+  &.has-schedule:not(.current) {
+    background-color: #e8f5e9;
+    border-color: #28a745;
+    color: #198754;
+  }
+
+  .week-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  &:hover .week-tooltip {
+    display: block;
+  }
 }
 
-.week-square:hover {
-  border-color: #0d6efd;
-  transform: scale(1.1);
-  z-index: 10;
-  color: #0d6efd;
-}
-
-.week-square.past {
-  background-color: #e9ecef;
-  border-color: #ced4da;
-  color: #adb5bd;
-}
-
-.week-square.current {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-  color: white;
-  box-shadow: 0 0 4px rgba(13, 110, 253, 0.5);
-}
-
-.week-square.selected {
-  border: 2px solid #000;
-  font-weight: bold;
-}
-
-/* New style for scheduled weeks */
-.week-square.has-schedule:not(.current) {
-  background-color: #e8f5e9;
-  border-color: #28a745;
-  color: #198754;
-}
-
-.week-tooltip {
-  display: none;
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  white-space: nowrap;
-  z-index: 20;
-  pointer-events: none;
-}
-
-.week-square:hover .week-tooltip {
-  display: block;
-}
-
-/* --- COMPACT TABLE (SCREEN) --- */
+/* Table Styles */
 .compact-table {
-  table-layout: fixed;
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-}
 
-/* STICKY HEADER */
-.compact-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: #f8f9fa;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 90; /* Чуть меньше хедера */
+    background: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
 
-.compact-table th,
-.compact-table td {
-  vertical-align: middle;
-  text-align: center;
-  border: 1px solid #e0e0e0;
-  padding: 2px 4px;
-  font-size: 0.85rem;
-  height: 45px;
-  overflow: hidden;
-  white-space: nowrap;
-}
+  th,
+  td {
+    border: 1px solid #e0e0e0;
+    padding: 4px;
+    text-align: center;
+    vertical-align: middle;
+    height: 45px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
 
-.compact-table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  color: #495057;
+  th {
+    font-weight: 600;
+    color: #495057;
+    background-color: #f8f9fa;
+  }
 }
 
 .compact-cell {
   cursor: pointer;
-  position: relative;
   transition: background 0.1s;
+
+  &:hover {
+    background-color: #e3f2fd;
+  }
+
+  &.assigned {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+    font-weight: 700;
+    border: 2px solid #a5d6a7;
+  }
+
+  &.assigned-future {
+    background-color: #cff4fc;
+    color: #055160;
+    font-weight: 700;
+    border: 2px solid #9eeaf9;
+  }
+
+  &.conflict {
+    background-color: #f8d7da;
+    color: #842029;
+    font-weight: 700;
+    border: 2px solid #f5c2c7;
+    animation: pulse-border 1.5s infinite;
+  }
+
+  &.past-locked {
+    background-color: #f0f0f0;
+    color: #999;
+    cursor: not-allowed;
+  }
+
+  &.unavailable {
+    background-color: #f5f5f5;
+    color: #ccc;
+  }
 }
 
-.compact-cell:hover {
-  background-color: #e3f2fd;
+.user-row-inactive {
+  opacity: 0.5;
+  background: #f8f9fa;
 }
-
-.compact-cell.assigned {
-  background-color: #e8f5e9;
-  color: #1b5e20;
-  font-weight: 700;
-  border: 2px solid #a5d6a7;
-}
-
-.compact-cell.assigned-future {
-  background-color: #cff4fc;
-  color: #055160;
-  font-weight: 700;
-  border: 2px solid #9eeaf9;
-}
-
-.compact-cell.conflict {
-  background-color: #f8d7da;
-  color: #842029;
-  font-weight: 700;
-  border: 2px solid #f5c2c7;
-  animation: pulse-border 1.5s infinite;
+.rank-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #7f8c8d;
+  display: block;
+  line-height: 1;
 }
 
 @keyframes pulse-border {
@@ -188,113 +237,10 @@ body {
   }
 }
 
-.compact-cell.locked {
-  border-color: #66bb6a;
-}
-
-.compact-cell.unavailable {
-  background-color: #f5f5f5;
-  color: #bdbdbd;
-}
-
-.compact-cell.rest-day {
-  background-color: #e2e3e5;
-  color: #383d41;
-  font-size: 0.65rem;
-  font-weight: bold;
-  letter-spacing: 0px;
-  white-space: normal;
-  line-height: 1.1;
-  display: table-cell;
-  vertical-align: middle;
-}
-
-/* LOCKED PAST STYLE */
-.compact-cell.past-locked {
-  background-color: #eeeeee;
-  color: #999;
-  cursor: not-allowed;
-  border-color: #e0e0e0;
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 5px,
-    rgba(0, 0, 0, 0.03) 5px,
-    rgba(0, 0, 0, 0.03) 10px
-  );
-}
-
-.compact-cell.past-locked:hover {
-  background-color: #eeeeee;
-}
-
-.user-row-inactive {
-  opacity: 0.5;
-  background-color: #f8f9fa;
-}
-
-.rank-badge {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  color: #7f8c8d;
-  display: block;
-  line-height: 1;
-  margin-bottom: 2px;
-}
-
-/* --- CALENDAR GRID (SCREEN/DEFAULT) --- */
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  border: 2px solid #000;
-}
-
-.calendar-col {
-  border-right: 1px solid #000;
-}
-
-.calendar-col:last-child {
-  border-right: none;
-}
-
-.print-cal-cell {
-  padding: 5px;
-  border-bottom: 1px solid #000;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-}
-
-.print-cal-header {
-  border-bottom: 1px solid #000;
-  padding-bottom: 5px;
-  margin-bottom: 5px;
-  font-weight: bold;
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  font-size: 1.1rem;
-}
-
-.print-cal-slot {
-  font-size: 1.2rem;
-  font-weight: bold;
-  text-align: center;
-  margin-top: auto;
-  margin-bottom: auto;
-  width: 100%;
-}
-
-.weekend-bg {
-  background-color: #f0f0f0;
-}
-
-/* Animation for Dirty Export */
+/* Animations buttons */
 .btn-export-dirty {
   animation: pulse-red 2s infinite;
 }
-
 @keyframes pulse-red {
   0% {
     box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
@@ -313,7 +259,6 @@ body {
   border-color: #fd7e14;
   color: white;
 }
-
 @keyframes pulse-orange {
   0% {
     box-shadow: 0 0 0 0 rgba(253, 126, 20, 0.7);
@@ -324,200 +269,6 @@ body {
   100% {
     box-shadow: 0 0 0 0 rgba(253, 126, 20, 0);
   }
-}
-
-/* Cascade Update Button */
-.btn-cascade {
-  animation: pulse-blue 2s infinite;
-  background-color: #0dcaf0;
-  border-color: #0dcaf0;
-  color: black;
-  font-weight: bold;
-}
-
-@keyframes pulse-blue {
-  0% {
-    box-shadow: 0 0 0 0 rgba(13, 202, 240, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(13, 202, 240, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(13, 202, 240, 0);
-  }
-}
-
-/* --- PROGRESS BAR FOR STATS --- */
-.progress-fairness {
-  height: 10px;
-  background-color: #e9ecef;
-  border-radius: 5px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-
-.progress-bar-fairness {
-  height: 100%;
-  background-color: #20c997;
-}
-
-/* --- PRINT STYLES (STRICT LAYOUT) --- */
-@media print {
-  @page {
-    size: landscape;
-    margin: 5mm;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-
-  .print-only {
-    display: block !important;
-  }
-
-  body,
-  html {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    overflow: hidden;
-  }
-
-  body {
-    background: white;
-    font-family: 'Times New Roman', serif;
-  }
-
-  /* Root Container becomes Flex Column */
-  .main-container {
-    box-shadow: none;
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100%;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Flatten DOM structure for Flexbox */
-  .px-4,
-  .tab-content,
-  .schedule-view-wrapper {
-    display: contents !important;
-  }
-
-  /* 1. Header */
-  .print-header-container {
-    flex: 0 0 auto;
-    margin-bottom: 10px;
-    border: none !important;
-  }
-
-  /* 2. Calendar Content (Expands) */
-  .view-calendar {
-    display: flex !important;
-    flex-direction: column;
-    flex: 1 1 auto;
-    justify-content: center;
-    margin-bottom: 10px;
-    overflow: hidden;
-  }
-
-  .calendar-grid {
-    flex: 0 0 auto;
-    width: 100%;
-    height: 50%;
-    border: 2px solid #000;
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-  }
-
-  .print-cal-cell {
-    height: auto;
-    border-bottom: none;
-  }
-
-  /* 3. Footer (Stick to bottom) */
-  .print-footer-container {
-    flex: 0 0 auto;
-    width: 100%;
-    margin-top: auto;
-  }
-
-  /* Approval Box */
-  .approval-container {
-    width: 350px;
-    margin-left: auto;
-    font-family: 'Times New Roman', serif;
-  }
-
-  .approval-title {
-    text-align: left;
-    font-weight: bold;
-    margin-bottom: 5px;
-    text-transform: uppercase;
-  }
-
-  .approval-line {
-    border-bottom: 1px solid #000;
-    display: block;
-    height: 15px;
-    margin-bottom: 2px;
-    text-align: center;
-    font-weight: bold;
-    padding-bottom: 2px;
-  }
-
-  .approval-subtext {
-    font-size: 0.7rem;
-    text-align: center;
-    color: #000;
-    margin-bottom: 2px;
-    display: block;
-  }
-
-  .approval-row-flex {
-    display: flex;
-    align-items: flex-end;
-    margin-bottom: 5px;
-    gap: 10px;
-  }
-
-  .flex-grow {
-    flex-grow: 1;
-  }
-
-  .signature-line {
-    border-bottom: 1px solid #000;
-    flex-grow: 1;
-  }
-
-  /* Hide Table View */
-  .view-table {
-    display: none !important;
-  }
-
-  /* Reset colors for print */
-  .badge {
-    border: 1px solid #000;
-    color: #000 !important;
-    background: none !important;
-  }
-}
-
-/* Screen only hiding */
-.col-user-print {
-  display: none;
-}
-
-.print-only {
-  display: none;
-}
-
-.view-calendar {
-  display: none;
 }
 
 .loading-overlay {
@@ -531,4 +282,131 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* 5. PRINT STYLES */
+@media print {
+  @page {
+    size: landscape;
+    margin: 5mm;
+  }
+  body,
+  html,
+  #root,
+  .main-container {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    display: block !important;
+    box-shadow: none !important;
+  }
+  .no-print,
+  .header-simple,
+  .view-table {
+    display: none !important;
+  }
+  .print-only,
+  .col-user-print {
+    display: block !important;
+  }
+  .col-user-screen {
+    display: none !important;
+  }
+
+  .px-4,
+  .tab-content,
+  .schedule-view-wrapper {
+    display: contents !important;
+  }
+
+  .view-calendar {
+    display: flex !important;
+    flex-direction: column;
+    height: 90vh;
+  }
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border: 2px solid #000;
+    flex-grow: 1;
+  }
+  .calendar-col {
+    border-right: 1px solid #000;
+  }
+  .calendar-col:last-child {
+    border-right: none;
+  }
+
+  .print-cal-cell {
+    padding: 5px;
+    border-bottom: 1px solid #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+  }
+  .print-cal-header {
+    border-bottom: 1px solid #000;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .print-cal-slot {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+
+  .weekend-bg {
+    background-color: #f0f0f0 !important;
+  }
+
+  .print-footer-container {
+    margin-top: 10px;
+    width: 100%;
+  }
+  .approval-container {
+    width: 350px;
+    margin-left: auto;
+    font-family: 'Times New Roman', serif;
+  }
+  .approval-title {
+    font-weight: bold;
+    text-align: left;
+  }
+  .approval-line {
+    border-bottom: 1px solid #000;
+    height: 20px;
+    margin-bottom: 5px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .approval-row-flex {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .signature-line {
+    border-bottom: 1px solid #000;
+    flex-grow: 1;
+  }
+  .approval-subtext {
+    font-size: 0.7rem;
+    text-align: center;
+    display: block;
+  }
+}
+
+.print-only,
+.col-user-print,
+.view-calendar {
+  display: none;
 }
