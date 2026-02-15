@@ -4,6 +4,7 @@
     size: landscape;
     margin: 5mm;
   }
+
   body,
   html,
   #root,
@@ -16,15 +17,17 @@
     display: block !important;
     box-shadow: none !important;
   }
+
   .no-print,
-  .header-simple,
-  .view-table {
+  .header-simple {
     display: none !important;
   }
+
   .print-only,
   .col-user-print {
     display: block !important;
   }
+
   .col-user-screen {
     display: none !important;
   }
@@ -35,17 +38,64 @@
     display: contents !important;
   }
 
-  .view-calendar {
-    display: flex !important;
-    flex-direction: column;
-    height: 90vh;
+  // --- Calendar mode ---
+  .show-print-calendar {
+    .view-table {
+      display: none !important;
+    }
+    .view-calendar {
+      display: flex !important;
+      flex-direction: column;
+    }
   }
+
+  // --- Table mode ---
+  .show-print-table {
+    .view-calendar {
+      display: none !important;
+    }
+    .view-table {
+      display: block !important;
+
+      .card {
+        box-shadow: none !important;
+        border: none !important;
+      }
+
+      .compact-table {
+        font-size: 9pt;
+        border-collapse: collapse;
+
+        th, td {
+          border: 1px solid #000 !important;
+          padding: 4px 6px;
+          height: auto;
+        }
+
+        th {
+          background-color: #e8e8e8 !important;
+          font-weight: bold;
+          font-size: 9pt;
+        }
+
+        .compact-cell.assigned,
+        .compact-cell.assigned-future {
+          background-color: #d4edda !important;
+          border: 1px solid #000 !important;
+          font-weight: bold;
+        }
+      }
+    }
+  }
+
+  // Calendar grid
   .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     border: 2px solid #000;
     flex-grow: 1;
   }
+
   .calendar-col {
     border-right: 1px solid #000;
   }
@@ -61,6 +111,7 @@
     align-items: center;
     height: 100%;
   }
+
   .print-cal-header {
     border-bottom: 1px solid #000;
     width: 100%;
@@ -69,6 +120,7 @@
     font-weight: bold;
     margin-bottom: 5px;
   }
+
   .print-cal-slot {
     flex-grow: 1;
     display: flex;
@@ -83,10 +135,18 @@
     background-color: #f0f0f0 !important;
   }
 
-  .print-footer-container {
-    margin-top: 10px;
-    width: 100%;
+  // Print header
+  .print-header-container {
+    margin-bottom: 10px;
   }
+
+  // Footer
+  .print-footer-container {
+    margin-top: 15px;
+    width: 100%;
+    page-break-inside: avoid;
+  }
+
   .approval-container {
     width: 350px;
     margin-left: auto;
@@ -116,5 +176,12 @@
     font-size: 0.7rem;
     text-align: center;
     display: block;
+  }
+
+  .creator-block {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    font-family: 'Times New Roman', serif;
   }
 }

@@ -66,8 +66,8 @@ const App = () => {
   };
 
   // Handle print
-  const handlePrint = () => {
-    setPrintMode('calendar');
+  const handlePrint = (mode: 'calendar' | 'table') => {
+    setPrintMode(mode);
     setTimeout(window.print, 100);
   };
 
