@@ -48,7 +48,7 @@ const PrintHeader: React.FC<PrintHeaderProps> = ({ signatories, weekDates }) => 
               )}
               <div className="approval-filled-row">
                 {signatories.approverRank ? (
-                  <span>{rankLower(signatories.approverRank)}.&nbsp;&nbsp;</span>
+                  <span>{rankLower(signatories.approverRank)}&nbsp;&nbsp;</span>
                 ) : null}
                 <span style={{ width: '80px', display: 'inline-block' }}></span>
                 {signatories.approverName ? (

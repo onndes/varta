@@ -22,12 +22,10 @@ const PrintFooter: React.FC<PrintFooterProps> = ({ signatories }) => {
             {signatories.creatorPos && <div className="creator-pos">{signatories.creatorPos}</div>}
             <div className="creator-filled-row">
               {signatories.creatorRank ? (
-                <span>{rankLower(signatories.creatorRank)}.&nbsp;&nbsp;</span>
+                <span>{rankLower(signatories.creatorRank)}&nbsp;&nbsp;</span>
               ) : null}
               <span style={{ width: '80px', display: 'inline-block' }}></span>
-              {signatories.creatorName ? (
-                <span>&nbsp;&nbsp;{signatories.creatorName}</span>
-              ) : null}
+              {signatories.creatorName ? <span>&nbsp;&nbsp;{signatories.creatorName}</span> : null}
             </div>
           </>
         ) : (
