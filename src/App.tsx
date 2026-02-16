@@ -23,7 +23,15 @@ const App = () => {
   // Use custom hooks
   const { users, loading: usersLoading, loadUsers } = useUsers();
   const { schedule, dayWeights, loading: scheduleLoading, loadSchedule } = useSchedule(users);
-  const { signatories, cascadeStartDate, saveDayWeights, saveSignatories, updateCascadeTrigger, clearCascadeTrigger } =
+  const {
+    signatories,
+    cascadeStartDate,
+    loadSettings,
+    saveDayWeights,
+    saveSignatories,
+    updateCascadeTrigger,
+    clearCascadeTrigger,
+  } =
     useSettings();
   const {
     needsExport,
@@ -37,7 +45,7 @@ const App = () => {
 
   // Combined refresh function for child components
   const refreshData = async () => {
-    await Promise.all([loadUsers(), loadSchedule()]);
+    await Promise.all([loadUsers(), loadSchedule(), loadSettings()]);
   };
 
   // Check backup status when needed
@@ -49,23 +57,44 @@ const App = () => {
 
   // Handle import
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!confirm('Замінити всі дані?')) return;
+    if (!confirm('Замінити всі дані?')) {
+      input.value = '';
+      return;
+    }
 
     try {
       await handleImportData(file);
+      await refreshData();
+      setShowBackupAlert(false);
       alert('Готово!');
     } catch (err) {
       console.error(err);
       alert('Помилка файлу');
+    } finally {
+      input.value = '';
     }
   };
 
   // Handle print
   const handlePrint = () => {
-    setTimeout(window.print, 100);
+    const previousTab = activeTab;
+
+    if (activeTab !== 'schedule') {
+      setActiveTab('schedule');
+    }
+
+    const restoreTab = () => {
+      if (previousTab !== 'schedule') {
+        setActiveTab(previousTab);
+      }
+    };
+
+    window.addEventListener('afterprint', restoreTab, { once: true });
+    setTimeout(() => window.print(), activeTab === 'schedule' ? 100 : 250);
   };
 
   return (

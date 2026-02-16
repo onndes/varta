@@ -13,10 +13,20 @@ export interface ExportData {
   timestamp: string;
   users: unknown[];
   schedule: unknown[];
-  auditLog: unknown[];
+  auditLog?: unknown[];
   dayWeights?: { key: string; value: DayWeights };
   signatories?: { key: string; value: Signatories };
 }
+
+const CURRENT_BACKUP_VERSION = 6;
+const SUPPORTED_BACKUP_VERSIONS = new Set([CURRENT_BACKUP_VERSION]);
+
+const isValidTimestamp = (value: string): boolean => {
+  const isoDateTimePattern =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+  return isoDateTimePattern.test(value) && !Number.isNaN(Date.parse(value));
+};
 
 /**
  * Export all data to JSON
@@ -26,7 +36,7 @@ export const exportData = async (): Promise<ExportData> => {
   const signatoriesRec = await db.appState.get('signatories');
 
   const data: ExportData = {
-    version: 6,
+    version: CURRENT_BACKUP_VERSION,
     timestamp: new Date().toISOString(),
     users: await db.users.toArray(),
     schedule: await db.schedule.toArray(),
@@ -51,7 +61,7 @@ export const importData = async (data: ExportData): Promise<void> => {
     // Import new data
     await db.users.bulkAdd(data.users as never[]);
     await db.schedule.bulkAdd(data.schedule as never[]);
-    if (data.auditLog) {
+    if (Array.isArray(data.auditLog)) {
       await db.auditLog.bulkAdd(data.auditLog as never[]);
     }
 
@@ -98,7 +108,12 @@ export const uploadBackup = async (file: File): Promise<void> => {
     reader.onload = async (e) => {
       try {
         const result = e.target?.result as string;
-        const data = JSON.parse(result) as ExportData;
+        const parsed = JSON.parse(result) as unknown;
+        if (!validateExportData(parsed)) {
+          throw new Error('Некоректний формат backup-файлу');
+        }
+
+        const data = parsed as ExportData;
         await importData(data);
         resolve();
       } catch (err) {
@@ -170,10 +185,12 @@ export const validateExportData = (data: unknown): data is ExportData => {
   const d = data as Partial<ExportData>;
 
   return !!(
-    d.version &&
-    d.timestamp &&
+    typeof d.version === 'number' &&
+    SUPPORTED_BACKUP_VERSIONS.has(d.version) &&
+    typeof d.timestamp === 'string' &&
+    isValidTimestamp(d.timestamp) &&
     Array.isArray(d.users) &&
     Array.isArray(d.schedule) &&
-    Array.isArray(d.auditLog)
+    (typeof d.auditLog === 'undefined' || Array.isArray(d.auditLog))
   );
 };
