@@ -1,0 +1,6 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": ["існуючі", "існуючу", "дежурних"],
+  "ignorePaths": ["node_modules", "dist", "build", ".git"]
+}

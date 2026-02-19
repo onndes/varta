@@ -5,15 +5,17 @@ export interface DayWeights {
 }
 
 export interface Signatories {
-  approverPos: string;
-  approverRank: string;
-  approverName: string;
-  creatorPos: string;
-  creatorRank: string;
-  creatorName: string;
-  scheduleTitle: string;
-  scheduleSubtitle: string;
-  scheduleLine3: string;
+  approverPos?: string;
+  approverRank?: string;
+  approverName?: string;
+  commanderRank?: string;
+  commanderName?: string;
+  creatorPos?: string;
+  creatorRank?: string;
+  creatorName?: string;
+  scheduleTitle?: string;
+  scheduleSubtitle?: string;
+  scheduleLine3?: string;
 }
 
 // Теперь value имеет конкретные возможные типы вместо any
