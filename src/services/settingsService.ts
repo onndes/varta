@@ -2,7 +2,7 @@
 
 import { db } from '../db/db';
 import type { DayWeights, Signatories } from '../types';
-import { DEFAULT_DAY_WEIGHTS, DEFAULT_SIGNATORIES } from '../utils/constants';
+import { DEFAULT_DAY_WEIGHTS, DEFAULT_SIGNATORIES, DEFAULT_DUTIES_PER_DAY } from '../utils/constants';
 
 /**
  * Service for application settings
@@ -102,4 +102,19 @@ export const resetAllSettings = async (): Promise<void> => {
   await db.appState.put({ key: 'dayWeights', value: DEFAULT_DAY_WEIGHTS });
   await db.appState.put({ key: 'signatories', value: DEFAULT_SIGNATORIES });
   await db.appState.put({ key: 'cascadeStartDate', value: null });
+  await db.appState.put({ key: 'dutiesPerDay', value: DEFAULT_DUTIES_PER_DAY });
+};
+
+/**
+ * Get duties per day setting
+ */
+export const getDutiesPerDay = async (): Promise<number> => {
+  return await getAppSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
+};
+
+/**
+ * Save duties per day setting
+ */
+export const saveDutiesPerDay = async (count: number): Promise<void> => {
+  await saveAppSetting('dutiesPerDay', count);
 };

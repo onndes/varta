@@ -26,13 +26,14 @@ const App = () => {
   const {
     signatories,
     cascadeStartDate,
+    dutiesPerDay,
     loadSettings,
     saveDayWeights,
     saveSignatories,
+    saveDutiesPerDay,
     updateCascadeTrigger,
     clearCascadeTrigger,
-  } =
-    useSettings();
+  } = useSettings();
   const {
     needsExport,
     isBackupNeeded,
@@ -152,8 +153,10 @@ const App = () => {
             <SettingsView
               dayWeights={dayWeights}
               signatories={signatories}
+              dutiesPerDay={dutiesPerDay}
               onSave={saveDayWeights}
               onSaveSignatories={saveSignatories}
+              onSaveDutiesPerDay={saveDutiesPerDay}
             />
           )}
           {activeTab === 'dev' && <DevTools refreshData={refreshData} />}

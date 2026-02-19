@@ -21,6 +21,7 @@ export const useSettings = () => {
     scheduleLine3: '',
   });
   const [cascadeStartDate, setCascadeStartDate] = useState<string | null>(null);
+  const [dutiesPerDay, setDutiesPerDay] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,15 +31,17 @@ export const useSettings = () => {
       setLoading(true);
       setError(null);
 
-      const [weights, sigs, cascadeDate] = await Promise.all([
+      const [weights, sigs, cascadeDate, perDay] = await Promise.all([
         settingsService.getDayWeights(),
         settingsService.getSignatories(),
         settingsService.getCascadeStartDate(),
+        settingsService.getDutiesPerDay(),
       ]);
 
       setDayWeights(weights);
       setSignatories(sigs);
       setCascadeStartDate(cascadeDate);
+      setDutiesPerDay(perDay);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -105,6 +108,17 @@ export const useSettings = () => {
     }
   }, [loadSettings]);
 
+  // Save duties per day
+  const saveDutiesPerDay = useCallback(async (count: number) => {
+    try {
+      await settingsService.saveDutiesPerDay(count);
+      setDutiesPerDay(count);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save duties per day');
+      throw err;
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     loadSettings();
@@ -114,11 +128,13 @@ export const useSettings = () => {
     dayWeights,
     signatories,
     cascadeStartDate,
+    dutiesPerDay,
     loading,
     error,
     loadSettings,
     saveDayWeights,
     saveSignatories,
+    saveDutiesPerDay,
     updateCascadeTrigger,
     clearCascadeTrigger,
     resetAllSettings,

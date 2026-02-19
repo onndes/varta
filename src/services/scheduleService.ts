@@ -255,3 +255,41 @@ export const getLockedDates = async (): Promise<string[]> => {
   const all = await db.schedule.toArray();
   return all.filter((e) => e.isLocked).map((e) => e.date);
 };
+
+/**
+ * Calculate karma change when manually moving assignment from one day to another.
+ * If moved to a harder day (higher weight) → positive karma (reward).
+ * If moved to an easier day → negative karma (penalty).
+ * Returns the karma delta to add to user's debt.
+ */
+export const calculateKarmaForTransfer = (
+  fromDate: string,
+  toDate: string,
+  dayWeights: DayWeights
+): number => {
+  const fromDay = new Date(fromDate).getDay();
+  const toDay = new Date(toDate).getDay();
+
+  const fromWeight = dayWeights[fromDay] || 1.0;
+  const toWeight = dayWeights[toDay] || 1.0;
+
+  // Positive karma if taking on harder duty, negative if easier
+  return Number((toWeight - fromWeight).toFixed(2));
+};
+
+/**
+ * Apply karma when manually transferring a user from one date to another.
+ * This should be called from UI when drag-and-drop or manual reassignment happens.
+ */
+export const applyKarmaForTransfer = async (
+  userId: number,
+  fromDate: string,
+  toDate: string,
+  dayWeights: DayWeights
+): Promise<void> => {
+  const karma = calculateKarmaForTransfer(fromDate, toDate, dayWeights);
+
+  if (karma !== 0) {
+    await userService.updateUserDebt(userId, karma);
+  }
+};

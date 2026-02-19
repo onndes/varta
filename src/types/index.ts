@@ -36,11 +36,13 @@ export interface User {
   restAfterStatus?: boolean;
   blockedDays?: number[]; // Array of day indices (1=Mon, 7=Sun)
   owedDays?: Record<number, number>;
+  isExtra?: boolean; // Special participant (trainee, driver) - manual assignment only
+  dateAddedToAuto?: string; // Date when isExtra was disabled (included in auto schedule)
 }
 
 export interface ScheduleEntry {
   date: string;
-  userId: number | null;
+  userId: number | number[] | null; // Can be single ID or array for multiple duties per day
   type: 'manual' | 'auto' | 'critical';
   isLocked?: boolean;
 }

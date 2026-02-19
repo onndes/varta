@@ -5,22 +5,28 @@ import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
 interface SettingsViewProps {
   dayWeights: DayWeights;
   signatories: Signatories;
+  dutiesPerDay: number;
   onSave: (w: DayWeights) => void;
   onSaveSignatories: (s: Signatories) => void;
+  onSaveDutiesPerDay: (count: number) => void;
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({
   dayWeights,
   signatories,
+  dutiesPerDay,
   onSave,
   onSaveSignatories,
+  onSaveDutiesPerDay,
 }) => {
   const [weights, setWeights] = useState<DayWeights>(dayWeights);
   const [sigs, setSigs] = useState<Signatories>(signatories);
+  const [perDay, setPerDay] = useState<number>(dutiesPerDay);
 
   const handleSave = () => {
     onSave(weights);
     onSaveSignatories(sigs);
+    onSaveDutiesPerDay(perDay);
     alert('Налаштування збережено!');
   };
 
@@ -61,6 +67,36 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Duties Per Day Section */}
+        <div className="card shadow-sm border-0 mb-4">
+          <div className="card-header bg-white py-3">
+            <h5 className="mb-0 fw-bold">
+              <i className="fas fa-users me-2"></i>Кількість чергових на добу
+            </h5>
+          </div>
+          <div className="card-body">
+            <div className="alert alert-info py-2 small">
+              Вкажіть скільки бійців одночасно несуть чергування в одну добу.
+            </div>
+            <div className="row">
+              <div className="col-md-4">
+                <label className="form-label fw-bold">Чергових на добу</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  className="form-control"
+                  value={perDay}
+                  onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
+                />
+                <div className="form-text">
+                  За замовчуванням: 1 черговий
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -181,7 +217,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 onChange={(e) => setSigs({ ...sigs, scheduleSubtitle: e.target.value })}
                 placeholder="добового чергування на ... (автоматично з дат тижня)"
               />
-              <small className="text-muted">Якщо порожньо — автоматично з дат поточного тижня</small>
+              <small className="text-muted">
+                Якщо порожньо — автоматично з дат поточного тижня
+              </small>
             </div>
             <div className="mb-3">
               <label className="small text-muted">Додатковий рядок (2 рядок)</label>
@@ -191,7 +229,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 onChange={(e) => setSigs({ ...sigs, scheduleLine3: e.target.value })}
                 placeholder="Наприклад: в/ч А1234 на період з ... по ..."
               />
-              <small className="text-muted">Додатковий рядок під підзаголовком (необов'язково)</small>
+              <small className="text-muted">
+                Додатковий рядок під підзаголовком (необов'язково)
+              </small>
             </div>
           </div>
         </div>

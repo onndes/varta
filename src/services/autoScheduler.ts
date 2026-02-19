@@ -57,8 +57,8 @@ export const autoFillSchedule = async (
     const dayIdx = new Date(dateStr).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
 
-    // Get available users
-    let pool = users.filter((u) => u.isActive && isUserAvailable(u, dateStr));
+    // Get available users (exclude isExtra users from automatic scheduling)
+    let pool = users.filter((u) => u.isActive && !u.isExtra && isUserAvailable(u, dateStr));
 
     // Sort by priority (ladder + fairness algorithm)
     pool.sort((a, b) => {
@@ -84,8 +84,10 @@ export const autoFillSchedule = async (
         if (totalA !== totalB) return totalA - totalB;
 
         // Priority 4: Weighted load + debt (fine-grained balance)
-        const loadA = calculateUserLoad(a.id, tempSchedule, dayWeights) + tempLoadOffset[a.id] + (a.debt || 0);
-        const loadB = calculateUserLoad(b.id, tempSchedule, dayWeights) + tempLoadOffset[b.id] + (b.debt || 0);
+        const loadA =
+          calculateUserLoad(a.id, tempSchedule, dayWeights) + tempLoadOffset[a.id] + (a.debt || 0);
+        const loadB =
+          calculateUserLoad(b.id, tempSchedule, dayWeights) + tempLoadOffset[b.id] + (b.debt || 0);
         return loadA - loadB;
       }
 
@@ -182,8 +184,9 @@ export const getFreeUsersForDate = (
   const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
 
   // Filter available users and sort by priority (ladder + fairness)
+  // Exclude isExtra users from automatic scheduling
   return users
-    .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
+    .filter((u) => !u.isExtra && !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
     .sort((a, b) => {
       // Priority 1: Owed Days
       const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
