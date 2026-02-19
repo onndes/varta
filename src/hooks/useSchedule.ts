@@ -14,11 +14,12 @@ export const useSchedule = (users: User[]) => {
   const [dayWeights, setDayWeights] = useState<DayWeights>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   // Load schedule and settings
   const loadSchedule = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!initialLoaded) setLoading(true);
       setError(null);
 
       const [scheduleData, weights] = await Promise.all([
@@ -33,8 +34,9 @@ export const useSchedule = (users: User[]) => {
       console.error('Error loading schedule:', err);
     } finally {
       setLoading(false);
+      setInitialLoaded(true);
     }
-  }, []);
+  }, [initialLoaded]);
 
   // Assign user to a date
   const assignUser = useCallback(

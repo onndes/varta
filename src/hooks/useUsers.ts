@@ -13,11 +13,12 @@ export const useUsers = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   // Load and sort users
   const loadUsers = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!initialLoaded) setLoading(true);
       setError(null);
 
       const allUsers = await userService.getAllUsers();
@@ -38,8 +39,9 @@ export const useUsers = () => {
       console.error('Error loading users:', err);
     } finally {
       setLoading(false);
+      setInitialLoaded(true);
     }
-  }, []);
+  }, [initialLoaded]);
 
   // Create new user
   const createUser = useCallback(
