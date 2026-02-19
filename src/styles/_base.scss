@@ -1,6 +1,7 @@
 // 2. GLOBAL RESET
 html {
   min-height: 100%;
+  overflow-y: scroll; // Always show scrollbar to prevent page jitter on tab switch
 }
 
 body {

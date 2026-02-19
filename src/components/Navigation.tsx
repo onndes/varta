@@ -13,7 +13,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           className={`nav-link ${activeTab === 'schedule' ? 'active fw-bold' : ''}`}
           onClick={() => onTabChange('schedule')}
         >
-          Графік
+          <i className="fas fa-calendar-alt me-1"></i>Графік
         </button>
       </li>
       <li className="nav-item">
@@ -21,7 +21,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           className={`nav-link ${activeTab === 'users' ? 'active fw-bold' : ''}`}
           onClick={() => onTabChange('users')}
         >
-          Особовий склад
+          <i className="fas fa-users me-1"></i>Особовий склад
         </button>
       </li>
       <li className="nav-item">
@@ -29,7 +29,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           className={`nav-link ${activeTab === 'stats' ? 'active fw-bold' : ''}`}
           onClick={() => onTabChange('stats')}
         >
-          Статистика
+          <i className="fas fa-chart-bar me-1"></i>Статистика
         </button>
       </li>
       <li className="nav-item">
@@ -37,7 +37,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           className={`nav-link ${activeTab === 'settings' ? 'active fw-bold' : ''}`}
           onClick={() => onTabChange('settings')}
         >
-          Налаштування
+          <i className="fas fa-cog me-1"></i>Налаштування
         </button>
       </li>
       <li className="nav-item">
@@ -45,7 +45,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           className={`nav-link ${activeTab === 'logs' ? 'active fw-bold' : ''}`}
           onClick={() => onTabChange('logs')}
         >
-          Журнал
+          <i className="fas fa-history me-1"></i>Журнал
         </button>
       </li>
       <li className="nav-item ms-auto">

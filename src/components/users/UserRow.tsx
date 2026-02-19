@@ -72,15 +72,27 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         </span>
       </td>
       <td className="text-end">
-        <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => onEdit({ ...u })}>
+        <button
+          className="btn btn-sm btn-outline-secondary me-1"
+          onClick={() => onEdit({ ...u })}
+          title="Редагувати"
+        >
           <i className="fas fa-edit"></i>
         </button>
         {u.debt !== 0 && (
-          <button className="btn btn-sm btn-outline-warning me-1" onClick={() => onResetDebt(u)}>
+          <button
+            className="btn btn-sm btn-outline-warning me-1"
+            onClick={() => onResetDebt(u)}
+            title="Скинути карму"
+          >
             <i className="fas fa-undo"></i>
           </button>
         )}
-        <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(u)}>
+        <button
+          className="btn btn-sm btn-outline-danger"
+          onClick={() => onDelete(u)}
+          title="Видалити"
+        >
           <i className="fas fa-trash"></i>
         </button>
       </td>

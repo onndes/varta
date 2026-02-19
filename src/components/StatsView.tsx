@@ -65,7 +65,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               onClick={() => setShowInactive(!showInactive)}
             >
               <i className="fas fa-user-slash me-1"></i>
-              Звільнені
+              Неактивні
             </button>
           </div>
         </div>
@@ -75,20 +75,26 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           <thead className="table-light small">
             <tr>
               <th rowSpan={2}>Боєць</th>
-              <th rowSpan={2}>Всього</th>
-              <th colSpan={7} className="text-center">
+              <th rowSpan={2} style={{ minWidth: '60px' }}>
+                Всього
+              </th>
+              <th colSpan={7} className="text-center border-start">
                 Дежурства по днях тижня
               </th>
-              <th rowSpan={2}>
+              <th rowSpan={2} className="text-center border-start" style={{ minWidth: '90px' }}>
                 Навантаження
                 <br />
                 (бали)
               </th>
-              <th rowSpan={2}>Карма</th>
-              <th rowSpan={2}>Рейтинг</th>
+              <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
+                Карма
+              </th>
+              <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
+                Рейтинг
+              </th>
             </tr>
             <tr>
-              <th className="text-center" style={{ width: '40px' }}>
+              <th className="text-center border-start" style={{ width: '40px' }}>
                 Пн
               </th>
               <th className="text-center" style={{ width: '40px' }}>
@@ -123,12 +129,15 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                     <div className="small text-muted">{formatRank(u.rank)}</div>
                   </td>
                   <td className="text-center fw-bold text-primary">{u.totalDuties}</td>
-                  {daysOrder.map((dayIdx) => (
-                    <td key={dayIdx} className="text-center small">
+                  {daysOrder.map((dayIdx, i) => (
+                    <td
+                      key={dayIdx}
+                      className={`text-center small${i === 0 ? ' border-start' : ''}`}
+                    >
                       {u.dayCount[dayIdx] || 0}
                     </td>
                   ))}
-                  <td>{u.realLoad.toFixed(1)}</td>
+                  <td className="text-center border-start">{u.realLoad.toFixed(1)}</td>
                   <td
                     className={
                       u.balance < 0
@@ -140,7 +149,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                   >
                     {u.balance > 0 ? `+${u.balance}` : u.balance}
                   </td>
-                  <td className="fw-bold bg-light">{u.effective.toFixed(1)}</td>
+                  <td className="text-center fw-bold bg-light">{u.effective.toFixed(1)}</td>
                 </tr>
               );
             })}
@@ -158,8 +167,8 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                 <strong>Пн-Нд</strong>: Розподіл нарядів по дням тижня.
               </li>
               <li>
-                <strong>Навантаження</strong>: Сума балів за всі наряди (Пн-Чт=1.0, Пт/Нд=1.5,
-                Сб=2.0).
+                <strong>Навантаження</strong>: Сума балів за всі наряди відповідно до встановлених
+                ваг днів (налаштовуються в розділі «Налаштування»).
               </li>
             </ul>
           </div>

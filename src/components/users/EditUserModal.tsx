@@ -100,7 +100,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
                   />
                   <button
                     type="button"
-                    className="btn btn-success"
+                    className="btn btn-primary"
                     onClick={() => dateToRef.current?.showPicker()}
                   >
                     <i className="fas fa-calendar-alt"></i>

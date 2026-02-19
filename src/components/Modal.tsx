@@ -21,13 +21,22 @@ const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (show) {
       document.body.style.overflow = 'hidden';
+
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      document.addEventListener('keydown', handleEsc);
+      return () => {
+        document.body.style.overflow = '';
+        document.removeEventListener('keydown', handleEsc);
+      };
     } else {
       document.body.style.overflow = '';
     }
     return () => {
       document.body.style.overflow = '';
     };
-  }, [show]);
+  }, [show, onClose]);
 
   if (!show) return null;
   return (
@@ -35,6 +44,9 @@ const Modal: React.FC<ModalProps> = ({
       className="modal fade show d-block"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
       tabIndex={-1}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className={`modal-dialog ${size} ${centered ? 'modal-dialog-centered' : ''}`}>
         <div className="modal-content shadow border-0">

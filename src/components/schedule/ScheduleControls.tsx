@@ -84,10 +84,18 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             Оптимізувати (з {cascadeStartDate})
           </button>
         )}
-        <button className="btn btn-sm btn-outline-primary" onClick={onFillGaps}>
+        <button
+          className="btn btn-sm btn-outline-primary"
+          onClick={onFillGaps}
+          title="Заповнити тільки порожні дні"
+        >
           <i className="fas fa-fill-drip me-2"></i>Заповнити
         </button>
-        <button className="btn btn-sm btn-primary" onClick={onAutoSchedule}>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={onAutoSchedule}
+          title="Автоматична генерація графіка на тиждень"
+        >
           <i className="fas fa-magic me-2"></i>Генерація
         </button>
       </div>
