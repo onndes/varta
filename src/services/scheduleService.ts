@@ -118,9 +118,12 @@ const isAssignedTo = (entry: ScheduleEntry, userId: number): boolean => {
 export const calculateUserLoad = (
   userId: number,
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  fromDate?: string
 ): number => {
-  const assignments = Object.values(schedule).filter((s) => isAssignedTo(s, userId));
+  const assignments = Object.values(schedule).filter(
+    (s) => isAssignedTo(s, userId) && (!fromDate || s.date >= fromDate)
+  );
   let load = 0;
   assignments.forEach((s) => {
     const day = new Date(s.date).getDay();
@@ -134,11 +137,12 @@ export const calculateUserLoad = (
  */
 export const countUserDaysOfWeek = (
   userId: number,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  fromDate?: string
 ): Record<number, number> => {
   const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   Object.values(schedule).forEach((s) => {
-    if (isAssignedTo(s, userId)) {
+    if (isAssignedTo(s, userId) && (!fromDate || s.date >= fromDate)) {
       const day = new Date(s.date).getDay();
       counts[day]++;
     }
@@ -151,9 +155,12 @@ export const countUserDaysOfWeek = (
  */
 export const countUserAssignments = (
   userId: number,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  fromDate?: string
 ): number => {
-  return Object.values(schedule).filter((s) => isAssignedTo(s, userId)).length;
+  return Object.values(schedule).filter(
+    (s) => isAssignedTo(s, userId) && (!fromDate || s.date >= fromDate)
+  ).length;
 };
 
 /**

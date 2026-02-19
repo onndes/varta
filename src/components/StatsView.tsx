@@ -14,9 +14,13 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
 
   const allStats = users
     .map((u) => {
-      const mySched = Object.values(schedule).filter((s) => s.userId === u.id);
+      // Only count assignments from user's join date
+      const fromDate = u.dateAddedToAuto;
+      const mySched = Object.values(schedule).filter(
+        (s) => s.userId === u.id && (!fromDate || s.date >= fromDate)
+      );
       let load = 0;
-      const dayCount: Record<number, number> = {}; // Count duties by day of week (0=Sun...6=Sat)
+      const dayCount: Record<number, number> = {};
 
       mySched.forEach((s) => {
         const dayIdx = new Date(s.date).getDay();
@@ -32,6 +36,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         effective: load + balance,
         totalDuties: mySched.length,
         dayCount: dayCount,
+        dutiesSinceJoin: mySched.length,
       };
     })
     .sort((a, b) => a.effective - b.effective);
@@ -92,6 +97,11 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
                 Рейтинг
               </th>
+              <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
+                З дати
+                <br />
+                <small className="fw-normal">(нарядів)</small>
+              </th>
             </tr>
             <tr>
               <th className="text-center border-start" style={{ width: '40px' }}>
@@ -150,6 +160,22 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                     {u.balance > 0 ? `+${u.balance}` : u.balance}
                   </td>
                   <td className="text-center fw-bold bg-light">{u.effective.toFixed(1)}</td>
+                  <td className="text-center border-start small">
+                    {u.dateAddedToAuto ? (
+                      <>
+                        <div className="text-muted">
+                          {new Date(u.dateAddedToAuto).toLocaleDateString('uk-UA', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                          })}
+                        </div>
+                        <div className="fw-bold">{u.dutiesSinceJoin}</div>
+                      </>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -180,6 +206,10 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </li>
               <li>
                 <strong>Рейтинг</strong>: Навантаження + Карма. Чим менше, тим вища черга на наряд.
+              </li>
+              <li>
+                <strong>З дати</strong>: Дата початку участі в графіку та кількість нарядів з цієї
+                дати. Новий боєць не «доганяє» старих — лише чесне порівняння.
               </li>
             </ul>
           </div>

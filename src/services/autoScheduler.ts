@@ -11,6 +11,24 @@ import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './
  */
 
 /**
+ * Get the common baseline date for an entire pool of users.
+ * Returns the LATEST dateAddedToAuto among all pool members.
+ * This ensures that when comparing ANY two users in the pool,
+ * only assignments from the newest member's join date onward are counted.
+ * This prevents new users from being overwhelmed with catch-up duties,
+ * while keeping the comparison transitive (consistent sort order).
+ */
+const getPoolCommonFrom = (pool: User[]): string | undefined => {
+  let latest: string | undefined;
+  for (const u of pool) {
+    if (u.dateAddedToAuto && (!latest || u.dateAddedToAuto > latest)) {
+      latest = u.dateAddedToAuto;
+    }
+  }
+  return latest;
+};
+
+/**
  * Automatically fill schedule gaps
  */
 export const autoFillSchedule = async (
@@ -57,6 +75,9 @@ export const autoFillSchedule = async (
         u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, tempSchedule)
     );
 
+    // Compute pool-wide baseline date: assignments before the newest member joined are ignored
+    const poolCommonFrom = getPoolCommonFrom(pool);
+
     // Sort by priority (ladder + fairness algorithm)
     pool.sort((a, b) => {
       if (!a.id || !b.id) return 0;
@@ -70,21 +91,26 @@ export const autoFillSchedule = async (
 
       if (options.considerLoad) {
         // Priority 2: Day-of-week balance ("ladder" principle)
-        // Prefer user who has fewer assignments on THIS specific day of week
-        const dowA = countUserDaysOfWeek(a.id, tempSchedule)[dayIdx] || 0;
-        const dowB = countUserDaysOfWeek(b.id, tempSchedule)[dayIdx] || 0;
+        const dowA = countUserDaysOfWeek(a.id, tempSchedule, poolCommonFrom)[dayIdx] || 0;
+        const dowB = countUserDaysOfWeek(b.id, tempSchedule, poolCommonFrom)[dayIdx] || 0;
         if (dowA !== dowB) return dowA - dowB;
 
         // Priority 3: Total assignment count (overall fairness)
-        const totalA = countUserAssignments(a.id, tempSchedule) + tempLoadOffset[a.id];
-        const totalB = countUserAssignments(b.id, tempSchedule) + tempLoadOffset[b.id];
+        const totalA =
+          countUserAssignments(a.id, tempSchedule, poolCommonFrom) + tempLoadOffset[a.id];
+        const totalB =
+          countUserAssignments(b.id, tempSchedule, poolCommonFrom) + tempLoadOffset[b.id];
         if (totalA !== totalB) return totalA - totalB;
 
         // Priority 4: Weighted load + debt (fine-grained balance)
         const loadA =
-          calculateUserLoad(a.id, tempSchedule, dayWeights) + tempLoadOffset[a.id] + (a.debt || 0);
+          calculateUserLoad(a.id, tempSchedule, dayWeights, poolCommonFrom) +
+          tempLoadOffset[a.id] +
+          (a.debt || 0);
         const loadB =
-          calculateUserLoad(b.id, tempSchedule, dayWeights) + tempLoadOffset[b.id] + (b.debt || 0);
+          calculateUserLoad(b.id, tempSchedule, dayWeights, poolCommonFrom) +
+          tempLoadOffset[b.id] +
+          (b.debt || 0);
         return loadA - loadB;
       }
 
@@ -188,35 +214,38 @@ export const getFreeUsersForDate = (
 
   // Filter available users and sort by priority (ladder + fairness)
   // Exclude isExtra and excludeFromAuto users from automatic scheduling
-  return users
-    .filter(
-      (u) =>
-        !u.isExtra &&
-        !u.excludeFromAuto &&
-        !assignedIds.has(u.id!) &&
-        isUserAvailable(u, dateStr, schedule)
-    )
-    .sort((a, b) => {
-      // Priority 1: Owed Days
-      const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
-      const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
-      if (oweA !== oweB) return oweB - oweA;
+  const filtered = users.filter(
+    (u) =>
+      !u.isExtra &&
+      !u.excludeFromAuto &&
+      !assignedIds.has(u.id!) &&
+      isUserAvailable(u, dateStr, schedule)
+  );
 
-      // Priority 2: Day-of-week balance ("ladder")
-      const dowA = countUserDaysOfWeek(a.id!, schedule)[dayIndex] || 0;
-      const dowB = countUserDaysOfWeek(b.id!, schedule)[dayIndex] || 0;
-      if (dowA !== dowB) return dowA - dowB;
+  // Pool-wide baseline: ignore assignments before the newest pool member joined
+  const poolCommonFrom = getPoolCommonFrom(filtered);
 
-      // Priority 3: Total assignments
-      const totalA = countUserAssignments(a.id!, schedule);
-      const totalB = countUserAssignments(b.id!, schedule);
-      if (totalA !== totalB) return totalA - totalB;
+  return filtered.sort((a, b) => {
+    // Priority 1: Owed Days
+    const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
+    const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
+    if (oweA !== oweB) return oweB - oweA;
 
-      // Priority 4: Effective load
-      const loadA = calculateUserLoad(a.id!, schedule, dayWeights) + (a.debt || 0);
-      const loadB = calculateUserLoad(b.id!, schedule, dayWeights) + (b.debt || 0);
-      return loadA - loadB;
-    });
+    // Priority 2: Day-of-week balance ("ladder")
+    const dowA = countUserDaysOfWeek(a.id!, schedule, poolCommonFrom)[dayIndex] || 0;
+    const dowB = countUserDaysOfWeek(b.id!, schedule, poolCommonFrom)[dayIndex] || 0;
+    if (dowA !== dowB) return dowA - dowB;
+
+    // Priority 3: Total assignments
+    const totalA = countUserAssignments(a.id!, schedule, poolCommonFrom);
+    const totalB = countUserAssignments(b.id!, schedule, poolCommonFrom);
+    if (totalA !== totalB) return totalA - totalB;
+
+    // Priority 4: Effective load
+    const loadA = calculateUserLoad(a.id!, schedule, dayWeights, poolCommonFrom) + (a.debt || 0);
+    const loadB = calculateUserLoad(b.id!, schedule, dayWeights, poolCommonFrom) + (b.debt || 0);
+    return loadA - loadB;
+  });
 };
 
 /**
@@ -272,6 +301,9 @@ export const calculateOptimalAssignment = (
 
   if (available.length === 0) return null;
 
+  // Pool-wide baseline: ignore assignments before the newest member joined
+  const poolCommonFrom = getPoolCommonFrom(available);
+
   // Sort by priority (ladder + fairness)
   available.sort((a, b) => {
     if (!a.id || !b.id) return 0;
@@ -281,17 +313,17 @@ export const calculateOptimalAssignment = (
     if (oweA !== oweB) return oweB - oweA;
 
     // Day-of-week balance
-    const dowA = countUserDaysOfWeek(a.id, schedule)[dayIdx] || 0;
-    const dowB = countUserDaysOfWeek(b.id, schedule)[dayIdx] || 0;
+    const dowA = countUserDaysOfWeek(a.id, schedule, poolCommonFrom)[dayIdx] || 0;
+    const dowB = countUserDaysOfWeek(b.id, schedule, poolCommonFrom)[dayIdx] || 0;
     if (dowA !== dowB) return dowA - dowB;
 
     // Total assignments
-    const totalA = countUserAssignments(a.id, schedule);
-    const totalB = countUserAssignments(b.id, schedule);
+    const totalA = countUserAssignments(a.id, schedule, poolCommonFrom);
+    const totalB = countUserAssignments(b.id, schedule, poolCommonFrom);
     if (totalA !== totalB) return totalA - totalB;
 
-    const loadA = calculateUserLoad(a.id, schedule, dayWeights) + (a.debt || 0);
-    const loadB = calculateUserLoad(b.id, schedule, dayWeights) + (b.debt || 0);
+    const loadA = calculateUserLoad(a.id, schedule, dayWeights, poolCommonFrom) + (a.debt || 0);
+    const loadB = calculateUserLoad(b.id, schedule, dayWeights, poolCommonFrom) + (b.debt || 0);
     return loadA - loadB;
   });
 

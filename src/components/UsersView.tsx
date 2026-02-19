@@ -6,6 +6,8 @@ import UserRow from './users/UserRow';
 import EditUserModal from './users/EditUserModal';
 import UserStatsModal from './users/UserStatsModal';
 
+import { toLocalISO } from '../utils/dateUtils';
+
 interface UsersViewProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
@@ -29,6 +31,21 @@ const UsersView: React.FC<UsersViewProps> = ({
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
 
   const handleAdd = async (name: string, rank: string, note: string) => {
+    // Set dateAddedToAuto to the day AFTER the last existing schedule entry.
+    // This ensures the new user isn't compared against assignments that were
+    // generated before they joined the pool.
+    const scheduleDates = Object.keys(schedule).sort();
+    const lastScheduleDate = scheduleDates[scheduleDates.length - 1];
+
+    const today = new Date();
+    const todayStr = toLocalISO(today);
+
+    let dateAddedToAuto = todayStr;
+    if (lastScheduleDate && lastScheduleDate >= todayStr) {
+      const nextDay = new Date(lastScheduleDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      dateAddedToAuto = toLocalISO(nextDay);
+    }
     await createUser({
       name,
       rank,
@@ -41,6 +58,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       statusTo: '',
       restAfterStatus: false,
       owedDays: {},
+      dateAddedToAuto,
     });
     await logAction('ADD', `Додано: ${name}`);
     await refreshData();
