@@ -29,7 +29,8 @@ export interface User {
   status: 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'OTHER';
   statusFrom?: string;
   statusTo?: string;
-  isActive: boolean;
+  isActive: boolean; // Full participation (if false - user is absent, shown gray in separate tab)
+  excludeFromAuto?: boolean; // Exclude from automatic scheduling (manual assignment only)
   note?: string;
   debt: number;
   restBeforeStatus?: boolean;

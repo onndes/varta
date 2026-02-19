@@ -24,12 +24,20 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         <div className="small text-muted">{u.note}</div>
       </td>
       <td>
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
           <span
             className={`badge ${u.isActive ? (u.status === 'ACTIVE' ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'}`}
           >
             {u.isActive ? STATUSES[u.status] : 'НЕАКТИВНИЙ'}
           </span>
+          {u.excludeFromAuto && (
+            <span
+              className="badge bg-warning text-dark"
+              style={{ fontSize: '0.65rem', opacity: 0.8 }}
+            >
+              виключ. з авторозп.
+            </span>
+          )}
           {(u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && (
             <small className="text-muted" style={{ fontSize: '0.75rem' }}>
               {u.statusFrom
@@ -50,8 +58,17 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         </div>
       </td>
       <td>
-        <span className={u.debt < 0 ? 'text-danger fw-bold' : u.debt > 0 ? 'text-success fw-bold' : 'text-muted fw-bold'}>
-          {u.debt > 0 ? '+' : ''}{u.debt.toFixed(1)}
+        <span
+          className={
+            u.debt < 0
+              ? 'text-danger fw-bold'
+              : u.debt > 0
+                ? 'text-success fw-bold'
+                : 'text-muted fw-bold'
+          }
+        >
+          {u.debt > 0 ? '+' : ''}
+          {u.debt.toFixed(1)}
         </span>
       </td>
       <td className="text-end">

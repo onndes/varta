@@ -27,4 +27,13 @@ db.version(8).stores({
   appState: 'key, value',
 });
 
+// Версия 9 - added excludeFromAuto to users
+db.version(9).stores({
+  users:
+    '++id, name, rank, status, statusFrom, statusTo, isActive, note, debt, restBeforeStatus, restAfterStatus, blockedDays, owedDays, isExtra, dateAddedToAuto, excludeFromAuto',
+  schedule: 'date, userId, type, isLocked',
+  auditLog: '++id, timestamp, action',
+  appState: 'key, value',
+});
+
 export { db };

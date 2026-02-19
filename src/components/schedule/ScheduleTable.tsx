@@ -21,9 +21,10 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   todayStr,
   onCellClick,
 }) => {
-  // Filter users: show all if <=15, otherwise only those with assignments
-  const displayUsers = users.filter((u) => {
-    if (users.length <= 15) return true;
+  // Filter users: show only active users; if <=15 active users show all, otherwise only with assignments
+  const activeUsers = users.filter((u) => u.isActive);
+  const displayUsers = activeUsers.filter((u) => {
+    if (activeUsers.length <= 15) return true;
     return weekDates.some((d) => schedule[d]?.userId === u.id);
   });
 

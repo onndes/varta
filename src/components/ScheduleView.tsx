@@ -171,6 +171,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
   const runFillGaps = async () => {
+    // Check if there are at least 2 active users available for scheduling
+    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    if (activeUsers.length < 2) {
+      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      return;
+    }
+
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
     if (datesToFill.length === 0) return;
 
@@ -180,6 +187,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runFixConflicts = async () => {
+    // Check if there are at least 2 active users available for scheduling
+    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    if (activeUsers.length < 2) {
+      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      return;
+    }
+
     if (scheduleIssues.conflicts.length === 0) return;
     
     const isCritical = scheduleIssues.criticalConflicts.length > 0;
@@ -200,6 +214,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runFullAutoSchedule = async () => {
+    // Check if there are at least 2 active users available for scheduling
+    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    if (activeUsers.length < 2) {
+      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      return;
+    }
+
     const validTargets = weekDates.filter((d) => d >= todayStr);
     if (validTargets.length === 0) {
       alert('Неможливо змінити минуле.');
@@ -213,6 +234,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runCascadeRecalc = async () => {
+    // Check if there are at least 2 active users available for scheduling
+    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    if (activeUsers.length < 2) {
+      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      return;
+    }
+
     if (!cascadeStartDate) return;
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
     if (!confirm(`Перерахувати АВТОМАТИЧНІ призначення з ${start}?`)) return;

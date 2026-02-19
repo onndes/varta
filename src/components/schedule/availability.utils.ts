@@ -11,10 +11,13 @@ export type UserAvailabilityStatus =
 
 /**
  * Determines user availability status for a specific date
+ * NOTE: excludeFromAuto flag is NOT checked here - it only affects automatic scheduling.
+ * Manual assignment is always possible regardless of excludeFromAuto status.
  */
 export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailabilityStatus => {
+  // If user is completely inactive (absent) - they are unavailable
   if (!u.isActive) return 'UNAVAILABLE';
-
+  
   // Check if day of week is blocked
   const dayOfWeek = new Date(dateStr).getDay(); // 0=Sun, 1=Mon...6=Sat
   const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun
@@ -48,7 +51,7 @@ export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailab
     return 'AVAILABLE';
   }
 
-  return 'UNAVAILABLE';
+  return 'AVAILABLE';
 };
 
 /**

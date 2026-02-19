@@ -20,7 +20,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
 
   const toggleDay = (dayIdx: number) => {
     const newBlocked = blockedDays.includes(dayIdx)
-      ? blockedDays.filter(d => d !== dayIdx)
+      ? blockedDays.filter((d) => d !== dayIdx)
       : [...blockedDays, dayIdx].sort();
     onChange({ ...user, blockedDays: newBlocked });
   };
@@ -68,7 +68,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
                 <div className="input-group">
                   <input
                     type="date"
-                    ref={el => { dateFromRef.current = el; }}
+                    ref={(el) => {
+                      dateFromRef.current = el;
+                    }}
                     className="form-control"
                     value={user.statusFrom || ''}
                     onChange={(e) => onChange({ ...user, statusFrom: e.target.value })}
@@ -89,7 +91,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
                 <div className="input-group">
                   <input
                     type="date"
-                    ref={el => { dateToRef.current = el; }}
+                    ref={(el) => {
+                      dateToRef.current = el;
+                    }}
                     className="form-control"
                     value={user.statusTo || ''}
                     onChange={(e) => onChange({ ...user, statusTo: e.target.value })}
@@ -104,7 +108,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
                 </div>
               </div>
             </div>
-            
+
             <div className="row">
               <div className="col-md-6">
                 <div className="form-check form-switch">
@@ -116,7 +120,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
                     onChange={(e) => onChange({ ...user, restBeforeStatus: e.target.checked })}
                     style={{ cursor: 'pointer' }}
                   />
-                  <label className="form-check-label" htmlFor="restBefore" style={{ cursor: 'pointer' }}>
+                  <label
+                    className="form-check-label"
+                    htmlFor="restBefore"
+                    style={{ cursor: 'pointer' }}
+                  >
                     <i className="fas fa-bed me-2 text-warning"></i>
                     Відпочинок день до події
                   </label>
@@ -132,7 +140,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
                     onChange={(e) => onChange({ ...user, restAfterStatus: e.target.checked })}
                     style={{ cursor: 'pointer' }}
                   />
-                  <label className="form-check-label" htmlFor="restAfter" style={{ cursor: 'pointer' }}>
+                  <label
+                    className="form-check-label"
+                    htmlFor="restAfter"
+                    style={{ cursor: 'pointer' }}
+                  >
                     <i className="fas fa-bed me-2 text-info"></i>
                     Відпочинок день після події
                   </label>
@@ -146,7 +158,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
       {/* Active checkbox */}
       <div className="card border-primary mb-3">
         <div className="card-body">
-          <div className="form-check form-switch">
+          <div className="form-check form-switch mb-3">
             <input
               type="checkbox"
               className="form-check-input"
@@ -155,13 +167,40 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
               onChange={(e) => onChange({ ...user, isActive: e.target.checked })}
               style={{ cursor: 'pointer' }}
             />
-            <label className="form-check-label fw-bold" htmlFor="isActive" style={{ cursor: 'pointer' }}>
+            <label
+              className="form-check-label fw-bold"
+              htmlFor="isActive"
+              style={{ cursor: 'pointer' }}
+            >
               <i className="fas fa-user-check me-2 text-primary"></i>
-              Бере участь у варті
+              Присутній в підрозділі
             </label>
             <div className="small text-muted mt-1">
-              Якщо відмічено — бере участь в <strong>автоматичному</strong> розподіленні. 
-              Ручне призначення можливе завжди.
+              Якщо вимкнено — боєць відсутній (показується сірим, тільки в окремій вкладці).
+            </div>
+          </div>
+
+          <div className="form-check form-switch">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="excludeFromAuto"
+              checked={user.excludeFromAuto || false}
+              onChange={(e) => onChange({ ...user, excludeFromAuto: e.target.checked })}
+              style={{ cursor: 'pointer' }}
+              disabled={!user.isActive}
+            />
+            <label
+              className="form-check-label"
+              htmlFor="excludeFromAuto"
+              style={{ cursor: 'pointer' }}
+            >
+              <i className="fas fa-user-times me-2 text-warning"></i>
+              Виключити з автоматичного розподілення
+            </label>
+            <div className="small text-muted mt-1">
+              Якщо відмічено — НЕ бере участь в <strong>автоматичному</strong> розподіленні. Ручне
+              призначення можливе завжди.
             </div>
           </div>
         </div>
@@ -198,8 +237,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
 
       {/* Advanced settings (collapsible) */}
       <div className="mb-3">
-        <button 
-          className="btn btn-sm btn-link text-decoration-none p-0" 
+        <button
+          className="btn btn-sm btn-link text-decoration-none p-0"
           onClick={() => setShowAdvanced(!showAdvanced)}
         >
           <i className={`fas fa-chevron-${showAdvanced ? 'down' : 'right'} me-2`}></i>

@@ -34,6 +34,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       rank,
       status: 'ACTIVE',
       isActive: true,
+      excludeFromAuto: false,
       note,
       debt: 0.0,
       statusFrom: '',
@@ -54,6 +55,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       statusFrom: editingUser.statusFrom,
       statusTo: editingUser.statusTo,
       isActive: editingUser.isActive,
+      excludeFromAuto: editingUser.excludeFromAuto,
       note: editingUser.note,
       restBeforeStatus: editingUser.restBeforeStatus,
       restAfterStatus: editingUser.restAfterStatus,
@@ -91,7 +93,14 @@ const UsersView: React.FC<UsersViewProps> = ({
       </div>
 
       <div className="col-lg-9">
-        <div className="card shadow-sm border-0">
+        {/* Active users */}
+        <div className="card shadow-sm border-0 mb-3">
+          <div className="card-header bg-white">
+            <h6 className="mb-0 fw-bold">
+              <i className="fas fa-users me-2 text-primary"></i>
+              Основний склад
+            </h6>
+          </div>
           <table className="table table-hover align-middle mb-0">
             <thead className="table-light small">
               <tr>
@@ -102,7 +111,7 @@ const UsersView: React.FC<UsersViewProps> = ({
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {users.filter(u => u.isActive).map((u) => (
                 <UserRow
                   key={u.id}
                   user={u}
@@ -115,6 +124,40 @@ const UsersView: React.FC<UsersViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Inactive users (separate section) */}
+        {users.filter(u => !u.isActive).length > 0 && (
+          <div className="card shadow-sm border-0">
+            <div className="card-header bg-light">
+              <h6 className="mb-0 fw-bold text-muted">
+                <i className="fas fa-user-slash me-2"></i>
+                Особовий склад (відсутні)
+              </h6>
+            </div>
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-light small">
+                <tr>
+                  <th>Боєць</th>
+                  <th>Статус</th>
+                  <th>Карма</th>
+                  <th className="text-end">Дії</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.filter(u => !u.isActive).map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    onEdit={setEditingUser}
+                    onDelete={handleDelete}
+                    onViewStats={setViewStatsUser}
+                    onResetDebt={handleResetDebt}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {editingUser && (

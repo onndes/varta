@@ -64,6 +64,22 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           <span className="rank-badge">{formatRank(user.rank)}</span>
           <span className="fw-bold text-dark">{user.name}</span>
         </span>
+        {!user.isActive && (
+          <span
+            className="badge bg-secondary text-white ms-2 no-print"
+            style={{ fontSize: '0.6rem' }}
+          >
+            ВІДСУТНІЙ
+          </span>
+        )}
+        {user.excludeFromAuto && (
+          <span
+            className="badge bg-warning text-dark ms-2 no-print"
+            style={{ fontSize: '0.55rem', opacity: 0.7 }}
+          >
+            виключ. з авторозп.
+          </span>
+        )}
         {statusLabel && (
           <span className="badge bg-warning text-dark ms-2 no-print" style={{ fontSize: '0.6rem' }}>
             {statusLabel}
