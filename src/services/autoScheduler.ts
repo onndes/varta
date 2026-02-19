@@ -58,7 +58,9 @@ export const autoFillSchedule = async (
     const weight = dayWeights[dayIdx] || 1.0;
 
     // Get available users (exclude isExtra users from automatic scheduling)
-    let pool = users.filter((u) => u.isActive && !u.isExtra && isUserAvailable(u, dateStr));
+    let pool = users.filter(
+      (u) => u.isActive && !u.isExtra && isUserAvailable(u, dateStr, tempSchedule)
+    );
 
     // Sort by priority (ladder + fairness algorithm)
     pool.sort((a, b) => {
@@ -146,21 +148,26 @@ export const saveAutoSchedule = async (
       await db.schedule.put(entry);
 
       if (entry.userId) {
-        const user = await db.users.get(entry.userId);
-        if (!user) continue;
+        // Handle both single userId and array of userIds (for multiple duties per day)
+        const userIds = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
 
-        const dayIdx = new Date(entry.date).getDay();
+        for (const userId of userIds) {
+          const user = await db.users.get(userId);
+          if (!user) continue;
 
-        // If user owes THIS day of week — repay it and restore karma
-        if (user.owedDays && user.owedDays[dayIdx] > 0) {
-          user.owedDays[dayIdx]--;
-          await db.users.update(user.id!, { owedDays: user.owedDays });
+          const dayIdx = new Date(entry.date).getDay();
 
-          // Restore karma by the weight of this day (owed day repaid)
-          if (user.debt < 0) {
-            const weight = dayWeights[dayIdx] || 1.0;
-            const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
-            await db.users.update(user.id!, { debt: newDebt });
+          // If user owes THIS day of week — repay it and restore karma
+          if (user.owedDays && user.owedDays[dayIdx] > 0) {
+            user.owedDays[dayIdx]--;
+            await db.users.update(user.id!, { owedDays: user.owedDays });
+
+            // Restore karma by the weight of this day (owed day repaid)
+            if (user.debt < 0) {
+              const weight = dayWeights[dayIdx] || 1.0;
+              const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+              await db.users.update(user.id!, { debt: newDebt });
+            }
           }
         }
       }
@@ -186,7 +193,7 @@ export const getFreeUsersForDate = (
   // Filter available users and sort by priority (ladder + fairness)
   // Exclude isExtra users from automatic scheduling
   return users
-    .filter((u) => !u.isExtra && !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
+    .filter((u) => !u.isExtra && !assignedIds.has(u.id!) && isUserAvailable(u, dateStr, schedule))
     .sort((a, b) => {
       // Priority 1: Owed Days
       const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;

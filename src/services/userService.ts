@@ -82,10 +82,25 @@ export const updateOwedDays = async (
 
 /**
  * Check if user is available on a specific date
+ * Now also checks for rest day after previous duty
  */
-export const isUserAvailable = (user: User, dateStr: string): boolean => {
+export const isUserAvailable = (
+  user: User,
+  dateStr: string,
+  schedule?: Record<string, ScheduleEntry>
+): boolean => {
   if (!user.isActive) return false;
-  if (user.status === 'ACTIVE') return true;
+  if (user.status === 'ACTIVE') {
+    // Still need to check rest day after duty if schedule provided
+    if (schedule && user.id) {
+      const prevDate = new Date(dateStr);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevDateStr = prevDate.toISOString().split('T')[0];
+      const prevEntry = schedule[prevDateStr];
+      if (prevEntry?.userId === user.id) return false; // Rest day after duty
+    }
+    return true;
+  }
 
   if (user.statusFrom || user.statusTo) {
     const from = user.statusFrom || '0000-01-01';
@@ -93,8 +108,8 @@ export const isUserAvailable = (user: User, dateStr: string): boolean => {
 
     if (dateStr >= from && dateStr <= to) return false;
 
-    // Check day before status (pre-status day)
-    if (user.statusFrom) {
+    // Check day before status ONLY if restBeforeStatus flag is set
+    if (user.restBeforeStatus && user.statusFrom) {
       const dayBefore = new Date(user.statusFrom);
       dayBefore.setDate(dayBefore.getDate() - 1);
       const dayBeforeStr = dayBefore.toISOString().split('T')[0];
@@ -108,6 +123,15 @@ export const isUserAvailable = (user: User, dateStr: string): boolean => {
       nextDay.setDate(endDate.getDate() + 1);
       const nextDayStr = nextDay.toISOString().split('T')[0];
       if (dateStr === nextDayStr) return false;
+    }
+
+    // Check rest day after last duty (if schedule provided)
+    if (schedule && user.id) {
+      const prevDate = new Date(dateStr);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevDateStr = prevDate.toISOString().split('T')[0];
+      const prevEntry = schedule[prevDateStr];
+      if (prevEntry?.userId === user.id) return false; // Rest day after duty
     }
 
     return true;
