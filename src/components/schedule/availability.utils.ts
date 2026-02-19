@@ -14,7 +14,7 @@ export type UserAvailabilityStatus =
  */
 export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailabilityStatus => {
   if (!u.isActive) return 'UNAVAILABLE';
-  
+
   // Check if day of week is blocked
   const dayOfWeek = new Date(dateStr).getDay(); // 0=Sun, 1=Mon...6=Sat
   const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun
@@ -26,16 +26,14 @@ export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailab
     const from = u.statusFrom || '0000-01-01';
     const to = u.statusTo || '9999-12-31';
 
-    if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
-
-    // Check "Day before status"
+    // Check "Day before status" FIRST (before checking main period)
     if (u.restBeforeStatus && u.statusFrom) {
       const dayBefore = new Date(u.statusFrom);
       dayBefore.setDate(dayBefore.getDate() - 1);
       if (toLocalISO(new Date(dateStr)) === toLocalISO(dayBefore)) return 'REST_DAY';
     }
 
-    // Check "Rest day after status"
+    // Check "Rest day after status" BEFORE checking availability
     if (u.restAfterStatus && u.statusTo) {
       const endDate = new Date(u.statusTo);
       const check = new Date(dateStr);
@@ -43,6 +41,9 @@ export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailab
       next.setDate(endDate.getDate() + 1);
       if (toLocalISO(check) === toLocalISO(next)) return 'REST_DAY';
     }
+
+    // Now check if date is within status period
+    if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
 
     return 'AVAILABLE';
   }

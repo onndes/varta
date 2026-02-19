@@ -26,7 +26,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
 }) => {
   // Status label logic: show only if relevant to current time
   let statusLabel: string | null = null;
-  
+
   if (!user.isActive) {
     statusLabel = 'ЗВІЛЬНЕНИЙ';
   } else if (user.status !== 'ACTIVE') {
@@ -37,14 +37,16 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
     // If status hasn't started yet (future)
     if (statusFrom && statusFrom > today) {
       const diffDays = Math.ceil((statusFrom.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 14) { // Show if starts within 2 weeks
+      if (diffDays <= 14) {
+        // Show if starts within 2 weeks
         statusLabel = `${STATUSES[user.status]} з ${statusFrom.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })}`;
       }
-    } 
+    }
     // If status ended more than 7 days ago — hide
     else if (statusTo && statusTo < today) {
       const diffDays = Math.ceil((today.getTime() - statusTo.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 7) { // Show for 7 days after end
+      if (diffDays <= 7) {
+        // Show for 7 days after end
         statusLabel = STATUSES[user.status];
       }
     }
@@ -77,7 +79,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
       {weekDates.map((date) => {
         const entry = schedule[date];
         const isAssigned = entry?.userId === user.id;
-        const available = getUserAvailabilityStatus(user, date) === 'AVAILABLE';
+        const availabilityStatus = getUserAvailabilityStatus(user, date);
+        const available = availabilityStatus === 'AVAILABLE';
         const isPast = new Date(date) < new Date(todayStr);
 
         let cellClass = 'compact-cell';
@@ -86,10 +89,31 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
 
         if (isAssigned) {
           cellClass += isPast ? ' past-locked' : ' assigned' + (entry.isLocked ? ' locked' : '');
-          screenContent = 'НАРЯД' + (entry.isLocked ? ' 🔒' : '');
+
+          // Show hand for manual, lock for locked
+          let icon = '';
+          if (entry.isLocked) {
+            icon = ' 🔒';
+          } else if (entry.type === 'manual') {
+            icon = ' ✋';
+          }
+          screenContent = 'НАРЯД' + icon;
           printContent = '08:00';
         } else if (!available) {
           cellClass += ' unavailable';
+
+          // Show status text in unavailable cells
+          if (availabilityStatus === 'STATUS_BUSY') {
+            screenContent = STATUSES[user.status] || 'ЗАЙНЯТИЙ';
+          } else if (availabilityStatus === 'REST_DAY') {
+            screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
+          } else if (availabilityStatus === 'DAY_BLOCKED') {
+            screenContent = 'ЗАБЛОКОВАНО';
+          } else if (availabilityStatus === 'PRE_STATUS_DAY') {
+            screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
+          } else {
+            screenContent = '—';
+          }
         }
 
         return (

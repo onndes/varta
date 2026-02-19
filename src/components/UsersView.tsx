@@ -55,7 +55,9 @@ const UsersView: React.FC<UsersViewProps> = ({
       statusTo: editingUser.statusTo,
       isActive: editingUser.isActive,
       note: editingUser.note,
+      restBeforeStatus: editingUser.restBeforeStatus,
       restAfterStatus: editingUser.restAfterStatus,
+      blockedDays: editingUser.blockedDays,
     });
 
     if (editingUser.status !== 'ACTIVE' && editingUser.statusFrom) {

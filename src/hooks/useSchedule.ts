@@ -44,7 +44,7 @@ export const useSchedule = (users: User[]) => {
           date,
           userId,
           type: isManual ? 'manual' : 'auto',
-          isLocked: isManual,
+          isLocked: false,
         };
 
         await scheduleService.saveScheduleEntry(entry);
