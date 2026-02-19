@@ -12,6 +12,7 @@ import UsersView from './components/UsersView';
 import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
+import AuditLogView from './components/AuditLogView';
 
 // Styles
 import './styles/main.scss';
@@ -159,6 +160,7 @@ const App = () => {
               onSaveDutiesPerDay={saveDutiesPerDay}
             />
           )}
+          {activeTab === 'logs' && <AuditLogView />}
           {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
         </div>
       </div>

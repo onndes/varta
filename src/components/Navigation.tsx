@@ -40,6 +40,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           Налаштування
         </button>
       </li>
+      <li className="nav-item">
+        <button
+          className={`nav-link ${activeTab === 'logs' ? 'active fw-bold' : ''}`}
+          onClick={() => onTabChange('logs')}
+        >
+          Журнал
+        </button>
+      </li>
       <li className="nav-item ms-auto">
         <button
           className={`nav-link ${activeTab === 'dev' ? 'active fw-bold text-danger' : 'text-muted'}`}
