@@ -1,7 +1,7 @@
 // src/services/userService.ts
 
 import { db } from '../db/db';
-import type { User } from '../types';
+import type { User, ScheduleEntry } from '../types';
 import { MAX_DEBT } from '../utils/constants';
 
 /**

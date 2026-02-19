@@ -55,10 +55,14 @@ export const removeAssignmentWithDebt = async (
   if (reason === 'request') {
     const dayIdx = new Date(date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
-    // Karma goes negative (general fairness)
-    await userService.updateUserDebt(entry.userId, -weight);
-    // Must repay THIS specific day of week
-    await userService.updateOwedDays(entry.userId, dayIdx, 1);
+    // Handle both single and array userId
+    const userId = Array.isArray(entry.userId) ? entry.userId[0] : entry.userId;
+    if (userId) {
+      // Karma goes negative (general fairness)
+      await userService.updateUserDebt(userId, -weight);
+      // Must repay THIS specific day of week
+      await userService.updateOwedDays(userId, dayIdx, 1);
+    }
   }
 
   await db.schedule.delete(date);
