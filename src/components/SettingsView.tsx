@@ -150,6 +150,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     className="form-control form-control-sm"
                     value={sigs.approverPos}
                     onChange={(e) => setSigs({ ...sigs, approverPos: e.target.value })}
+                    placeholder="Наприклад: Командир частини"
                   />
                 </div>
                 <div className="row g-2">
