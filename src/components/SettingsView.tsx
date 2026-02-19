@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { DayWeights, Signatories } from '../types';
 import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
+import * as performanceService from '../services/performanceService';
+import type { DatabaseStats } from '../services/performanceService';
 
 interface SettingsViewProps {
   dayWeights: DayWeights;
@@ -22,6 +24,36 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [weights, setWeights] = useState<DayWeights>(dayWeights);
   const [sigs, setSigs] = useState<Signatories>(signatories);
   const [perDay, setPerDay] = useState<number>(dutiesPerDay);
+  const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
+  const [maintenanceNeeded, setMaintenanceNeeded] = useState(false);
+
+  const loadDatabaseStats = async () => {
+    const stats = await performanceService.getDatabaseStats();
+    const needsMaintenance = await performanceService.checkMaintenanceNeeded();
+    setDbStats(stats);
+    setMaintenanceNeeded(needsMaintenance);
+  };
+
+  const handleMaintenance = async () => {
+    if (
+      !confirm(
+        'Видалити старі дані (графіки старше 1 року, логи старше 6 місяців)?\n\nРекомендується робити експорт перед очищенням!'
+      )
+    ) {
+      return;
+    }
+
+    const results = await performanceService.performMaintenance();
+    alert(
+      `Очищено:\n• Логів: ${results.logsDeleted}\n• Старих графіків: ${results.oldSchedulesDeleted}`
+    );
+    await loadDatabaseStats();
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadDatabaseStats();
+  }, []);
 
   const handleSave = () => {
     onSave(weights);
@@ -93,9 +125,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   value={perDay}
                   onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
                 />
-                <div className="form-text">
-                  За замовчуванням: 1 черговий
-                </div>
+                <div className="form-text">За замовчуванням: 1 черговий</div>
               </div>
             </div>
           </div>
@@ -233,6 +263,57 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 Додатковий рядок під підзаголовком (необов'язково)
               </small>
             </div>
+          </div>
+        </div>
+
+        {/* Database Maintenance Section */}
+        <div className="card shadow-sm border-0 mb-4">
+          <div className="card-header bg-white py-3">
+            <h5 className="mb-0 fw-bold">
+              <i className="fas fa-database me-2"></i>Обслуговування бази даних
+            </h5>
+          </div>
+          <div className="card-body">
+            {dbStats && (
+              <>
+                <div className="alert alert-info py-2 small mb-3">
+                  <strong>Статистика бази:</strong>
+                  <ul className="mb-0 mt-2">
+                    <li>Бійців: {dbStats.counts.users}</li>
+                    <li>Графіків: {dbStats.counts.schedule}</li>
+                    <li>Логів: {dbStats.counts.auditLog}</li>
+                    <li>Приблизний розмір: ~{dbStats.estimatedSizeKB.total.toFixed(0)} КБ</li>
+                  </ul>
+                </div>
+
+                {maintenanceNeeded && (
+                  <div className="alert alert-warning py-2 small mb-3">
+                    <i className="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Рекомендується очищення!</strong> База містить багато старих даних.
+                  </div>
+                )}
+
+                <button
+                  className={`btn ${maintenanceNeeded ? 'btn-warning' : 'btn-outline-secondary'} btn-sm`}
+                  onClick={handleMaintenance}
+                >
+                  <i className="fas fa-broom me-2"></i>
+                  Очистити старі дані
+                </button>
+
+                <div className="small text-muted mt-3">
+                  <strong>Що видаляється:</strong>
+                  <ul className="mb-0">
+                    <li>Графіки старше 1 року</li>
+                    <li>Логи старше 6 місяців</li>
+                  </ul>
+                  <p className="mb-0 mt-2">
+                    <i className="fas fa-info-circle me-1"></i>
+                    Зробіть експорт даних перед очищенням!
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
