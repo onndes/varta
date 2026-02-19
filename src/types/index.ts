@@ -21,7 +21,7 @@ export interface Signatories {
 // Теперь value имеет конкретные возможные типы вместо any
 export interface AppStateEntry {
   key: string;
-  value: DayWeights | Signatories | string | number | boolean | null;
+  value: DayWeights | Signatories | AutoScheduleOptions | string | number | boolean | null;
 }
 
 export interface User {
@@ -48,6 +48,12 @@ export interface ScheduleEntry {
   userId: number | number[] | null; // Can be single ID or array for multiple duties per day
   type: 'manual' | 'auto' | 'critical';
   isLocked?: boolean;
+}
+
+export interface AutoScheduleOptions {
+  avoidConsecutiveDays: boolean;
+  respectOwedDays: boolean;
+  considerLoad: boolean;
 }
 
 export interface AuditLogEntry {

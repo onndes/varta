@@ -75,8 +75,15 @@ export const DAY_SHORT_NAMES: Record<number, string> = {
 export const DEFAULT_DAY_WEIGHTS = { 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.5, 6: 2.0, 0: 1.5 };
 
 export const MAX_DEBT = 4.0;
+export const DEFAULT_MAX_DEBT = 4.0;
 
 export const DEFAULT_DUTIES_PER_DAY = 1;
+
+export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
+  avoidConsecutiveDays: true,
+  respectOwedDays: true,
+  considerLoad: true,
+};
 
 export const DEFAULT_SIGNATORIES: Signatories = {
   approverPos: '',

@@ -1,8 +1,9 @@
 // src/hooks/useSettings.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import type { DayWeights, Signatories } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import * as settingsService from '../services/settingsService';
+import { DEFAULT_AUTO_SCHEDULE_OPTIONS, DEFAULT_MAX_DEBT } from '../utils/constants';
 
 /**
  * Custom hook for managing application settings
@@ -22,6 +23,10 @@ export const useSettings = () => {
   });
   const [cascadeStartDate, setCascadeStartDate] = useState<string | null>(null);
   const [dutiesPerDay, setDutiesPerDay] = useState<number>(1);
+  const [autoScheduleOptions, setAutoScheduleOptions] = useState<AutoScheduleOptions>(
+    DEFAULT_AUTO_SCHEDULE_OPTIONS
+  );
+  const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,17 +36,21 @@ export const useSettings = () => {
       setLoading(true);
       setError(null);
 
-      const [weights, sigs, cascadeDate, perDay] = await Promise.all([
+      const [weights, sigs, cascadeDate, perDay, autoOpts, debt] = await Promise.all([
         settingsService.getDayWeights(),
         settingsService.getSignatories(),
         settingsService.getCascadeStartDate(),
         settingsService.getDutiesPerDay(),
+        settingsService.getAutoScheduleOptions(),
+        settingsService.getMaxDebt(),
       ]);
 
       setDayWeights(weights);
       setSignatories(sigs);
       setCascadeStartDate(cascadeDate);
       setDutiesPerDay(perDay);
+      setAutoScheduleOptions(autoOpts);
+      setMaxDebt(debt);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -68,6 +77,28 @@ export const useSettings = () => {
       setSignatories(sigs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save signatories');
+      throw err;
+    }
+  }, []);
+
+  // Save auto-schedule options
+  const saveAutoScheduleOptions = useCallback(async (opts: AutoScheduleOptions) => {
+    try {
+      await settingsService.saveAutoScheduleOptions(opts);
+      setAutoScheduleOptions(opts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save auto-schedule options');
+      throw err;
+    }
+  }, []);
+
+  // Save max debt
+  const saveMaxDebt = useCallback(async (value: number) => {
+    try {
+      await settingsService.saveMaxDebt(value);
+      setMaxDebt(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save max debt');
       throw err;
     }
   }, []);
@@ -129,12 +160,16 @@ export const useSettings = () => {
     signatories,
     cascadeStartDate,
     dutiesPerDay,
+    autoScheduleOptions,
+    maxDebt,
     loading,
     error,
     loadSettings,
     saveDayWeights,
     saveSignatories,
     saveDutiesPerDay,
+    saveAutoScheduleOptions,
+    saveMaxDebt,
     updateCascadeTrigger,
     clearCascadeTrigger,
     resetAllSettings,

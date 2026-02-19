@@ -1,7 +1,7 @@
 // src/services/autoScheduler.ts
 
 import { db } from '../db/db';
-import type { User, ScheduleEntry, DayWeights } from '../types';
+import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
 import { isUserAvailable } from './userService';
 import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
@@ -9,12 +9,6 @@ import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './
 /**
  * Service for automatic schedule generation
  */
-
-interface AutoScheduleOptions {
-  avoidConsecutiveDays?: boolean;
-  respectOwedDays?: boolean;
-  considerLoad?: boolean;
-}
 
 /**
  * Automatically fill schedule gaps

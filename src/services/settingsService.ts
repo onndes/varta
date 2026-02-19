@@ -1,11 +1,13 @@
 // src/services/settingsService.ts
 
 import { db } from '../db/db';
-import type { DayWeights, Signatories } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import {
   DEFAULT_DAY_WEIGHTS,
   DEFAULT_SIGNATORIES,
   DEFAULT_DUTIES_PER_DAY,
+  DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  DEFAULT_MAX_DEBT,
 } from '../utils/constants';
 
 /**
@@ -138,6 +140,44 @@ export const saveAppSetting = async (
 };
 
 /**
+ * Get auto-schedule options
+ */
+export const getAutoScheduleOptions = async (): Promise<AutoScheduleOptions> => {
+  const record = await db.appState.get('autoScheduleOptions');
+  if (!record) return DEFAULT_AUTO_SCHEDULE_OPTIONS;
+  let value = record.value;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return DEFAULT_AUTO_SCHEDULE_OPTIONS;
+    }
+  }
+  return value as AutoScheduleOptions;
+};
+
+/**
+ * Save auto-schedule options
+ */
+export const saveAutoScheduleOptions = async (opts: AutoScheduleOptions): Promise<void> => {
+  await db.appState.put({ key: 'autoScheduleOptions', value: opts });
+};
+
+/**
+ * Get max debt (karma cap)
+ */
+export const getMaxDebt = async (): Promise<number> => {
+  return await getAppSetting('maxDebt', DEFAULT_MAX_DEBT);
+};
+
+/**
+ * Save max debt
+ */
+export const saveMaxDebt = async (value: number): Promise<void> => {
+  await saveAppSetting('maxDebt', value);
+};
+
+/**
  * Reset all settings to defaults
  */
 export const resetAllSettings = async (): Promise<void> => {
@@ -145,6 +185,8 @@ export const resetAllSettings = async (): Promise<void> => {
   await db.appState.put({ key: 'signatories', value: DEFAULT_SIGNATORIES });
   await db.appState.put({ key: 'cascadeStartDate', value: null });
   await db.appState.put({ key: 'dutiesPerDay', value: DEFAULT_DUTIES_PER_DAY });
+  await db.appState.put({ key: 'autoScheduleOptions', value: DEFAULT_AUTO_SCHEDULE_OPTIONS });
+  await db.appState.put({ key: 'maxDebt', value: DEFAULT_MAX_DEBT });
 };
 
 /**

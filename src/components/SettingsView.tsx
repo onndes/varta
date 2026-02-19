@@ -1,37 +1,79 @@
 import React, { useState, useEffect } from 'react';
-import type { DayWeights, Signatories } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
 import * as performanceService from '../services/performanceService';
 import type { DatabaseStats } from '../services/performanceService';
+import Modal from './Modal';
 
 interface SettingsViewProps {
   dayWeights: DayWeights;
   signatories: Signatories;
   dutiesPerDay: number;
+  autoScheduleOptions: AutoScheduleOptions;
+  maxDebt: number;
   onSave: (w: DayWeights) => void;
   onSaveSignatories: (s: Signatories) => void;
   onSaveDutiesPerDay: (count: number) => void;
+  onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => void;
+  onSaveMaxDebt: (value: number) => void;
 }
+
+type SubTab = 'logic' | 'print';
 
 const SettingsView: React.FC<SettingsViewProps> = ({
   dayWeights,
   signatories,
   dutiesPerDay,
+  autoScheduleOptions,
+  maxDebt,
   onSave,
   onSaveSignatories,
   onSaveDutiesPerDay,
+  onSaveAutoScheduleOptions,
+  onSaveMaxDebt,
 }) => {
+  const [subTab, setSubTab] = useState<SubTab>('logic');
   const [weights, setWeights] = useState<DayWeights>(dayWeights);
   const [sigs, setSigs] = useState<Signatories>(signatories);
   const [perDay, setPerDay] = useState<number>(dutiesPerDay);
+  const [autoOpts, setAutoOpts] = useState<AutoScheduleOptions>(autoScheduleOptions);
+  const [debt, setDebt] = useState<number>(maxDebt);
+
+  // DB maintenance modal
+  const [showDbModal, setShowDbModal] = useState(false);
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
   const [maintenanceNeeded, setMaintenanceNeeded] = useState(false);
 
+  useEffect(() => {
+    setWeights(dayWeights);
+  }, [dayWeights]);
+
+  useEffect(() => {
+    setSigs(signatories);
+  }, [signatories]);
+
+  useEffect(() => {
+    setPerDay(dutiesPerDay);
+  }, [dutiesPerDay]);
+
+  useEffect(() => {
+    setAutoOpts(autoScheduleOptions);
+  }, [autoScheduleOptions]);
+
+  useEffect(() => {
+    setDebt(maxDebt);
+  }, [maxDebt]);
+
   const loadDatabaseStats = async () => {
     const stats = await performanceService.getDatabaseStats();
-    const needsMaintenance = await performanceService.checkMaintenanceNeeded();
+    const needs = await performanceService.checkMaintenanceNeeded();
     setDbStats(stats);
-    setMaintenanceNeeded(needsMaintenance);
+    setMaintenanceNeeded(needs);
+  };
+
+  const handleOpenDbModal = async () => {
+    await loadDatabaseStats();
+    setShowDbModal(true);
   };
 
   const handleMaintenance = async () => {
@@ -39,9 +81,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       !confirm(
         'Видалити старі дані (графіки старше 1 року, логи старше 6 місяців)?\n\nРекомендується робити експорт перед очищенням!'
       )
-    ) {
+    )
       return;
-    }
 
     const results = await performanceService.performMaintenance();
     alert(
@@ -50,280 +91,421 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     await loadDatabaseStats();
   };
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadDatabaseStats();
-  }, []);
-
-  const handleSave = () => {
+  const handleSaveLogic = () => {
     onSave(weights);
-    onSaveSignatories(sigs);
     onSaveDutiesPerDay(perDay);
-    alert('Налаштування збережено!');
+    onSaveAutoScheduleOptions(autoOpts);
+    onSaveMaxDebt(debt);
+    alert('Налаштування логіки збережено!');
   };
+
+  const handleSavePrint = () => {
+    onSaveSignatories(sigs);
+    alert('Налаштування друку збережено!');
+  };
+
+  // ─── Sub-tab: Logic ────────────────────────────────────────
+  const renderLogicTab = () => (
+    <>
+      {/* Day Weights */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-balance-scale me-2"></i>Вага днів тижня
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-info py-2 small">
+            Вага дня визначає, скільки балів отримує боєць за чергування в цей день тижня. Більша
+            вага = важчий день. (1.0 = звичайний, 2.0 = дуже важкий).
+          </div>
+          <div className="row g-3">
+            {[1, 2, 3, 4, 5, 6, 0].map((day) => (
+              <div key={day} className="col-6 col-md-3">
+                <div className="p-2 border rounded bg-light text-center">
+                  <label className="form-label fw-bold d-block small mb-1">
+                    {DAY_NAMES_FULL[day]}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    max="5.0"
+                    className="form-control text-center fw-bold form-control-sm mx-auto"
+                    style={{ width: '70px' }}
+                    value={weights[day]}
+                    onChange={(e) => setWeights({ ...weights, [day]: parseFloat(e.target.value) })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Duties Per Day */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-users me-2"></i>Кількість чергових на добу
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="row">
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Чергових на добу</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                className="form-control"
+                value={perDay}
+                onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
+              />
+              <div className="form-text">
+                Скільки бійців одночасно несуть чергування в одну добу.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Auto-Scheduler Options */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-robot me-2"></i>Алгоритм автозаповнення
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-info py-2 small">
+            Ці параметри визначають, як алгоритм обирає бійців при автоматичному заповненні графіка.
+          </div>
+
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="avoidConsecutive"
+              checked={autoOpts.avoidConsecutiveDays}
+              onChange={(e) => setAutoOpts({ ...autoOpts, avoidConsecutiveDays: e.target.checked })}
+            />
+            <label className="form-check-label" htmlFor="avoidConsecutive">
+              <strong>Не ставити два дні поспіль</strong>
+              <div className="text-muted small">
+                Боєць, який черговував учора, не буде призначений на сьогодні (день відпочинку після
+                чергування).
+              </div>
+            </label>
+          </div>
+
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="respectOwed"
+              checked={autoOpts.respectOwedDays}
+              onChange={(e) => setAutoOpts({ ...autoOpts, respectOwedDays: e.target.checked })}
+            />
+            <label className="form-check-label" htmlFor="respectOwed">
+              <strong>Враховувати борги (owedDays)</strong>
+              <div className="text-muted small">
+                Бійці з боргом за конкретний день тижня мають пріоритет при призначенні саме на цей
+                день.
+              </div>
+            </label>
+          </div>
+
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="considerLoad"
+              checked={autoOpts.considerLoad}
+              onChange={(e) => setAutoOpts({ ...autoOpts, considerLoad: e.target.checked })}
+            />
+            <label className="form-check-label" htmlFor="considerLoad">
+              <strong>Враховувати навантаження</strong>
+              <div className="text-muted small">
+                Спочатку по кількості чергувань на день тижня (драбинка), потім по загальній
+                кількості, потім по вазі + карма. Вимкніть лише для тестування.
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Karma / Debt Cap */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-shield-alt me-2"></i>Карма (ліміт боргу)
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="row">
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Максимальний борг</label>
+              <input
+                type="number"
+                step="0.5"
+                min="1"
+                max="20"
+                className="form-control"
+                value={debt}
+                onChange={(e) => setDebt(parseFloat(e.target.value) || 4)}
+              />
+              <div className="form-text">
+                Максимальний від'ємний борг бійця. Після досягнення цього ліміту борг не
+                збільшується. За замовчуванням: 4.0
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-end">
+        <button className="btn btn-primary btn-lg" onClick={handleSaveLogic}>
+          <i className="fas fa-save me-2"></i>Зберегти логіку
+        </button>
+      </div>
+    </>
+  );
+
+  // ─── Sub-tab: Print ────────────────────────────────────────
+  const renderPrintTab = () => (
+    <>
+      {/* Signatories */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-pen-nib me-2"></i>Підписи для друку
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="row g-4">
+            <div className="col-md-6">
+              <h6 className="fw-bold text-primary border-bottom pb-2">
+                ЗАТВЕРДЖУЮ (Верхній правий кут)
+              </h6>
+              <div className="mb-2">
+                <label className="small text-muted">Посада</label>
+                <input
+                  className="form-control form-control-sm"
+                  value={sigs.approverPos}
+                  onChange={(e) => setSigs({ ...sigs, approverPos: e.target.value })}
+                  placeholder="Наприклад: Командир частини"
+                />
+              </div>
+              <div className="row g-2">
+                <div className="col-5">
+                  <label className="small text-muted">Звання</label>
+                  <select
+                    className="form-select form-select-sm"
+                    value={sigs.approverRank}
+                    onChange={(e) => setSigs({ ...sigs, approverRank: e.target.value })}
+                  >
+                    <option value="">-- Виберіть --</option>
+                    {RANKS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-7">
+                  <label className="small text-muted">Ім'я ПРІЗВИЩЕ</label>
+                  <input
+                    className="form-control form-control-sm"
+                    value={sigs.approverName}
+                    onChange={(e) => setSigs({ ...sigs, approverName: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6 border-start-md">
+              <h6 className="fw-bold text-primary border-bottom pb-2">
+                ГРАФІК СКЛАВ (Низ сторінки)
+              </h6>
+              <div className="mb-2">
+                <label className="small text-muted">Посада</label>
+                <input
+                  className="form-control form-control-sm"
+                  value={sigs.creatorPos || ''}
+                  onChange={(e) => setSigs({ ...sigs, creatorPos: e.target.value })}
+                  placeholder="Наприклад: Заступник командира частини"
+                />
+              </div>
+              <div className="row g-2">
+                <div className="col-5">
+                  <label className="small text-muted">Звання</label>
+                  <select
+                    className="form-select form-select-sm"
+                    value={sigs.creatorRank}
+                    onChange={(e) => setSigs({ ...sigs, creatorRank: e.target.value })}
+                  >
+                    <option value="">-- Виберіть --</option>
+                    {RANKS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-7">
+                  <label className="small text-muted">Ім'я ПРІЗВИЩЕ</label>
+                  <input
+                    className="form-control form-control-sm"
+                    value={sigs.creatorName}
+                    onChange={(e) => setSigs({ ...sigs, creatorName: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Schedule Title */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-heading me-2"></i>Заголовок графіка
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="mb-3">
+            <label className="small text-muted">Назва документа</label>
+            <input
+              className="form-control form-control-sm"
+              value={sigs.scheduleTitle || ''}
+              onChange={(e) => setSigs({ ...sigs, scheduleTitle: e.target.value })}
+              placeholder="ГРАФІК"
+            />
+            <small className="text-muted">Якщо порожньо — "ГРАФІК"</small>
+          </div>
+          <div className="mb-3">
+            <label className="small text-muted">Підзаголовок (1 рядок)</label>
+            <input
+              className="form-control form-control-sm"
+              value={sigs.scheduleSubtitle || ''}
+              onChange={(e) => setSigs({ ...sigs, scheduleSubtitle: e.target.value })}
+              placeholder="добового чергування на ... (автоматично з дат тижня)"
+            />
+            <small className="text-muted">Якщо порожньо — автоматично з дат поточного тижня</small>
+          </div>
+          <div className="mb-3">
+            <label className="small text-muted">Додатковий рядок (2 рядок)</label>
+            <input
+              className="form-control form-control-sm"
+              value={sigs.scheduleLine3 || ''}
+              onChange={(e) => setSigs({ ...sigs, scheduleLine3: e.target.value })}
+              placeholder="Наприклад: в/ч А1234 на період з ... по ..."
+            />
+            <small className="text-muted">Додатковий рядок під підзаголовком (необов'язково)</small>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-end">
+        <button className="btn btn-primary btn-lg" onClick={handleSavePrint}>
+          <i className="fas fa-save me-2"></i>Зберегти друк
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div className="row justify-content-center">
       <div className="col-md-10">
-        {/* Weights Section */}
-        <div className="card shadow-sm border-0 mb-4">
-          <div className="card-header bg-white py-3">
-            <h5 className="mb-0 fw-bold">
-              <i className="fas fa-sliders-h me-2"></i>Налаштування ваги днів
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="alert alert-info py-2 small">
-              Вага дня визначає, скільки балів отримує боєць за чергування в цей день. (1.0 =
-              звичайний день, 2.0 = дуже важкий).
-            </div>
-            <div className="row g-3">
-              {[1, 2, 3, 4, 5, 6, 0].map((day) => (
-                <div key={day} className="col-6 col-md-3">
-                  <div className="p-2 border rounded bg-light text-center">
-                    <label className="form-label fw-bold d-block small mb-1">
-                      {DAY_NAMES_FULL[day]}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      max="5.0"
-                      className="form-control text-center fw-bold form-control-sm mx-auto"
-                      style={{ width: '70px' }}
-                      value={weights[day]}
-                      onChange={(e) =>
-                        setWeights({ ...weights, [day]: parseFloat(e.target.value) })
-                      }
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* Sub-tabs */}
+        <div className="d-flex align-items-center justify-content-between mb-4">
+          <ul className="nav nav-pills">
+            <li className="nav-item">
+              <button
+                className={`nav-link ${subTab === 'logic' ? 'active' : ''}`}
+                onClick={() => setSubTab('logic')}
+              >
+                <i className="fas fa-cogs me-1"></i>Логіка графіка
+              </button>
+            </li>
+            <li className="nav-item">
+              <button
+                className={`nav-link ${subTab === 'print' ? 'active' : ''}`}
+                onClick={() => setSubTab('print')}
+              >
+                <i className="fas fa-print me-1"></i>Друк
+              </button>
+            </li>
+          </ul>
 
-        {/* Duties Per Day Section */}
-        <div className="card shadow-sm border-0 mb-4">
-          <div className="card-header bg-white py-3">
-            <h5 className="mb-0 fw-bold">
-              <i className="fas fa-users me-2"></i>Кількість чергових на добу
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="alert alert-info py-2 small">
-              Вкажіть скільки бійців одночасно несуть чергування в одну добу.
-            </div>
-            <div className="row">
-              <div className="col-md-4">
-                <label className="form-label fw-bold">Чергових на добу</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  className="form-control"
-                  value={perDay}
-                  onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
-                />
-                <div className="form-text">За замовчуванням: 1 черговий</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Signatories Section */}
-        <div className="card shadow-sm border-0 mb-4">
-          <div className="card-header bg-white py-3">
-            <h5 className="mb-0 fw-bold">
-              <i className="fas fa-pen-nib me-2"></i>Підписи для друку
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="row g-4">
-              <div className="col-md-6">
-                <h6 className="fw-bold text-primary border-bottom pb-2">
-                  ЗАТВЕРДЖУЮ (Верхній правий кут)
-                </h6>
-                <div className="mb-2">
-                  <label className="small text-muted">Посада</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={sigs.approverPos}
-                    onChange={(e) => setSigs({ ...sigs, approverPos: e.target.value })}
-                    placeholder="Наприклад: Командир частини"
-                  />
-                </div>
-                <div className="row g-2">
-                  <div className="col-5">
-                    <label className="small text-muted">Звання</label>
-                    <select
-                      className="form-select form-select-sm"
-                      value={sigs.approverRank}
-                      onChange={(e) => setSigs({ ...sigs, approverRank: e.target.value })}
-                    >
-                      <option value="">-- Виберіть --</option>
-                      {RANKS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-7">
-                    <label className="small text-muted">Ім'я ПРІЗВИЩЕ</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={sigs.approverName}
-                      onChange={(e) => setSigs({ ...sigs, approverName: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="col-md-6 border-start-md">
-                <h6 className="fw-bold text-primary border-bottom pb-2">
-                  ГРАФІК СКЛАВ (Низ сторінки)
-                </h6>
-                <div className="mb-2">
-                  <label className="small text-muted">Посада</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={sigs.creatorPos || ''}
-                    onChange={(e) => setSigs({ ...sigs, creatorPos: e.target.value })}
-                    placeholder="Наприклад: Заступник командира частини"
-                  />
-                </div>
-                <div className="row g-2">
-                  <div className="col-5">
-                    <label className="small text-muted">Звання</label>
-                    <select
-                      className="form-select form-select-sm"
-                      value={sigs.creatorRank}
-                      onChange={(e) => setSigs({ ...sigs, creatorRank: e.target.value })}
-                    >
-                      <option value="">-- Виберіть --</option>
-                      {RANKS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-7">
-                    <label className="small text-muted">Ім'я ПРІЗВИЩЕ</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={sigs.creatorName}
-                      onChange={(e) => setSigs({ ...sigs, creatorName: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Schedule Title Section */}
-        <div className="card shadow-sm border-0 mb-4">
-          <div className="card-header bg-white py-3">
-            <h5 className="mb-0 fw-bold">
-              <i className="fas fa-heading me-2"></i>Заголовок графіка (для друку)
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="mb-3">
-              <label className="small text-muted">Назва документа</label>
-              <input
-                className="form-control form-control-sm"
-                value={sigs.scheduleTitle || ''}
-                onChange={(e) => setSigs({ ...sigs, scheduleTitle: e.target.value })}
-                placeholder="ГРАФІК"
-              />
-              <small className="text-muted">Якщо порожньо — "ГРАФІК"</small>
-            </div>
-            <div className="mb-3">
-              <label className="small text-muted">Підзаголовок (1 рядок)</label>
-              <input
-                className="form-control form-control-sm"
-                value={sigs.scheduleSubtitle || ''}
-                onChange={(e) => setSigs({ ...sigs, scheduleSubtitle: e.target.value })}
-                placeholder="добового чергування на ... (автоматично з дат тижня)"
-              />
-              <small className="text-muted">
-                Якщо порожньо — автоматично з дат поточного тижня
-              </small>
-            </div>
-            <div className="mb-3">
-              <label className="small text-muted">Додатковий рядок (2 рядок)</label>
-              <input
-                className="form-control form-control-sm"
-                value={sigs.scheduleLine3 || ''}
-                onChange={(e) => setSigs({ ...sigs, scheduleLine3: e.target.value })}
-                placeholder="Наприклад: в/ч А1234 на період з ... по ..."
-              />
-              <small className="text-muted">
-                Додатковий рядок під підзаголовком (необов'язково)
-              </small>
-            </div>
-          </div>
-        </div>
-
-        {/* Database Maintenance Section */}
-        <div className="card shadow-sm border-0 mb-4">
-          <div className="card-header bg-white py-3">
-            <h5 className="mb-0 fw-bold">
-              <i className="fas fa-database me-2"></i>Обслуговування бази даних
-            </h5>
-          </div>
-          <div className="card-body">
-            {dbStats && (
-              <>
-                <div className="alert alert-info py-2 small mb-3">
-                  <strong>Статистика бази:</strong>
-                  <ul className="mb-0 mt-2">
-                    <li>Бійців: {dbStats.counts.users}</li>
-                    <li>Графіків: {dbStats.counts.schedule}</li>
-                    <li>Логів: {dbStats.counts.auditLog}</li>
-                    <li>Приблизний розмір: ~{dbStats.estimatedSizeKB.total.toFixed(0)} КБ</li>
-                  </ul>
-                </div>
-
-                {maintenanceNeeded && (
-                  <div className="alert alert-warning py-2 small mb-3">
-                    <i className="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Рекомендується очищення!</strong> База містить багато старих даних.
-                  </div>
-                )}
-
-                <button
-                  className={`btn ${maintenanceNeeded ? 'btn-warning' : 'btn-outline-secondary'} btn-sm`}
-                  onClick={handleMaintenance}
-                >
-                  <i className="fas fa-broom me-2"></i>
-                  Очистити старі дані
-                </button>
-
-                <div className="small text-muted mt-3">
-                  <strong>Що видаляється:</strong>
-                  <ul className="mb-0">
-                    <li>Графіки старше 1 року</li>
-                    <li>Логи старше 6 місяців</li>
-                  </ul>
-                  <p className="mb-0 mt-2">
-                    <i className="fas fa-info-circle me-1"></i>
-                    Зробіть експорт даних перед очищенням!
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="text-end">
-          <button className="btn btn-primary btn-lg" onClick={handleSave}>
-            <i className="fas fa-save me-2"></i>Зберегти налаштування
+          {/* DB Maintenance — small button */}
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={handleOpenDbModal}
+            title="Обслуговування бази даних"
+          >
+            <i className="fas fa-database me-1"></i>База даних
           </button>
         </div>
+
+        {/* Content */}
+        {subTab === 'logic' && renderLogicTab()}
+        {subTab === 'print' && renderPrintTab()}
       </div>
+
+      {/* DB Maintenance Modal */}
+      <Modal
+        show={showDbModal}
+        onClose={() => setShowDbModal(false)}
+        title="Обслуговування бази даних"
+      >
+        {dbStats ? (
+          <>
+            <div className="alert alert-info py-2 small mb-3">
+              <strong>Статистика бази:</strong>
+              <ul className="mb-0 mt-2">
+                <li>Бійців: {dbStats.counts.users}</li>
+                <li>Графіків: {dbStats.counts.schedule}</li>
+                <li>Логів: {dbStats.counts.auditLog}</li>
+                <li>Приблизний розмір: ~{dbStats.estimatedSizeKB.total.toFixed(0)} КБ</li>
+              </ul>
+            </div>
+
+            {maintenanceNeeded && (
+              <div className="alert alert-warning py-2 small mb-3">
+                <i className="fas fa-exclamation-triangle me-2"></i>
+                <strong>Рекомендується очищення!</strong> База містить багато старих даних.
+              </div>
+            )}
+
+            <button
+              className={`btn ${maintenanceNeeded ? 'btn-warning' : 'btn-outline-secondary'} btn-sm`}
+              onClick={handleMaintenance}
+            >
+              <i className="fas fa-broom me-2"></i>
+              Очистити старі дані
+            </button>
+
+            <div className="small text-muted mt-3">
+              <strong>Що видаляється:</strong>
+              <ul className="mb-0">
+                <li>Графіки старше 1 року</li>
+                <li>Логи старше 6 місяців</li>
+              </ul>
+              <p className="mb-0 mt-2">
+                <i className="fas fa-info-circle me-1"></i>
+                Зробіть експорт даних перед очищенням!
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-3">
+            <div className="spinner-border spinner-border-sm text-primary"></div>
+            <span className="ms-2">Завантаження...</span>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

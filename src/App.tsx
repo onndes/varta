@@ -28,10 +28,14 @@ const App = () => {
     signatories,
     cascadeStartDate,
     dutiesPerDay,
+    autoScheduleOptions,
+    maxDebt,
     loadSettings,
     saveDayWeights,
     saveSignatories,
     saveDutiesPerDay,
+    saveAutoScheduleOptions,
+    saveMaxDebt,
     updateCascadeTrigger,
     clearCascadeTrigger,
   } = useSettings();
@@ -155,9 +159,13 @@ const App = () => {
               dayWeights={dayWeights}
               signatories={signatories}
               dutiesPerDay={dutiesPerDay}
+              autoScheduleOptions={autoScheduleOptions}
+              maxDebt={maxDebt}
               onSave={saveDayWeights}
               onSaveSignatories={saveSignatories}
               onSaveDutiesPerDay={saveDutiesPerDay}
+              onSaveAutoScheduleOptions={saveAutoScheduleOptions}
+              onSaveMaxDebt={saveMaxDebt}
             />
           )}
           {activeTab === 'logs' && <AuditLogView />}
