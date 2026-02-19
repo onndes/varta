@@ -3,6 +3,7 @@
 import { db } from '../db/db';
 import type { User, ScheduleEntry } from '../types';
 import { MAX_DEBT } from '../utils/constants';
+import { toLocalISO } from '../utils/dateUtils';
 
 /**
  * Service for managing users
@@ -37,10 +38,25 @@ export const updateUser = async (id: number, updates: Partial<User>): Promise<nu
 };
 
 /**
- * Delete user
+ * Delete user and clean up their future schedule entries
  */
-export const deleteUser = async (id: number): Promise<void> => {
+export const deleteUser = async (id: number): Promise<string[]> => {
+  // Find and remove future schedule entries for this user
+  const todayStr = toLocalISO(new Date());
+  const allSchedule = await db.schedule.toArray();
+  const orphanedDates = allSchedule
+    .filter((entry) => {
+      const userId = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
+      return userId.includes(id) && entry.date >= todayStr;
+    })
+    .map((entry) => entry.date);
+
+  if (orphanedDates.length > 0) {
+    await db.schedule.bulkDelete(orphanedDates);
+  }
+
   await db.users.delete(id);
+  return orphanedDates;
 };
 
 /**
@@ -95,18 +111,25 @@ export const isUserAvailable = (
   if (user.blockedDays && user.blockedDays.length > 0) {
     const date = new Date(dateStr);
     const dayOfWeek = date.getDay();
-    if (user.blockedDays.includes(dayOfWeek)) return false;
+    const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun
+    if (user.blockedDays.includes(dayIdx)) return false;
   }
+
+  // Helper: check if previous day was assigned to this user (rest day after duty)
+  const isPrevDayAssigned = (): boolean => {
+    if (!schedule || !user.id) return false;
+    const prevDate = new Date(dateStr);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const prevEntry = schedule[toLocalISO(prevDate)];
+    if (!prevEntry?.userId) return false;
+    return Array.isArray(prevEntry.userId)
+      ? prevEntry.userId.includes(user.id)
+      : prevEntry.userId === user.id;
+  };
 
   if (user.status === 'ACTIVE') {
     // Still need to check rest day after duty if schedule provided
-    if (schedule && user.id) {
-      const prevDate = new Date(dateStr);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevDateStr = prevDate.toISOString().split('T')[0];
-      const prevEntry = schedule[prevDateStr];
-      if (prevEntry?.userId === user.id) return false; // Rest day after duty
-    }
+    if (isPrevDayAssigned()) return false;
     return true;
   }
 
@@ -120,7 +143,7 @@ export const isUserAvailable = (
     if (user.restBeforeStatus && user.statusFrom) {
       const dayBefore = new Date(user.statusFrom);
       dayBefore.setDate(dayBefore.getDate() - 1);
-      const dayBeforeStr = dayBefore.toISOString().split('T')[0];
+      const dayBeforeStr = toLocalISO(dayBefore);
       if (dateStr === dayBeforeStr) return false;
     }
 
@@ -129,18 +152,12 @@ export const isUserAvailable = (
       const endDate = new Date(user.statusTo);
       const nextDay = new Date(endDate);
       nextDay.setDate(endDate.getDate() + 1);
-      const nextDayStr = nextDay.toISOString().split('T')[0];
+      const nextDayStr = toLocalISO(nextDay);
       if (dateStr === nextDayStr) return false;
     }
 
     // Check rest day after last duty (if schedule provided)
-    if (schedule && user.id) {
-      const prevDate = new Date(dateStr);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevDateStr = prevDate.toISOString().split('T')[0];
-      const prevEntry = schedule[prevDateStr];
-      if (prevEntry?.userId === user.id) return false; // Rest day after duty
-    }
+    if (isPrevDayAssigned()) return false;
 
     return true;
   }
@@ -164,11 +181,11 @@ export const getUserAvailabilityStatus = (
 
     if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
 
-    // Check day before status
-    if (user.statusFrom) {
+    // Check day before status ONLY if restBeforeStatus flag is set
+    if (user.restBeforeStatus && user.statusFrom) {
       const dayBefore = new Date(user.statusFrom);
       dayBefore.setDate(dayBefore.getDate() - 1);
-      const dayBeforeStr = dayBefore.toISOString().split('T')[0];
+      const dayBeforeStr = toLocalISO(dayBefore);
       if (dateStr === dayBeforeStr) return 'PRE_STATUS_DAY';
     }
 
@@ -177,7 +194,7 @@ export const getUserAvailabilityStatus = (
       const endDate = new Date(user.statusTo);
       const nextDay = new Date(endDate);
       nextDay.setDate(endDate.getDate() + 1);
-      const nextDayStr = nextDay.toISOString().split('T')[0];
+      const nextDayStr = toLocalISO(nextDay);
       if (dateStr === nextDayStr) return 'REST_DAY';
     }
 

@@ -76,6 +76,8 @@ const UsersView: React.FC<UsersViewProps> = ({
   const handleDelete = async (u: User) => {
     if (!u.id || !confirm('Видалити?')) return;
     await deleteUserHook(u.id);
+    const todayStr = new Date().toISOString().split('T')[0];
+    await updateCascadeTrigger(todayStr);
     await logAction('DELETE', `Видалено: ${u.name}`);
     await refreshData();
   };

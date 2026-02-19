@@ -101,10 +101,11 @@ export const autoFillSchedule = async (
     if (options.avoidConsecutiveDays) {
       const prevDate = new Date(dateStr);
       prevDate.setDate(prevDate.getDate() - 1);
-      const prevUserId = tempSchedule[toLocalISO(prevDate)]?.userId;
+      const rawPrevId = tempSchedule[toLocalISO(prevDate)]?.userId;
+      const prevUserIds = rawPrevId ? (Array.isArray(rawPrevId) ? rawPrevId : [rawPrevId]) : [];
 
-      if (prevUserId) {
-        const filtered = pool.filter((u) => u.id !== prevUserId);
+      if (prevUserIds.length > 0) {
+        const filtered = pool.filter((u) => !prevUserIds.includes(u.id!));
         // Only use filtered list if it's not empty (avoid leaving day unassigned)
         if (filtered.length > 0) {
           pool = filtered;
@@ -248,7 +249,8 @@ export const recalculateScheduleFrom = async (
 
   while (d <= endD) {
     const iso = toLocalISO(d);
-    if (!schedule[iso] || !schedule[iso].isLocked) {
+    // Keep locked entries and manual entries (only recalculate auto entries)
+    if (!schedule[iso] || (!schedule[iso].isLocked && schedule[iso].type !== 'manual')) {
       datesToRegen.push(iso);
     }
     d.setDate(d.getDate() + 1);
@@ -272,7 +274,7 @@ export const calculateOptimalAssignment = (
   dayWeights: DayWeights
 ): User | null => {
   const dayIdx = new Date(dateStr).getDay();
-  const available = users.filter((u) => u.isActive && isUserAvailable(u, dateStr));
+  const available = users.filter((u) => u.isActive && isUserAvailable(u, dateStr, schedule));
 
   if (available.length === 0) return null;
 

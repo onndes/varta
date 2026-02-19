@@ -2,6 +2,7 @@
 
 import { db } from '../db/db';
 import { clearOldLogs } from './auditService';
+import { toLocalISO } from '../utils/dateUtils';
 
 /**
  * Service for maintaining database performance
@@ -28,7 +29,7 @@ export const performMaintenance = async (): Promise<{
   // 2. Clear schedule entries older than 1 year
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+  const oneYearAgoStr = toLocalISO(oneYearAgo);
 
   const allSchedule = await db.schedule.toArray();
   const oldScheduleIds = allSchedule

@@ -48,7 +48,6 @@ export const useUsers = () => {
     async (user: Omit<User, 'id'>) => {
       try {
         const userId = await userService.createUser(user);
-        await auditService.logAction('ADD', `Додано: ${user.name}`);
         await loadUsers();
         return userId;
       } catch (err) {
@@ -64,35 +63,27 @@ export const useUsers = () => {
     async (id: number, updates: Partial<User>) => {
       try {
         await userService.updateUser(id, updates);
-        const user = users.find((u) => u.id === id);
-        if (user) {
-          await auditService.logAction('EDIT', `Редаговано: ${user.name}`);
-        }
         await loadUsers();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to update user');
         throw err;
       }
     },
-    [users, loadUsers]
+    [loadUsers]
   );
 
-  // Delete user
+  // Delete user (also cleans up future schedule entries)
   const deleteUser = useCallback(
     async (id: number) => {
       try {
-        const user = users.find((u) => u.id === id);
         await userService.deleteUser(id);
-        if (user) {
-          await auditService.logAction('DELETE', `Видалено: ${user.name}`);
-        }
         await loadUsers();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete user');
         throw err;
       }
     },
-    [users, loadUsers]
+    [loadUsers]
   );
 
   // Reset user debt

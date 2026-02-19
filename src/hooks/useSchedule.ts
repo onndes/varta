@@ -42,6 +42,28 @@ export const useSchedule = (users: User[]) => {
   const assignUser = useCallback(
     async (date: string, userId: number, isManual = true) => {
       try {
+        // Check if there's already an assignment for this date
+        const existing = await scheduleService.getScheduleByDate(date);
+        if (existing && existing.userId) {
+          const prevId = Array.isArray(existing.userId) ? existing.userId[0] : existing.userId;
+          if (prevId && prevId !== userId) {
+            // Previous user was replaced — restore their karma (service/work reason, no penalty)
+            const dayIdx = new Date(date).getDay();
+            const weight = dayWeights[dayIdx] || 1.0;
+            // Give back weight so they don't lose credit for a shift they didn't serve
+            await import('../services/userService').then((us) =>
+              us.updateUserDebt(prevId, -weight)
+            );
+            const prevUser = users.find((u) => u.id === prevId);
+            if (prevUser) {
+              await auditService.logAction(
+                'REMOVE',
+                `${prevUser.name} замінено на ${date} (Карма -${weight})`
+              );
+            }
+          }
+        }
+
         const entry: ScheduleEntry = {
           date,
           userId,
@@ -51,11 +73,24 @@ export const useSchedule = (users: User[]) => {
 
         await scheduleService.saveScheduleEntry(entry);
 
+        // Repay owedDays if user owes this day of week (Bug 5)
         const user = users.find((u) => u.id === userId);
-        if (user) {
+        if (user && isManual) {
           const dayIdx = new Date(date).getDay();
-          const weight = dayWeights[dayIdx] || 1.0;
-          await auditService.logAction('ASSIGN', `${user.name} на ${date} (Карма +${weight})`);
+          if (user.owedDays && user.owedDays[dayIdx] > 0) {
+            const weight = dayWeights[dayIdx] || 1.0;
+            await import('../services/userService').then(async (us) => {
+              await us.updateOwedDays(userId, dayIdx, -1);
+              // Restore karma (owed day repaid)
+              if (user.debt < 0) {
+                const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+                await us.updateUserDebt(userId, newDebt - user.debt);
+              }
+            });
+          }
+          await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
+        } else if (user) {
+          await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
         }
 
         await loadSchedule();

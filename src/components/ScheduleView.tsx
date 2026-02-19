@@ -10,7 +10,7 @@ import PrintHeader from './schedule/PrintHeader';
 import PrintFooter from './PrintFooter';
 import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
-import { isUserAvailable } from './schedule/availability.utils';
+import { isUserAvailable } from '../services/userService';
 
 interface ScheduleViewProps {
   users: User[];
@@ -80,7 +80,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     Object.entries(schedule).forEach(([date, entry]) => {
       if (date < checkStart) return;
       const user = users.find((u) => u.id === entry.userId);
-      if (user && !isUserAvailable(user, date)) {
+      if (user && !isUserAvailable(user, date, schedule)) {
         conflicts.push(date);
         // Critical: user is blocked by vacation/sick leave
         if (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') {
@@ -130,7 +130,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
 
       return users
-        .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
+        .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr, schedule))
         .sort((a, b) => {
           // Priority 1: Owed days for this day of week
           const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
