@@ -2,7 +2,11 @@
 
 import { db } from '../db/db';
 import type { DayWeights, Signatories } from '../types';
-import { DEFAULT_DAY_WEIGHTS, DEFAULT_SIGNATORIES, DEFAULT_DUTIES_PER_DAY } from '../utils/constants';
+import {
+  DEFAULT_DAY_WEIGHTS,
+  DEFAULT_SIGNATORIES,
+  DEFAULT_DUTIES_PER_DAY,
+} from '../utils/constants';
 
 /**
  * Service for application settings
@@ -77,7 +81,9 @@ export const clearCascadeTrigger = async (): Promise<void> => {
 /**
  * Get app setting by key
  */
-export const getAppSetting = async <T extends DayWeights | Signatories | string | number | boolean | null>(
+export const getAppSetting = async <
+  T extends DayWeights | Signatories | string | number | boolean | null,
+>(
   key: string,
   defaultValue: T
 ): Promise<T> => {

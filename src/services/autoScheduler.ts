@@ -59,7 +59,8 @@ export const autoFillSchedule = async (
 
     // Get available users (exclude isExtra and excludeFromAuto users from automatic scheduling)
     let pool = users.filter(
-      (u) => u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, tempSchedule)
+      (u) =>
+        u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, tempSchedule)
     );
 
     // Sort by priority (ladder + fairness algorithm)
@@ -193,7 +194,13 @@ export const getFreeUsersForDate = (
   // Filter available users and sort by priority (ladder + fairness)
   // Exclude isExtra and excludeFromAuto users from automatic scheduling
   return users
-    .filter((u) => !u.isExtra && !u.excludeFromAuto && !assignedIds.has(u.id!) && isUserAvailable(u, dateStr, schedule))
+    .filter(
+      (u) =>
+        !u.isExtra &&
+        !u.excludeFromAuto &&
+        !assignedIds.has(u.id!) &&
+        isUserAvailable(u, dateStr, schedule)
+    )
     .sort((a, b) => {
       // Priority 1: Owed Days
       const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;

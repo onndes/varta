@@ -111,22 +111,24 @@ const UsersView: React.FC<UsersViewProps> = ({
               </tr>
             </thead>
             <tbody>
-              {users.filter(u => u.isActive).map((u) => (
-                <UserRow
-                  key={u.id}
-                  user={u}
-                  onEdit={setEditingUser}
-                  onDelete={handleDelete}
-                  onViewStats={setViewStatsUser}
-                  onResetDebt={handleResetDebt}
-                />
-              ))}
+              {users
+                .filter((u) => u.isActive)
+                .map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    onEdit={setEditingUser}
+                    onDelete={handleDelete}
+                    onViewStats={setViewStatsUser}
+                    onResetDebt={handleResetDebt}
+                  />
+                ))}
             </tbody>
           </table>
         </div>
 
         {/* Inactive users (separate section) */}
-        {users.filter(u => !u.isActive).length > 0 && (
+        {users.filter((u) => !u.isActive).length > 0 && (
           <div className="card shadow-sm border-0">
             <div className="card-header bg-light">
               <h6 className="mb-0 fw-bold text-muted">
@@ -144,16 +146,18 @@ const UsersView: React.FC<UsersViewProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {users.filter(u => !u.isActive).map((u) => (
-                  <UserRow
-                    key={u.id}
-                    user={u}
-                    onEdit={setEditingUser}
-                    onDelete={handleDelete}
-                    onViewStats={setViewStatsUser}
-                    onResetDebt={handleResetDebt}
-                  />
-                ))}
+                {users
+                  .filter((u) => !u.isActive)
+                  .map((u) => (
+                    <UserRow
+                      key={u.id}
+                      user={u}
+                      onEdit={setEditingUser}
+                      onDelete={handleDelete}
+                      onViewStats={setViewStatsUser}
+                      onResetDebt={handleResetDebt}
+                    />
+                  ))}
               </tbody>
             </table>
           </div>

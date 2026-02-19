@@ -17,7 +17,7 @@ export type UserAvailabilityStatus =
 export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailabilityStatus => {
   // If user is completely inactive (absent) - they are unavailable
   if (!u.isActive) return 'UNAVAILABLE';
-  
+
   // Check if day of week is blocked
   const dayOfWeek = new Date(dateStr).getDay(); // 0=Sun, 1=Mon...6=Sat
   const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun

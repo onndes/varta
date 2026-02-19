@@ -84,7 +84,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         conflicts.push(date);
         // Critical: user is blocked by vacation/sick leave
         if (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') {
-          if (user.statusFrom && user.statusTo && date >= user.statusFrom && date <= user.statusTo) {
+          if (
+            user.statusFrom &&
+            user.statusTo &&
+            date >= user.statusFrom &&
+            date <= user.statusTo
+          ) {
             criticalConflicts.push(date);
           }
         }
@@ -105,7 +110,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const jumpToWeek = (w: number) => setCurrentMonday(getMondayOfWeek(new Date().getFullYear(), w));
-  
+
   const goToToday = () => {
     const d = new Date();
     const day = d.getDay();
@@ -119,62 +124,68 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     setCurrentMonday(new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))));
   };
 
-  const getFreeUsers = useCallback((dateStr: string) => {
-    const dayIndex = new Date(dateStr).getDay();
-    const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
+  const getFreeUsers = useCallback(
+    (dateStr: string) => {
+      const dayIndex = new Date(dateStr).getDay();
+      const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
 
-    return users
-      .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
-      .sort((a, b) => {
-        // Priority 1: Owed days for this day of week
-        const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
-        const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
-        if (oweA !== oweB) return oweB - oweA;
+      return users
+        .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr))
+        .sort((a, b) => {
+          // Priority 1: Owed days for this day of week
+          const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
+          const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
+          if (oweA !== oweB) return oweB - oweA;
 
-        // Priority 2: Day-of-week balance ("ladder")
-        const dowA = countUserDaysOfWeek(a.id!, schedule)[dayIndex] || 0;
-        const dowB = countUserDaysOfWeek(b.id!, schedule)[dayIndex] || 0;
-        if (dowA !== dowB) return dowA - dowB;
+          // Priority 2: Day-of-week balance ("ladder")
+          const dowA = countUserDaysOfWeek(a.id!, schedule)[dayIndex] || 0;
+          const dowB = countUserDaysOfWeek(b.id!, schedule)[dayIndex] || 0;
+          if (dowA !== dowB) return dowA - dowB;
 
-        // Priority 3: Total assignments
-        const totalA = countUserAssignments(a.id!, schedule);
-        const totalB = countUserAssignments(b.id!, schedule);
-        if (totalA !== totalB) return totalA - totalB;
+          // Priority 3: Total assignments
+          const totalA = countUserAssignments(a.id!, schedule);
+          const totalB = countUserAssignments(b.id!, schedule);
+          if (totalA !== totalB) return totalA - totalB;
 
-        // Priority 4: Effective load (weighted + debt)
-        const loadA = calculateEffectiveLoad(a);
-        const loadB = calculateEffectiveLoad(b);
-        return loadA - loadB;
-      });
-  }, [weekDates, schedule, users, calculateEffectiveLoad]);
+          // Priority 4: Effective load (weighted + debt)
+          const loadA = calculateEffectiveLoad(a);
+          const loadB = calculateEffectiveLoad(b);
+          return loadA - loadB;
+        });
+    },
+    [weekDates, schedule, users, calculateEffectiveLoad]
+  );
 
   // Check if cascade recalc could improve assignments (after getFreeUsers defined)
   const shouldShowCascadeRecalc = useMemo(() => {
     if (!cascadeStartDate) return false;
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
-    
+
     // Check if there are unlocked entries that could be improved
     return Object.entries(schedule).some(([date, entry]) => {
       if (date < start || entry.type === 'manual') return false;
-      
-      const currentUser = users.find(u => u.id === entry.userId);
+
+      const currentUser = users.find((u) => u.id === entry.userId);
       if (!currentUser) return false;
-      
+
       // Get other available candidates
-      const freeUsers = getFreeUsers(date).filter(u => u.id !== currentUser.id);
+      const freeUsers = getFreeUsers(date).filter((u) => u.id !== currentUser.id);
       if (freeUsers.length === 0) return false;
-      
+
       // Check if any candidate has better priority
       const currentLoad = calculateEffectiveLoad(currentUser);
-      return freeUsers.some(u => calculateEffectiveLoad(u) < currentLoad - 0.5);
+      return freeUsers.some((u) => calculateEffectiveLoad(u) < currentLoad - 0.5);
     });
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
   const runFillGaps = async () => {
     // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
-      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      alert(
+        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
+          activeUsers.length
+      );
       return;
     }
 
@@ -188,36 +199,42 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const runFixConflicts = async () => {
     // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
-      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      alert(
+        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
+          activeUsers.length
+      );
       return;
     }
 
     if (scheduleIssues.conflicts.length === 0) return;
-    
+
     const isCritical = scheduleIssues.criticalConflicts.length > 0;
-    const message = isCritical 
+    const message = isCritical
       ? `Замінити ${scheduleIssues.criticalConflicts.length} блокованих працівників?`
       : `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?`;
-    
+
     if (!confirm(message)) return;
 
     // Remove conflicts
     await bulkDelete(scheduleIssues.conflicts);
-    
+
     // Immediately fill the gaps with available users
     await fillGaps(scheduleIssues.conflicts);
-    
+
     await logAction('AUTO_FIX', `Замінено ${scheduleIssues.conflicts.length} конфліктів`);
     await refreshData();
   };
 
   const runFullAutoSchedule = async () => {
     // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
-      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      alert(
+        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
+          activeUsers.length
+      );
       return;
     }
 
@@ -235,9 +252,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const runCascadeRecalc = async () => {
     // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter(u => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
-      alert('⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' + activeUsers.length);
+      alert(
+        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
+          activeUsers.length
+      );
       return;
     }
 
@@ -356,8 +376,18 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                   <strong>{users.find((u) => u.id === selectedCell.entry!.userId)?.name}</strong>
                 </div>
                 <div className="btn-group w-100 mb-3">
-                  <button className={`btn btn-sm ${swapMode === 'replace' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setSwapMode('replace')}>Заміна</button>
-                  <button className={`btn btn-sm ${swapMode === 'remove' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => setSwapMode('remove')}>Зняти</button>
+                  <button
+                    className={`btn btn-sm ${swapMode === 'replace' ? 'btn-primary' : 'btn-outline-primary'}`}
+                    onClick={() => setSwapMode('replace')}
+                  >
+                    Заміна
+                  </button>
+                  <button
+                    className={`btn btn-sm ${swapMode === 'remove' ? 'btn-danger' : 'btn-outline-danger'}`}
+                    onClick={() => setSwapMode('remove')}
+                  >
+                    Зняти
+                  </button>
                 </div>
                 {swapMode === 'replace' && (
                   <div className="list-group" style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -365,14 +395,34 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                       const dayIdx = new Date(selectedCell.date).getDay();
                       const owes = (u.owedDays && u.owedDays[dayIdx]) || 0;
                       return (
-                        <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
+                        <button
+                          key={u.id}
+                          className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`}
+                          onClick={() => handleAssign(u.id)}
+                        >
                           <div>
                             <span className="fw-bold">{u.name}</span>
-                            {owes > 0 && <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>}
-                            {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
-                            <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
+                            {owes > 0 && (
+                              <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>
+                            )}
+                            {isOnRestDay(u.id!, selectedCell.date) && (
+                              <span className="badge bg-warning text-dark ms-2">відсипний</span>
+                            )}
+                            <div className="small text-muted">
+                              Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}
+                            </div>
                           </div>
-                          <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
+                          <span
+                            className={
+                              u.debt < 0
+                                ? 'text-danger'
+                                : u.debt > 0
+                                  ? 'text-success'
+                                  : 'text-muted'
+                            }
+                          >
+                            Карма: {u.debt > 0 ? '+' + u.debt : u.debt}
+                          </span>
                         </button>
                       );
                     })}
@@ -380,9 +430,19 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                 )}
                 {swapMode === 'remove' && (
                   <div className="d-grid gap-2">
-                    <button className="btn btn-outline-danger" onClick={() => handleRemove('request')}>За рапортом (Карма МІНУС)</button>
+                    <button
+                      className="btn btn-outline-danger"
+                      onClick={() => handleRemove('request')}
+                    >
+                      За рапортом (Карма МІНУС)
+                    </button>
                     <div className="small text-muted text-center">Боєць буде "винен" системі.</div>
-                    <button className="btn btn-outline-secondary" onClick={() => handleRemove('work')}>Службова (Карма 0)</button>
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={() => handleRemove('work')}
+                    >
+                      Службова (Карма 0)
+                    </button>
                   </div>
                 )}
               </div>
@@ -392,14 +452,30 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                   const dayIdx = new Date(selectedCell.date).getDay();
                   const owes = (u.owedDays && u.owedDays[dayIdx]) || 0;
                   return (
-                    <button key={u.id} className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`} onClick={() => handleAssign(u.id)}>
+                    <button
+                      key={u.id}
+                      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`}
+                      onClick={() => handleAssign(u.id)}
+                    >
                       <div>
                         <span className="fw-bold">{u.name}</span>
-                        {owes > 0 && <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>}
-                        {isOnRestDay(u.id!, selectedCell.date) && <span className="badge bg-warning text-dark ms-2">відсипний</span>}
-                        <div className="small text-muted">Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}</div>
+                        {owes > 0 && (
+                          <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>
+                        )}
+                        {isOnRestDay(u.id!, selectedCell.date) && (
+                          <span className="badge bg-warning text-dark ms-2">відсипний</span>
+                        )}
+                        <div className="small text-muted">
+                          Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}
+                        </div>
                       </div>
-                      <span className={u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'}>Карма: {u.debt > 0 ? '+' + u.debt : u.debt}</span>
+                      <span
+                        className={
+                          u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'
+                        }
+                      >
+                        Карма: {u.debt > 0 ? '+' + u.debt : u.debt}
+                      </span>
                     </button>
                   );
                 })}
