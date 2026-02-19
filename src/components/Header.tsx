@@ -1,4 +1,5 @@
 import React from 'react';
+import InfoButton from './InfoButton';
 
 interface HeaderProps {
   needsExport: boolean;
@@ -18,7 +19,9 @@ const Header: React.FC<HeaderProps> = ({ needsExport, onImport, onExport, onPrin
           <i className="fas fa-shield-alt fa-lg"></i>
         </div>
         <div>
-          <h4 className="m-0 fw-bold text-dark">ВАРТА</h4>
+          <h4 className="m-0 fw-bold text-dark">
+            ВАРТА <InfoButton />
+          </h4>
           <small className="text-muted">Система розподілу чергувань</small>
         </div>
       </div>
