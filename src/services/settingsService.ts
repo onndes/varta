@@ -17,7 +17,19 @@ import {
  */
 export const getDayWeights = async (): Promise<DayWeights> => {
   const record = await db.appState.get('dayWeights');
-  return record ? (record.value as DayWeights) : DEFAULT_DAY_WEIGHTS;
+  if (!record) return DEFAULT_DAY_WEIGHTS;
+
+  // Handle JSON string values
+  let value = record.value;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch (e) {
+      return DEFAULT_DAY_WEIGHTS;
+    }
+  }
+
+  return value as DayWeights;
 };
 
 /**
@@ -32,7 +44,19 @@ export const saveDayWeights = async (weights: DayWeights): Promise<void> => {
  */
 export const getSignatories = async (): Promise<Signatories> => {
   const record = await db.appState.get('signatories');
-  return record ? (record.value as Signatories) : DEFAULT_SIGNATORIES;
+  if (!record) return DEFAULT_SIGNATORIES;
+
+  // Handle JSON string values
+  let value = record.value;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch (e) {
+      return DEFAULT_SIGNATORIES;
+    }
+  }
+
+  return value as Signatories;
 };
 
 /**
@@ -88,7 +112,19 @@ export const getAppSetting = async <
   defaultValue: T
 ): Promise<T> => {
   const record = await db.appState.get(key);
-  return record ? (record.value as T) : defaultValue;
+  if (!record) return defaultValue;
+
+  // Handle JSON string values and type conversions
+  const value = record.value;
+  if (typeof value === 'string') {
+    // Try to parse as number if defaultValue is a number
+    if (typeof defaultValue === 'number') {
+      const num = Number(value);
+      if (!isNaN(num)) return num as T;
+    }
+  }
+
+  return value as T;
 };
 
 /**

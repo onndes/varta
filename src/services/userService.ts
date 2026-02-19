@@ -90,6 +90,14 @@ export const isUserAvailable = (
   schedule?: Record<string, ScheduleEntry>
 ): boolean => {
   if (!user.isActive) return false;
+
+  // Check if day of week is blocked
+  if (user.blockedDays && user.blockedDays.length > 0) {
+    const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    if (user.blockedDays.includes(dayOfWeek)) return false;
+  }
+
   if (user.status === 'ACTIVE') {
     // Still need to check rest day after duty if schedule provided
     if (schedule && user.id) {
