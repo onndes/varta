@@ -56,6 +56,9 @@ export const removeAssignmentWithDebt = async (
     if (!entry || !entry.userId) return;
     const assignedIds = toAssignedUserIds(entry.userId);
     if (assignedIds.length === 0) return;
+    if (assignedIds.length > 1 && typeof targetUserId !== 'number') {
+      throw new Error('Для багатозмінного дня потрібно вказати конкретного чергового для зняття');
+    }
 
     const removedIds =
       typeof targetUserId === 'number'

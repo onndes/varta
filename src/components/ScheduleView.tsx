@@ -1,8 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { User, ScheduleEntry, DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
-import { countUserDaysOfWeek, countUserAssignments } from '../services/scheduleService';
+import {
+  applyKarmaForTransfer,
+  countUserAssignments,
+  countUserDaysOfWeek,
+  getAllSchedule,
+  removeAssignmentWithDebt,
+} from '../services/scheduleService';
 import { useSchedule, useAutoScheduler } from '../hooks';
+import * as autoSchedulerService from '../services/autoScheduler';
 import Modal from './Modal';
 import WeekNavigator from './schedule/WeekNavigator';
 import ScheduleControls from './schedule/ScheduleControls';
@@ -47,7 +54,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   dutiesPerDay,
 }) => {
-  const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
+  const { assignUser, removeAssignment, calculateEffectiveLoad } = useSchedule(users);
   const { fillGaps, recalculateFrom } = useAutoScheduler(
     users,
     schedule,
@@ -88,12 +95,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const conflicts: string[] = [];
     const criticalConflicts: string[] = []; // User assigned but blocked (vacation/sick)
     const gaps: string[] = [];
+    const conflictByDate: Record<string, number[]> = {};
     const checkStart = weekDates[0];
 
     Object.entries(schedule).forEach(([date, entry]) => {
       if (date < checkStart) return;
       const ids = toAssignedUserIds(entry.userId);
-      const hasConflict = ids.some((id) => {
+      const conflictIds = ids.filter((id) => {
         const user = users.find((u) => u.id === id);
         if (!user) return true;
         if (!isUserAvailable(user, date, schedule)) {
@@ -111,14 +119,17 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         }
         return false;
       });
-      if (hasConflict) conflicts.push(date);
+      if (conflictIds.length > 0) {
+        conflicts.push(date);
+        conflictByDate[date] = conflictIds;
+      }
     });
 
     weekDates.forEach((d) => {
       if (getAssignedCount(schedule[d]) < dutiesPerDay) gaps.push(d);
     });
 
-    return { conflicts, criticalConflicts, gaps };
+    return { conflicts, criticalConflicts, gaps, conflictByDate };
   }, [schedule, users, weekDates, dutiesPerDay]);
 
   const shiftWeek = (offset: number) => {
@@ -145,10 +156,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const getFreeUsers = useCallback(
     (dateStr: string) => {
       const dayIndex = new Date(dateStr).getDay();
-      const assignedIds = new Set(weekDates.flatMap((d) => toAssignedUserIds(schedule[d]?.userId)));
+      const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
 
       return users
-        .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr, schedule))
+        .filter((u) => !assignedOnDate.has(u.id!) && isUserAvailable(u, dateStr, schedule))
         .sort((a, b) => {
           // Priority 1: Owed days for this day of week
           const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
@@ -171,7 +182,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
           return loadA - loadB;
         });
     },
-    [weekDates, schedule, users, calculateEffectiveLoad]
+    [schedule, users, calculateEffectiveLoad]
   );
 
   // Check if cascade recalc could improve assignments (after getFreeUsers defined)
@@ -183,17 +194,20 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return Object.entries(schedule).some(([date, entry]) => {
       if (date < start || entry.type === 'manual') return false;
 
-      const currentUserId = toAssignedUserIds(entry.userId)[0];
-      const currentUser = users.find((u) => u.id === currentUserId);
-      if (!currentUser) return false;
+      const assignedIds = toAssignedUserIds(entry.userId);
+      if (assignedIds.length === 0) return false;
 
-      // Get other available candidates
-      const freeUsers = getFreeUsers(date).filter((u) => u.id !== currentUser.id);
+      // Get available candidates excluding already assigned on the same date
+      const freeUsers = getFreeUsers(date).filter((u) => !assignedIds.includes(u.id!));
       if (freeUsers.length === 0) return false;
 
-      // Check if any candidate has better priority
-      const currentLoad = calculateEffectiveLoad(currentUser);
-      return freeUsers.some((u) => calculateEffectiveLoad(u) < currentLoad - 0.5);
+      // Check each assigned slot; if any can be improved, suggest cascade
+      return assignedIds.some((assignedId) => {
+        const currentUser = users.find((u) => u.id === assignedId);
+        if (!currentUser) return true;
+        const currentLoad = calculateEffectiveLoad(currentUser);
+        return freeUsers.some((u) => calculateEffectiveLoad(u) < currentLoad - 0.5);
+      });
     });
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
@@ -236,11 +250,30 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
     if (!confirm(message)) return;
 
-    // Remove conflicts
-    await bulkDelete(scheduleIssues.conflicts);
+    // Remove only conflicting assignees, keep valid assignees on same date
+    for (const date of scheduleIssues.conflicts) {
+      const badIds = scheduleIssues.conflictByDate[date] || [];
+      for (const userId of badIds) {
+        await removeAssignmentWithDebt(date, 'work', dayWeights, userId);
+      }
+    }
 
-    // Immediately fill the gaps with available users
-    await fillGaps(scheduleIssues.conflicts);
+    // Fill only dates still under-filled after conflict cleanup
+    const freshSchedule = await getAllSchedule();
+    const datesToFill = scheduleIssues.conflicts.filter(
+      (d) => getAssignedCount(freshSchedule[d]) < dutiesPerDay
+    );
+    if (datesToFill.length > 0) {
+      const updates = await autoSchedulerService.autoFillSchedule(
+        datesToFill,
+        users,
+        freshSchedule,
+        dayWeights,
+        dutiesPerDay,
+        autoScheduleOptions
+      );
+      await autoSchedulerService.saveAutoSchedule(updates, dayWeights);
+    }
 
     await logAction('AUTO_FIX', `Замінено ${scheduleIssues.conflicts.length} конфліктів`);
     await refreshData();
@@ -303,6 +336,23 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     if (isOnRestDay(userId, selectedCell.date)) {
       if (!confirm('⚠️ Цей боєць вчора був на чергуванні (відсипний день). Все одно призначити?')) {
         return;
+      }
+    }
+
+    // Optional transfer: if user already has another assignment, move it with karma adjustment.
+    const transferFrom = Object.keys(schedule)
+      .sort()
+      .find((d) => d !== selectedCell.date && isAssignedInEntry(schedule[d], userId));
+    if (transferFrom) {
+      const fromLabel = new Date(transferFrom).toLocaleDateString('uk-UA');
+      const toLabel = new Date(selectedCell.date).toLocaleDateString('uk-UA');
+      const doTransfer = confirm(
+        `У бійця вже є чергування (${fromLabel}). Перенести на ${toLabel}?`
+      );
+      if (doTransfer) {
+        await removeAssignment(transferFrom, 'work', userId);
+        await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
+        await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
       }
     }
 

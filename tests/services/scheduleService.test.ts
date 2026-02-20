@@ -1,13 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { db } from '@/db/db';
 import {
+  applyKarmaForTransfer,
+  findScheduleConflicts,
+  findScheduleGaps,
   getAllSchedule,
   getScheduleByDate,
+  removeAssignmentWithDebt,
   saveScheduleEntry,
   deleteScheduleEntry,
   calculateEffectiveLoad,
 } from '@/services/scheduleService';
-import type { ScheduleEntry, DayWeights } from '@/types';
+import type { ScheduleEntry, DayWeights, User } from '@/types';
 
 beforeEach(async () => {
   await db.delete();
@@ -179,6 +183,115 @@ describe('scheduleService', () => {
 
       const load = calculateEffectiveLoad(user, schedule, dayWeights);
       expect(load).toBe(0);
+    });
+  });
+
+  describe('multi-slot behavior', () => {
+    it('повинен знімати лише конкретного бійця в multi-slot дні', async () => {
+      await db.users.bulkAdd([
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+      ]);
+
+      await db.schedule.put({
+        date: '2026-03-10',
+        userId: [1, 2],
+        type: 'manual',
+      });
+
+      const weights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      await removeAssignmentWithDebt('2026-03-10', 'work', weights, 2);
+
+      const entry = await db.schedule.get('2026-03-10');
+      expect(entry).toBeDefined();
+      expect(entry?.userId).toBe(1);
+    });
+
+    it('повинен кидати помилку при знятті без targetUserId у multi-slot дні', async () => {
+      await db.schedule.put({
+        date: '2026-03-10',
+        userId: [1, 2],
+        type: 'manual',
+      });
+      const weights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      await expect(removeAssignmentWithDebt('2026-03-10', 'work', weights)).rejects.toThrow();
+    });
+
+    it('повинен знаходити конфлікт, якщо один з userId недоступний', () => {
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-10': { date: '2026-03-10', userId: [1, 2], type: 'auto' },
+      };
+
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'SICK',
+          statusFrom: '2026-03-01',
+          statusTo: '2026-03-20',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+      ];
+
+      const conflicts = findScheduleConflicts(schedule, users);
+      expect(conflicts).toEqual(['2026-03-10']);
+    });
+
+    it('повинен вважати день прогалиною, якщо призначено менше ніж dutiesPerDay', () => {
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-10': { date: '2026-03-10', userId: [1], type: 'auto' },
+      };
+      const gaps = findScheduleGaps(schedule, ['2026-03-10'], 2);
+      expect(gaps).toEqual(['2026-03-10']);
+    });
+  });
+
+  describe('transfer karma', () => {
+    it('повинен застосовувати карму за перенос на важчий день', async () => {
+      await db.users.add({
+        id: 1,
+        name: 'Mover',
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+
+      const weights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      // Thu -> Sat => +1.0
+      await applyKarmaForTransfer(1, '2026-03-12', '2026-03-14', weights);
+      const user = await db.users.get(1);
+      expect(user?.debt).toBe(1);
     });
   });
 });
