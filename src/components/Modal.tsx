@@ -9,6 +9,11 @@ interface ModalProps {
   centered?: boolean;
 }
 
+let openModalCount = 0;
+let savedBodyOverflow = '';
+let savedHtmlOverflow = '';
+let savedBodyPaddingRight = '';
+
 const Modal: React.FC<ModalProps> = ({
   show,
   onClose,
@@ -19,11 +24,13 @@ const Modal: React.FC<ModalProps> = ({
 }) => {
   // Prevent body scroll when modal is open
   useEffect(() => {
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    const prevBodyPaddingRight = document.body.style.paddingRight;
+    if (!show) return;
 
-    if (show) {
+    if (openModalCount === 0) {
+      savedBodyOverflow = document.body.style.overflow;
+      savedHtmlOverflow = document.documentElement.style.overflow;
+      savedBodyPaddingRight = document.body.style.paddingRight;
+
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
       const bodyComputedPaddingRight = parseFloat(
         window.getComputedStyle(document.body).paddingRight || '0'
@@ -36,32 +43,24 @@ const Modal: React.FC<ModalProps> = ({
       }
       document.body.classList.add('modal-open-fixed');
       document.documentElement.classList.add('modal-open-fixed');
+    }
+    openModalCount++;
 
-      const handleEsc = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose();
-      };
-      document.addEventListener('keydown', handleEsc);
-      return () => {
-        document.body.style.overflow = prevBodyOverflow;
-        document.documentElement.style.overflow = prevHtmlOverflow;
-        document.body.style.paddingRight = prevBodyPaddingRight;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) {
+        document.body.style.overflow = savedBodyOverflow;
+        document.documentElement.style.overflow = savedHtmlOverflow;
+        document.body.style.paddingRight = savedBodyPaddingRight;
         document.body.classList.remove('modal-open-fixed');
         document.documentElement.classList.remove('modal-open-fixed');
-        document.removeEventListener('keydown', handleEsc);
-      };
-    } else {
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.body.style.paddingRight = prevBodyPaddingRight;
-      document.body.classList.remove('modal-open-fixed');
-      document.documentElement.classList.remove('modal-open-fixed');
-    }
-    return () => {
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.body.style.paddingRight = prevBodyPaddingRight;
-      document.body.classList.remove('modal-open-fixed');
-      document.documentElement.classList.remove('modal-open-fixed');
+      }
     };
   }, [show, onClose]);
 
