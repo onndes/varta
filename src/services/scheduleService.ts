@@ -3,6 +3,7 @@
 import { db } from '../db/db';
 import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as userService from './userService';
+import { toAssignedUserIds } from '../utils/assignment';
 
 /**
  * Service for managing schedule
@@ -47,18 +48,25 @@ export const deleteScheduleEntry = async (date: string): Promise<void> => {
 export const removeAssignmentWithDebt = async (
   date: string,
   reason: 'request' | 'work',
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  targetUserId?: number
 ): Promise<void> => {
   await db.transaction('rw', db.schedule, db.users, async () => {
     const entry = await db.schedule.get(date);
     if (!entry || !entry.userId) return;
+    const assignedIds = toAssignedUserIds(entry.userId);
+    if (assignedIds.length === 0) return;
+
+    const removedIds =
+      typeof targetUserId === 'number'
+        ? assignedIds.filter((id) => id === targetUserId)
+        : [assignedIds[0]];
+    if (removedIds.length === 0) return;
 
     if (reason === 'request') {
       const dayIdx = new Date(date).getDay();
       const weight = dayWeights[dayIdx] || 1.0;
-      // Handle both single and array userId
-      const userId = Array.isArray(entry.userId) ? entry.userId[0] : entry.userId;
-      if (userId) {
+      for (const userId of removedIds) {
         // Karma goes negative (general fairness)
         await userService.updateUserDebt(userId, -weight);
         // Must repay THIS specific day of week
@@ -66,7 +74,15 @@ export const removeAssignmentWithDebt = async (
       }
     }
 
-    await db.schedule.delete(date);
+    const remaining = assignedIds.filter((id) => !removedIds.includes(id));
+    if (remaining.length === 0) {
+      await db.schedule.delete(date);
+    } else {
+      await db.schedule.put({
+        ...entry,
+        userId: remaining.length === 1 ? remaining[0] : remaining,
+      });
+    }
   });
 };
 
@@ -88,7 +104,7 @@ export const bulkSaveSchedule = async (entries: ScheduleEntry[]): Promise<void> 
  * Get schedule entries for a user
  */
 export const getUserSchedule = async (userId: number): Promise<ScheduleEntry[]> => {
-  return (await db.schedule.toArray()).filter((entry) => entry.userId === userId);
+  return (await db.schedule.toArray()).filter((entry) => isAssignedTo(entry, userId));
 };
 
 /**
@@ -190,15 +206,13 @@ export const findScheduleConflicts = (
     if (startDate && date < startDate) return;
     if (!entry.userId) return;
 
-    const userId = Array.isArray(entry.userId) ? entry.userId[0] : entry.userId;
-    const user = users.find((u) => u.id === userId);
-    if (!user) {
-      // Orphaned entry (user was deleted) — treat as conflict
-      conflicts.push(date);
-      return;
-    }
-
-    if (!userService.isUserAvailable(user, date, schedule)) {
+    const userIds = toAssignedUserIds(entry.userId);
+    const hasConflict = userIds.some((userId) => {
+      const user = users.find((u) => u.id === userId);
+      if (!user) return true;
+      return !userService.isUserAvailable(user, date, schedule);
+    });
+    if (hasConflict) {
       conflicts.push(date);
     }
   });
@@ -211,9 +225,14 @@ export const findScheduleConflicts = (
  */
 export const findScheduleGaps = (
   schedule: Record<string, ScheduleEntry>,
-  dates: string[]
+  dates: string[],
+  dutiesPerDay = 1
 ): string[] => {
-  return dates.filter((d) => !schedule[d]);
+  return dates.filter((d) => {
+    const entry = schedule[d];
+    if (!entry) return true;
+    return toAssignedUserIds(entry.userId).length < dutiesPerDay;
+  });
 };
 
 /**

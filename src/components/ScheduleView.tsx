@@ -12,6 +12,7 @@ import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
 import { isUserAvailable } from '../services/userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
+import { getAssignedCount, isAssignedInEntry, toAssignedUserIds } from '../utils/assignment';
 
 interface ScheduleViewProps {
   users: User[];
@@ -24,11 +25,13 @@ interface ScheduleViewProps {
   clearCascadeTrigger: () => Promise<void>;
   signatories: Signatories;
   autoScheduleOptions?: AutoScheduleOptions;
+  dutiesPerDay: number;
 }
 
 interface SelectedCell {
   date: string;
   entry: ScheduleEntry | null;
+  assignedUserId?: number;
 }
 
 const ScheduleView: React.FC<ScheduleViewProps> = ({
@@ -42,9 +45,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   clearCascadeTrigger,
   signatories,
   autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  dutiesPerDay,
 }) => {
   const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
-  const { fillGaps, recalculateFrom } = useAutoScheduler(users, schedule, dayWeights, autoScheduleOptions);
+  const { fillGaps, recalculateFrom } = useAutoScheduler(
+    users,
+    schedule,
+    dayWeights,
+    dutiesPerDay,
+    autoScheduleOptions
+  );
 
   const [currentMonday, setCurrentMonday] = useState(() => {
     const d = new Date();
@@ -82,29 +92,34 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
     Object.entries(schedule).forEach(([date, entry]) => {
       if (date < checkStart) return;
-      const user = users.find((u) => u.id === entry.userId);
-      if (user && !isUserAvailable(user, date, schedule)) {
-        conflicts.push(date);
-        // Critical: user is blocked by vacation/sick leave
-        if (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') {
-          if (
-            user.statusFrom &&
-            user.statusTo &&
-            date >= user.statusFrom &&
-            date <= user.statusTo
-          ) {
-            criticalConflicts.push(date);
+      const ids = toAssignedUserIds(entry.userId);
+      const hasConflict = ids.some((id) => {
+        const user = users.find((u) => u.id === id);
+        if (!user) return true;
+        if (!isUserAvailable(user, date, schedule)) {
+          if (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') {
+            if (
+              user.statusFrom &&
+              user.statusTo &&
+              date >= user.statusFrom &&
+              date <= user.statusTo
+            ) {
+              criticalConflicts.push(date);
+            }
           }
+          return true;
         }
-      }
+        return false;
+      });
+      if (hasConflict) conflicts.push(date);
     });
 
     weekDates.forEach((d) => {
-      if (!schedule[d]) gaps.push(d);
+      if (getAssignedCount(schedule[d]) < dutiesPerDay) gaps.push(d);
     });
 
     return { conflicts, criticalConflicts, gaps };
-  }, [schedule, users, weekDates]);
+  }, [schedule, users, weekDates, dutiesPerDay]);
 
   const shiftWeek = (offset: number) => {
     const newDate = new Date(currentMonday);
@@ -130,7 +145,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const getFreeUsers = useCallback(
     (dateStr: string) => {
       const dayIndex = new Date(dateStr).getDay();
-      const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
+      const assignedIds = new Set(weekDates.flatMap((d) => toAssignedUserIds(schedule[d]?.userId)));
 
       return users
         .filter((u) => !assignedIds.has(u.id!) && isUserAvailable(u, dateStr, schedule))
@@ -168,7 +183,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return Object.entries(schedule).some(([date, entry]) => {
       if (date < start || entry.type === 'manual') return false;
 
-      const currentUser = users.find((u) => u.id === entry.userId);
+      const currentUserId = toAssignedUserIds(entry.userId)[0];
+      const currentUser = users.find((u) => u.id === currentUserId);
       if (!currentUser) return false;
 
       // Get other available candidates
@@ -278,7 +294,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const prevDate = new Date(dateStr);
     prevDate.setDate(prevDate.getDate() - 1);
     const prevEntry = schedule[toLocalISO(prevDate)];
-    return prevEntry?.userId === userId;
+    return isAssignedInEntry(prevEntry, userId);
   };
 
   const handleAssign = async (userId: number | undefined) => {
@@ -290,7 +306,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       }
     }
 
-    await assignUser(selectedCell.date, userId, true);
+    await assignUser(selectedCell.date, userId, true, {
+      maxPerDay: dutiesPerDay,
+      replaceUserId: selectedCell.assignedUserId,
+    });
     await updateCascadeTrigger(selectedCell.date);
 
     const u = users.find((user) => user.id === userId);
@@ -303,15 +322,15 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const handleRemove = async (reason: 'request' | 'work') => {
-    if (!selectedCell?.entry || !selectedCell.entry.userId) return;
-    const { date, entry } = selectedCell;
+    if (!selectedCell?.entry || !selectedCell.entry.userId || !selectedCell.assignedUserId) return;
+    const { date } = selectedCell;
     const dayIdx = new Date(date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
 
-    await removeAssignment(date, reason);
+    await removeAssignment(date, reason, selectedCell.assignedUserId);
     await updateCascadeTrigger(date);
 
-    const u = users.find((user) => user.id === entry.userId);
+    const u = users.find((user) => user.id === selectedCell.assignedUserId);
     if (u) {
       if (reason === 'request') {
         await logAction('REMOVE', `${u.name} рапорт (Карма -${weight})`);
@@ -356,8 +375,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         weekDates={weekDates}
         schedule={schedule}
         todayStr={todayStr}
-        onCellClick={(date, entry) => {
-          setSelectedCell({ date, entry });
+        onCellClick={(date, entry, assignedUserId) => {
+          setSelectedCell({ date, entry, assignedUserId });
           setSwapMode('replace');
         }}
       />
@@ -376,7 +395,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
             {selectedCell.entry ? (
               <div>
                 <div className="alert alert-secondary py-2 mb-3">
-                  <strong>{users.find((u) => u.id === selectedCell.entry!.userId)?.name}</strong>
+                  <strong>{users.find((u) => u.id === selectedCell.assignedUserId)?.name}</strong>
                 </div>
                 <div className="btn-group w-100 mb-3">
                   <button

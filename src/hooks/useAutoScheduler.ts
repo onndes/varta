@@ -15,6 +15,7 @@ export const useAutoScheduler = (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
+  dutiesPerDay: number,
   autoScheduleOptions: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS
 ) => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,6 +40,7 @@ export const useAutoScheduler = (
           users,
           schedule,
           dayWeights,
+          dutiesPerDay,
           autoScheduleOptions
         );
 
@@ -53,7 +55,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights, autoScheduleOptions]
+    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions]
   );
 
   // Fix conflicts
@@ -86,7 +88,7 @@ export const useAutoScheduler = (
         const todayStr = toLocalISO(new Date());
         const start = startDate < todayStr ? todayStr : startDate;
 
-        await autoScheduler.recalculateScheduleFrom(start, users, schedule, dayWeights);
+        await autoScheduler.recalculateScheduleFrom(start, users, schedule, dayWeights, dutiesPerDay);
         await auditService.logAction('CASCADE', `Перерахунок з ${start}`);
 
         if (onComplete) onComplete();
@@ -97,7 +99,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights]
+    [users, schedule, dayWeights, dutiesPerDay]
   );
 
   // Generate full week schedule
@@ -126,6 +128,7 @@ export const useAutoScheduler = (
           users,
           schedule,
           dayWeights,
+          dutiesPerDay,
           autoScheduleOptions
         );
 
@@ -140,7 +143,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights, autoScheduleOptions]
+    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions]
   );
 
   // Get free users for a date

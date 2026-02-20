@@ -1,6 +1,7 @@
 import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import { formatRank, splitFormattedName } from '../../utils/helpers';
+import { toAssignedUserIds } from '../../utils/assignment';
 
 interface PrintCalendarProps {
   weekDates: string[];
@@ -18,7 +19,11 @@ const PrintCalendar: React.FC<PrintCalendarProps> = ({ weekDates, schedule, user
       <div className="calendar-grid">
         {weekDates.map((date) => {
           const entry = schedule[date];
-          const user = entry ? users.find((u) => u.id === entry.userId) : null;
+          const assignedUsers = entry
+            ? toAssignedUserIds(entry.userId)
+                .map((id) => users.find((u) => u.id === id))
+                .filter((u): u is User => Boolean(u))
+            : [];
           const d = new Date(date);
           const isWeekend = d.getDay() % 6 === 0;
 
@@ -31,8 +36,8 @@ const PrintCalendar: React.FC<PrintCalendarProps> = ({ weekDates, schedule, user
                 <span>{d.toLocaleDateString('uk-UA', { weekday: 'long' })}</span>
                 <span>{d.getDate()}</span>
               </div>
-              {user && (
-                <div className="print-cal-slot">
+              {assignedUsers.map((user) => (
+                <div className="print-cal-slot" key={user.id}>
                   <div style={{ fontSize: '1em' }}>{formatRank(user.rank)}</div>
                   <div>
                     <p className="print-cal-fio">{splitFormattedName(user.name).surname}</p>
@@ -40,7 +45,7 @@ const PrintCalendar: React.FC<PrintCalendarProps> = ({ weekDates, schedule, user
                     <p className="print-cal-fio">{splitFormattedName(user.name).middleName}</p>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
           );
         })}

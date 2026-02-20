@@ -140,6 +140,7 @@ const App = () => {
               clearCascadeTrigger={clearCascadeTrigger}
               signatories={signatories}
               autoScheduleOptions={autoScheduleOptions}
+              dutiesPerDay={dutiesPerDay}
             />
           )}
           {activeTab === 'users' && (

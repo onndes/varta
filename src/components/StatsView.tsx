@@ -5,6 +5,7 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getUserFairnessFrom } from '../utils/fairness';
 import { getUserAvailabilityStatus } from '../services/userService';
 import UserStatsModal from './users/UserStatsModal';
+import { isAssignedInEntry } from '../utils/assignment';
 
 interface StatsViewProps {
   users: User[];
@@ -38,7 +39,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
 
     return users
       .map((u) => {
-        const allUserEntries = Object.values(schedule).filter((s) => s.userId === u.id);
+        const allUserEntries = Object.values(schedule).filter((s) => isAssignedInEntry(s, u.id!));
         const fairnessFrom = getUserFairnessFrom(u, todayStr);
         const comparableEntries = allUserEntries.filter((s) => !fairnessFrom || s.date >= fairnessFrom);
         const addedFrom = u.dateAddedToAuto && u.dateAddedToAuto > earliestScheduleDate

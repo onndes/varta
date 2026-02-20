@@ -12,6 +12,7 @@ import {
 import { getUserAvailabilityStatus, isUserAvailable } from '../../services/userService';
 import * as auditService from '../../services/auditService';
 import Modal from '../Modal';
+import { isAssignedInEntry } from '../../utils/assignment';
 
 interface UserStatsModalProps {
   user: User;
@@ -63,7 +64,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
 }) => {
   const [auditEvents, setAuditEvents] = useState<TimelineEvent[]>([]);
   const todayStr = toLocalISO(new Date());
-  const userSchedule = Object.values(schedule).filter((s) => s.userId === user.id);
+  const userSchedule = Object.values(schedule).filter((s) => isAssignedInEntry(s, user.id!));
   const totalAssignments = userSchedule.length;
 
   const dates = userSchedule.map((s) => s.date).sort();

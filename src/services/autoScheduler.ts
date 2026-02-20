@@ -6,6 +6,7 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getPoolCommonFrom } from '../utils/fairness';
 import { isUserAvailable } from './userService';
 import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
+import { toAssignedUserIds } from '../utils/assignment';
 
 /**
  * Service for automatic schedule generation
@@ -64,6 +65,7 @@ export const autoFillSchedule = async (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
+  dutiesPerDay = 1,
   options: AutoScheduleOptions = {
     avoidConsecutiveDays: true,
     respectOwedDays: true,
@@ -73,9 +75,6 @@ export const autoFillSchedule = async (
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
   const tempSchedule = { ...schedule };
-
-  // Remove target dates from temp schedule
-  targetDates.forEach((d) => delete tempSchedule[d]);
 
   // Track temporary load offsets
   const tempLoadOffset: Record<number, number> = {};
@@ -89,9 +88,11 @@ export const autoFillSchedule = async (
     // Skip past dates
     if (dateStr < todayStr) continue;
 
-    // Skip locked entries
-    if (schedule[dateStr]?.isLocked) {
-      tempSchedule[dateStr] = schedule[dateStr];
+    const existingEntry = tempSchedule[dateStr];
+    const existingIds = toAssignedUserIds(existingEntry?.userId);
+
+    // Skip locked entries that are already fully staffed
+    if (existingEntry?.isLocked && existingIds.length >= Math.max(1, dutiesPerDay)) {
       continue;
     }
 
@@ -109,8 +110,7 @@ export const autoFillSchedule = async (
     const compareFrom = poolCommonFrom || getScheduleStart(tempSchedule, dateStr);
     const compareTo = getPrevDateStr(dateStr);
 
-    // Sort by priority (ladder + fairness algorithm)
-    pool.sort((a, b) => {
+    const sortPool = (a: User, b: User): number => {
       if (!a.id || !b.id) return 0;
 
       // Priority 1: Owed Days (debt for specific day of week)
@@ -154,7 +154,8 @@ export const autoFillSchedule = async (
       }
 
       return 0;
-    });
+    };
+    pool.sort(sortPool);
 
     // Avoid consecutive days: filter out users who were on duty in the last N days (rest period)
     // minRestDays: 1 = no consecutive (check yesterday), 2 = one day gap (check last 2 days), etc.
@@ -184,17 +185,35 @@ export const autoFillSchedule = async (
       }
     }
 
-    // Assign selected user (best from filtered pool)
-    const selected = pool[0];
-    if (selected && selected.id) {
+    // Assign best candidates up to dutiesPerDay
+    const selectedIds: number[] = [...existingIds];
+    const slotsToFill = Math.max(0, Math.max(1, dutiesPerDay) - selectedIds.length);
+    for (let slot = 0; slot < slotsToFill; slot++) {
+      const slotPool = pool.filter((u) => u.id && !selectedIds.includes(u.id));
+      if (slotPool.length === 0) break;
+      slotPool.sort(sortPool);
+      const selected = slotPool[0];
+      if (!selected?.id) break;
+      selectedIds.push(selected.id);
+      tempLoadOffset[selected.id] += weight;
+    }
+
+    if (selectedIds.length > 0) {
       const entry: ScheduleEntry = {
         date: dateStr,
-        userId: selected.id,
-        type: 'auto',
+        userId: selectedIds.length === 1 ? selectedIds[0] : selectedIds,
+        type: existingEntry?.type === 'manual' ? 'manual' : 'auto',
+        isLocked: existingEntry?.isLocked || false,
       };
-      updates.push(entry);
-      tempSchedule[dateStr] = entry;
-      tempLoadOffset[selected.id] += weight;
+      const prevIds = toAssignedUserIds(existingEntry?.userId);
+      const changed =
+        prevIds.length !== selectedIds.length ||
+        prevIds.some((id) => !selectedIds.includes(id)) ||
+        !existingEntry;
+      if (changed) {
+        updates.push(entry);
+        tempSchedule[dateStr] = entry;
+      }
     } else {
       // No available users - mark as critical
       updates.push({
@@ -261,7 +280,9 @@ export const getFreeUsersForDate = (
   const dayIndex = new Date(dateStr).getDay();
 
   // Get IDs of users already assigned this week
-  const assignedIds = new Set(weekDates.map((d) => schedule[d]?.userId).filter((id) => id));
+  const assignedIds = new Set(
+    weekDates.flatMap((d) => toAssignedUserIds(schedule[d]?.userId))
+  );
 
   // Filter available users and sort by priority (ladder + fairness)
   // Exclude isExtra and excludeFromAuto users from automatic scheduling
@@ -316,7 +337,8 @@ export const recalculateScheduleFrom = async (
   startDate: string,
   users: User[],
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  dutiesPerDay = 1
 ): Promise<void> => {
   const todayStr = toLocalISO(new Date());
   const start = startDate < todayStr ? todayStr : startDate;
@@ -344,7 +366,7 @@ export const recalculateScheduleFrom = async (
   await db.schedule.bulkDelete(datesToRegen);
 
   // Regenerate
-  const updates = await autoFillSchedule(datesToRegen, users, schedule, dayWeights);
+  const updates = await autoFillSchedule(datesToRegen, users, schedule, dayWeights, dutiesPerDay);
   await saveAutoSchedule(updates, dayWeights);
 };
 

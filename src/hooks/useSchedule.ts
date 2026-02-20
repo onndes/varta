@@ -5,6 +5,7 @@ import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as scheduleService from '../services/scheduleService';
 import * as auditService from '../services/auditService';
 import * as settingsService from '../services/settingsService';
+import { toAssignedUserIds } from '../utils/assignment';
 
 /**
  * Custom hook for managing schedule
@@ -40,33 +41,40 @@ export const useSchedule = (users: User[]) => {
 
   // Assign user to a date
   const assignUser = useCallback(
-    async (date: string, userId: number, isManual = true) => {
+    async (
+      date: string,
+      userId: number,
+      isManual = true,
+      options?: { maxPerDay?: number; replaceUserId?: number }
+    ) => {
       try {
-        // Check if there's already an assignment for this date
         const existing = await scheduleService.getScheduleByDate(date);
-        if (existing && existing.userId) {
-          const prevId = Array.isArray(existing.userId) ? existing.userId[0] : existing.userId;
-          if (prevId && prevId !== userId) {
-            // Previous user was replaced — restore their karma (service/work reason, no penalty)
-            const dayIdx = new Date(date).getDay();
-            const weight = dayWeights[dayIdx] || 1.0;
-            // Give back weight so they don't lose credit for a shift they didn't serve
-            await import('../services/userService').then((us) =>
-              us.updateUserDebt(prevId, -weight)
-            );
-            const prevUser = users.find((u) => u.id === prevId);
-            if (prevUser) {
-              await auditService.logAction(
-                'REMOVE',
-                `${prevUser.name} замінено на ${date} (Карма -${weight})`
-              );
-            }
+        const existingIds = toAssignedUserIds(existing?.userId);
+        if (existingIds.includes(userId)) return;
+
+        let nextIds = [...existingIds];
+        const replaceUserId = options?.replaceUserId;
+        if (typeof replaceUserId === 'number' && nextIds.includes(replaceUserId)) {
+          nextIds = nextIds.filter((id) => id !== replaceUserId);
+
+          const dayIdx = new Date(date).getDay();
+          const weight = dayWeights[dayIdx] || 1.0;
+          await import('../services/userService').then((us) => us.updateUserDebt(replaceUserId, -weight));
+          const prevUser = users.find((u) => u.id === replaceUserId);
+          if (prevUser) {
+            await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date} (Карма -${weight})`);
           }
         }
 
+        if (options?.maxPerDay && nextIds.length >= options.maxPerDay) {
+          throw new Error('Досягнуто ліміт чергувань на день');
+        }
+
+        nextIds.push(userId);
+
         const entry: ScheduleEntry = {
           date,
-          userId,
+          userId: nextIds.length === 1 ? nextIds[0] : nextIds,
           type: isManual ? 'manual' : 'auto',
           isLocked: false,
         };
@@ -104,14 +112,18 @@ export const useSchedule = (users: User[]) => {
 
   // Remove assignment
   const removeAssignment = useCallback(
-    async (date: string, reason: 'request' | 'work' = 'work') => {
+    async (date: string, reason: 'request' | 'work' = 'work', targetUserId?: number) => {
       try {
         const entry = await scheduleService.getScheduleByDate(date);
         if (!entry || !entry.userId) return;
+        const assignedIds = toAssignedUserIds(entry.userId);
+        const removedUserId =
+          typeof targetUserId === 'number' && assignedIds.includes(targetUserId)
+            ? targetUserId
+            : assignedIds[0];
+        const user = users.find((u) => u.id === removedUserId);
 
-        const user = users.find((u) => u.id === entry.userId);
-
-        await scheduleService.removeAssignmentWithDebt(date, reason, dayWeights);
+        await scheduleService.removeAssignmentWithDebt(date, reason, dayWeights, removedUserId);
 
         if (user) {
           const dayIdx = new Date(date).getDay();
@@ -136,7 +148,7 @@ export const useSchedule = (users: User[]) => {
   // Get schedule for a user
   const getUserSchedule = useCallback(
     (userId: number) => {
-      return Object.values(schedule).filter((entry) => entry.userId === userId);
+      return Object.values(schedule).filter((entry) => toAssignedUserIds(entry.userId).includes(userId));
     },
     [schedule]
   );

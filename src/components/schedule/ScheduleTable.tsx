@@ -1,13 +1,14 @@
 import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import ScheduleTableRow from './ScheduleTableRow';
+import { isAssignedInEntry } from '../../utils/assignment';
 
 interface ScheduleTableProps {
   users: User[];
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
-  onCellClick: (date: string, entry: ScheduleEntry | null) => void;
+  onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
 /**
@@ -25,7 +26,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   const activeUsers = users.filter((u) => u.isActive);
   const displayUsers = activeUsers.filter((u) => {
     if (activeUsers.length <= 15) return true;
-    return weekDates.some((d) => schedule[d]?.userId === u.id);
+    return weekDates.some((d) => isAssignedInEntry(schedule[d], u.id!));
   });
 
   return (

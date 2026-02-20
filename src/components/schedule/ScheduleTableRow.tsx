@@ -3,6 +3,7 @@ import type { User, ScheduleEntry } from '../../types';
 import { formatRank, formatNameForPrint } from '../../utils/helpers';
 import { STATUSES } from '../../utils/constants';
 import { getUserAvailabilityStatus } from './availability.utils';
+import { isAssignedInEntry } from '../../utils/assignment';
 
 interface ScheduleTableRowProps {
   user: User;
@@ -10,7 +11,7 @@ interface ScheduleTableRowProps {
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
-  onCellClick: (date: string, entry: ScheduleEntry | null) => void;
+  onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
 /**
@@ -94,7 +95,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
       </td>
       {weekDates.map((date) => {
         const entry = schedule[date];
-        const isAssigned = entry?.userId === user.id;
+        const isAssigned = isAssignedInEntry(entry, user.id!);
         const availabilityStatus = getUserAvailabilityStatus(user, date);
         const available = availabilityStatus === 'AVAILABLE';
         const isPast = new Date(date) < new Date(todayStr);
@@ -138,7 +139,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             className={cellClass}
             onClick={() => {
               if (isPast) return;
-              onCellClick(date, isAssigned ? entry : null);
+              onCellClick(date, isAssigned ? entry : null, isAssigned ? user.id : undefined);
             }}
           >
             <span className="no-print">{screenContent}</span>
