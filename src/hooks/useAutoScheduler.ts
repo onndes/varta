@@ -1,11 +1,12 @@
 // src/hooks/useAutoScheduler.ts
 
 import { useState, useCallback } from 'react';
-import type { User, ScheduleEntry, DayWeights } from '../types';
+import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../types';
 import * as autoScheduler from '../services/autoScheduler';
 import * as scheduleService from '../services/scheduleService';
 import * as auditService from '../services/auditService';
 import { toLocalISO } from '../utils/dateUtils';
+import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
 /**
  * Custom hook for automatic scheduling operations
@@ -13,7 +14,8 @@ import { toLocalISO } from '../utils/dateUtils';
 export const useAutoScheduler = (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  autoScheduleOptions: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS
 ) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,8 @@ export const useAutoScheduler = (
           validDates,
           users,
           schedule,
-          dayWeights
+          dayWeights,
+          autoScheduleOptions
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -50,7 +53,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights]
+    [users, schedule, dayWeights, autoScheduleOptions]
   );
 
   // Fix conflicts
@@ -123,11 +126,7 @@ export const useAutoScheduler = (
           users,
           schedule,
           dayWeights,
-          {
-            avoidConsecutiveDays: true,
-            respectOwedDays: true,
-            considerLoad: true,
-          }
+          autoScheduleOptions
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -141,7 +140,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights]
+    [users, schedule, dayWeights, autoScheduleOptions]
   );
 
   // Get free users for a date

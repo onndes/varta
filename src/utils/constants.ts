@@ -79,10 +79,13 @@ export const DEFAULT_MAX_DEBT = 4.0;
 
 export const DEFAULT_DUTIES_PER_DAY = 1;
 
+export const DEFAULT_MIN_REST_DAYS = 1;
+
 export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   avoidConsecutiveDays: true,
   respectOwedDays: true,
   considerLoad: true,
+  minRestDays: DEFAULT_MIN_REST_DAYS,
 };
 
 export const DEFAULT_SIGNATORIES: Signatories = {

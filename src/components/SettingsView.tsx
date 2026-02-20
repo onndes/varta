@@ -199,6 +199,40 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
           </div>
 
+          {autoOpts.avoidConsecutiveDays && (
+            <div className="ms-4 mb-3 p-3 bg-light rounded">
+              <label className="form-label fw-bold">
+                <i className="fas fa-bed me-2"></i>Мінімум днів відпочинку
+              </label>
+              <div className="d-flex align-items-center gap-3">
+                <input
+                  type="number"
+                  min="1"
+                  max="7"
+                  className="form-control"
+                  style={{ width: '80px' }}
+                  value={autoOpts.minRestDays || 1}
+                  onChange={(e) =>
+                    setAutoOpts({ ...autoOpts, minRestDays: parseInt(e.target.value) || 1 })
+                  }
+                />
+                <span className="text-muted small">
+                  {autoOpts.minRestDays === 1 && '(не ставити 2 дні поспіль)'}
+                  {autoOpts.minRestDays === 2 && '(мінімум 1 день перерви між черguваннями)'}
+                  {autoOpts.minRestDays === 3 && '(мінімум 2 дні перерви між черguваннями)'}
+                  {autoOpts.minRestDays &&
+                    autoOpts.minRestDays > 3 &&
+                    `(мінімум ${autoOpts.minRestDays - 1} днів перерви)`}
+                </span>
+              </div>
+              <div className="form-text mt-2">
+                <i className="fas fa-info-circle me-1"></i>
+                Якщо не вистачає людей — система автоматично зменшить період відпочинку для
+                заповнення графіка.
+              </div>
+            </div>
+          )}
+
           <div className="form-check form-switch mb-3">
             <input
               className="form-check-input"

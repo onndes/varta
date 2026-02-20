@@ -40,6 +40,7 @@ export const autoFillSchedule = async (
     avoidConsecutiveDays: true,
     respectOwedDays: true,
     considerLoad: true,
+    minRestDays: 1,
   }
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
@@ -117,19 +118,31 @@ export const autoFillSchedule = async (
       return 0;
     });
 
-    // Avoid consecutive days: filter out users who were on duty yesterday (rest day)
+    // Avoid consecutive days: filter out users who were on duty in the last N days (rest period)
+    // minRestDays: 1 = no consecutive (check yesterday), 2 = one day gap (check last 2 days), etc.
     if (options.avoidConsecutiveDays) {
-      const prevDate = new Date(dateStr);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const rawPrevId = tempSchedule[toLocalISO(prevDate)]?.userId;
-      const prevUserIds = rawPrevId ? (Array.isArray(rawPrevId) ? rawPrevId : [rawPrevId]) : [];
+      const minRest = options.minRestDays || 1;
+      
+      // Collect userIds assigned in the last N days
+      const recentUserIds = new Set<number>();
+      for (let i = 1; i <= minRest; i++) {
+        const checkDate = new Date(dateStr);
+        checkDate.setDate(checkDate.getDate() - i);
+        const rawId = tempSchedule[toLocalISO(checkDate)]?.userId;
+        if (rawId) {
+          const ids = Array.isArray(rawId) ? rawId : [rawId];
+          ids.forEach(id => recentUserIds.add(id));
+        }
+      }
 
-      if (prevUserIds.length > 0) {
-        const filtered = pool.filter((u) => !prevUserIds.includes(u.id!));
-        // Only use filtered list if it's not empty (avoid leaving day unassigned)
+      if (recentUserIds.size > 0) {
+        const filtered = pool.filter((u) => !recentUserIds.has(u.id!));
+        // Only use filtered list if it's not empty (fallback to original pool if no one available)
         if (filtered.length > 0) {
           pool = filtered;
         }
+        // If filtered is empty, keep original pool - this means we can't respect minRestDays
+        // but at least the day will be filled
       }
     }
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import type { User, ScheduleEntry, DayWeights, Signatories } from '../types';
+import type { User, ScheduleEntry, DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
 import { countUserDaysOfWeek, countUserAssignments } from '../services/scheduleService';
 import { useSchedule, useAutoScheduler } from '../hooks';
@@ -11,6 +11,7 @@ import PrintFooter from './PrintFooter';
 import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
 import { isUserAvailable } from '../services/userService';
+import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
 interface ScheduleViewProps {
   users: User[];
@@ -22,6 +23,7 @@ interface ScheduleViewProps {
   updateCascadeTrigger: (date: string) => Promise<void>;
   clearCascadeTrigger: () => Promise<void>;
   signatories: Signatories;
+  autoScheduleOptions?: AutoScheduleOptions;
 }
 
 interface SelectedCell {
@@ -39,9 +41,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   updateCascadeTrigger,
   clearCascadeTrigger,
   signatories,
+  autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
 }) => {
   const { assignUser, removeAssignment, bulkDelete, calculateEffectiveLoad } = useSchedule(users);
-  const { fillGaps, recalculateFrom } = useAutoScheduler(users, schedule, dayWeights);
+  const { fillGaps, recalculateFrom } = useAutoScheduler(users, schedule, dayWeights, autoScheduleOptions);
 
   const [currentMonday, setCurrentMonday] = useState(() => {
     const d = new Date();

@@ -139,6 +139,7 @@ const App = () => {
               updateCascadeTrigger={updateCascadeTrigger}
               clearCascadeTrigger={clearCascadeTrigger}
               signatories={signatories}
+              autoScheduleOptions={autoScheduleOptions}
             />
           )}
           {activeTab === 'users' && (
