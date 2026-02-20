@@ -4,7 +4,7 @@ import { calculateOptimalAssignment } from '@/services/autoScheduler';
 
 describe('autoScheduler', () => {
   describe('calculateOptimalAssignment', () => {
-    it('не повинен змушувати наздоганяти після службової відсутності', () => {
+    it('повинен враховувати доступність без перезапуску обліку після відсутності', () => {
       const users: User[] = [
         {
           id: 1,
@@ -45,9 +45,9 @@ describe('autoScheduler', () => {
         6: 2.0,
       };
 
-      // First day after status window. Bravo should not get forced "catch-up" priority.
+      // First day after status window: candidate with lower normalized load can be selected.
       const selected = calculateOptimalAssignment('2026-03-01', users, schedule, dayWeights);
-      expect(selected?.id).toBe(1);
+      expect(selected?.id).toBe(2);
     });
   });
 });

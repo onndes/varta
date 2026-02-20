@@ -152,6 +152,10 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </th>
               <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
                 З дати
+                <i
+                  className="fas fa-circle-info ms-1 text-muted"
+                  title="Базова дата участі в авточерзі. Після повернення з відпустки/відрядження/лікарняного облік не скидається: порівняння враховує доступність у періоді."
+                />
                 <br />
                 <small className="fw-normal">(учет)</small>
               </th>
@@ -280,7 +284,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </li>
               <li>
                 <strong>З дати</strong>: Дата, з якої система веде порівняння для авточерги.
-                Після відпустки/лікування/відрядження облік стартує заново з дати повернення.
+                Це не перезапуск "з нуля" після повернення, а базова дата участі в авточерзі.
               </li>
             </ul>
           </div>
