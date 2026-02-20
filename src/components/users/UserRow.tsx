@@ -16,7 +16,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
 
   return (
     <tr className={!u.isActive ? 'user-row-inactive' : ''}>
-      <td style={{ cursor: 'pointer' }} onClick={() => onViewStats(u)}>
+      <td className="text-start" style={{ cursor: 'pointer' }} onClick={() => onViewStats(u)}>
         <small className="d-block text-muted text-uppercase" style={{ fontSize: '0.7rem' }}>
           {formatRank(u.rank)}
         </small>

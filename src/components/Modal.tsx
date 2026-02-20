@@ -19,22 +19,49 @@ const Modal: React.FC<ModalProps> = ({
 }) => {
   // Prevent body scroll when modal is open
   useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyPaddingRight = document.body.style.paddingRight;
+
     if (show) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      const bodyComputedPaddingRight = parseFloat(
+        window.getComputedStyle(document.body).paddingRight || '0'
+      );
+
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${bodyComputedPaddingRight + scrollbarWidth}px`;
+      }
+      document.body.classList.add('modal-open-fixed');
+      document.documentElement.classList.add('modal-open-fixed');
 
       const handleEsc = (e: KeyboardEvent) => {
         if (e.key === 'Escape') onClose();
       };
       document.addEventListener('keydown', handleEsc);
       return () => {
-        document.body.style.overflow = '';
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+        document.body.style.paddingRight = prevBodyPaddingRight;
+        document.body.classList.remove('modal-open-fixed');
+        document.documentElement.classList.remove('modal-open-fixed');
         document.removeEventListener('keydown', handleEsc);
       };
     } else {
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.paddingRight = prevBodyPaddingRight;
+      document.body.classList.remove('modal-open-fixed');
+      document.documentElement.classList.remove('modal-open-fixed');
     }
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.paddingRight = prevBodyPaddingRight;
+      document.body.classList.remove('modal-open-fixed');
+      document.documentElement.classList.remove('modal-open-fixed');
     };
   }, [show, onClose]);
 
@@ -48,7 +75,9 @@ const Modal: React.FC<ModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={`modal-dialog ${size} ${centered ? 'modal-dialog-centered' : ''}`}>
+      <div
+        className={`modal-dialog modal-dialog-scrollable codex-modal-dialog ${size} ${centered ? 'modal-dialog-centered' : ''}`}
+      >
         <div className="modal-content shadow border-0">
           <div className="modal-header bg-light py-2">
             <h5 className="modal-title fw-bold fs-6">{title}</h5>

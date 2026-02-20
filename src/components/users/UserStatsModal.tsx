@@ -443,7 +443,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
             <strong>Доступних днів для чергування:</strong> {availableDaysTotal}
           </div>
           <div className="table-responsive">
-            <table className="table table-sm mb-0">
+            <table className="table table-sm mb-0 table-align-center">
               <thead>
                 <tr>
                   <th>Категорія</th>
@@ -510,7 +510,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
         </div>
       )}
 
-      <table className="table table-sm table-bordered">
+      <table className="table table-sm table-bordered table-align-center">
         <thead className="table-light">
           <tr>
             <th>День тижня</th>
@@ -537,7 +537,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
         <i className="fas fa-stream me-2 text-secondary"></i>Персональний журнал
       </h6>
       <div className="table-responsive">
-        <table className="table table-sm table-hover align-middle">
+        <table className="table table-sm table-hover align-middle table-align-center">
           <thead className="table-light">
             <tr>
               <th style={{ width: '110px' }}>Дата</th>

@@ -93,3 +93,31 @@
   display: block;
   line-height: 1;
 }
+
+// Unified alignment helpers for dense statistics tables.
+.table-align-center {
+  th,
+  td {
+    vertical-align: middle;
+  }
+
+  thead th {
+    text-align: center;
+  }
+
+  tbody td {
+    text-align: center;
+  }
+
+  .text-start,
+  td.text-start,
+  th.text-start {
+    text-align: left !important;
+  }
+
+  .text-end,
+  td.text-end,
+  th.text-end {
+    text-align: right !important;
+  }
+}

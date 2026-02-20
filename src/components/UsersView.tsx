@@ -121,10 +121,10 @@ const UsersView: React.FC<UsersViewProps> = ({
               Основний склад
             </h6>
           </div>
-          <table className="table table-hover align-middle mb-0">
+          <table className="table table-hover align-middle mb-0 table-align-center">
             <thead className="table-light small">
               <tr>
-                <th>Боєць</th>
+                <th className="text-start">Боєць</th>
                 <th>Статус</th>
                 <th>Карма</th>
                 <th className="text-end">Дії</th>
@@ -156,10 +156,10 @@ const UsersView: React.FC<UsersViewProps> = ({
                 Особовий склад (відсутні)
               </h6>
             </div>
-            <table className="table table-hover align-middle mb-0">
+            <table className="table table-hover align-middle mb-0 table-align-center">
               <thead className="table-light small">
                 <tr>
-                  <th>Боєць</th>
+                  <th className="text-start">Боєць</th>
                   <th>Статус</th>
                   <th>Карма</th>
                   <th className="text-end">Дії</th>

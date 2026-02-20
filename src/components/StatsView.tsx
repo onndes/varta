@@ -119,7 +119,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         </div>
       </div>
       <div className="table-responsive">
-        <table className="table table-hover align-middle mb-0">
+        <table className="table table-hover align-middle mb-0 table-align-center">
           <thead className="table-light small">
             <tr>
               <th rowSpan={2}>Боєць</th>
