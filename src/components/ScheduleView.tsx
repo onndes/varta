@@ -41,6 +41,12 @@ interface SelectedCell {
   assignedUserId?: number;
 }
 
+interface PendingAssignConfirm {
+  userId: number;
+  transferFrom?: string;
+  isRestDay: boolean;
+}
+
 const ScheduleView: React.FC<ScheduleViewProps> = ({
   users,
   schedule,
@@ -72,6 +78,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [swapMode, setSwapMode] = useState<'replace' | 'remove'>('replace');
+  const [pendingAssignConfirm, setPendingAssignConfirm] = useState<PendingAssignConfirm | null>(
+    null
+  );
 
   const weekDates = useMemo(() => {
     const dates: string[] = [];
@@ -330,30 +339,43 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return isAssignedInEntry(prevEntry, userId);
   };
 
-  const handleAssign = async (userId: number | undefined) => {
-    if (!userId || !selectedCell) return;
+  const getTransferSourceDate = (userId: number, targetDate: string): string | undefined => {
+    const assignedDates = Object.keys(schedule)
+      .filter((d) => d !== targetDate && isAssignedInEntry(schedule[d], userId))
+      .sort();
+    if (assignedDates.length === 0) return undefined;
 
-    if (isOnRestDay(userId, selectedCell.date)) {
-      if (!confirm('⚠️ Цей боєць вчора був на чергуванні (відсипний день). Все одно призначити?')) {
-        return;
-      }
-    }
+    const prevDates = assignedDates.filter((d) => d < targetDate);
+    if (prevDates.length > 0) return prevDates[prevDates.length - 1];
 
-    // Optional transfer: if user already has another assignment, move it with karma adjustment.
-    const transferFrom = Object.keys(schedule)
-      .sort()
-      .find((d) => d !== selectedCell.date && isAssignedInEntry(schedule[d], userId));
+    // If there is no previous duty, use the nearest upcoming one.
+    return assignedDates[0];
+  };
+
+  const getWeekRelationLabel = (fromDate: string, toDate: string): string => {
+    const fromMonday = getMondayOfWeek(new Date(fromDate).getFullYear(), getWeekNumber(new Date(fromDate)));
+    const toMonday = getMondayOfWeek(new Date(toDate).getFullYear(), getWeekNumber(new Date(toDate)));
+    const diffMs = fromMonday.getTime() - toMonday.getTime();
+    if (diffMs < 0) return 'з минулого тижня';
+    if (diffMs > 0) return 'з наступного тижня';
+    return 'з цього тижня';
+  };
+
+  const executeAssign = async (
+    userId: number,
+    transferMode: 'none' | 'move'
+  ) => {
+    if (!selectedCell) return;
+
+    const transferFrom =
+      transferMode === 'move'
+        ? getTransferSourceDate(userId, selectedCell.date)
+        : undefined;
+
     if (transferFrom) {
-      const fromLabel = new Date(transferFrom).toLocaleDateString('uk-UA');
-      const toLabel = new Date(selectedCell.date).toLocaleDateString('uk-UA');
-      const doTransfer = confirm(
-        `У бійця вже є чергування (${fromLabel}). Перенести на ${toLabel}?`
-      );
-      if (doTransfer) {
-        await removeAssignment(transferFrom, 'work', userId);
-        await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
-        await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
-      }
+      await removeAssignment(transferFrom, 'work', userId);
+      await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
+      await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
     }
 
     await assignUser(selectedCell.date, userId, true, {
@@ -367,8 +389,23 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const weight = dayWeights[dayIdx] || 1.0;
     if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
 
+    setPendingAssignConfirm(null);
     setSelectedCell(null);
     await refreshData();
+  };
+
+  const handleAssign = async (userId: number | undefined) => {
+    if (!userId || !selectedCell) return;
+
+    const isRestDay = isOnRestDay(userId, selectedCell.date);
+    const transferFrom = getTransferSourceDate(userId, selectedCell.date);
+
+    if (isRestDay || transferFrom) {
+      setPendingAssignConfirm({ userId, transferFrom, isRestDay });
+      return;
+    }
+
+    await executeAssign(userId, 'none');
   };
 
   const handleRemove = async (reason: 'request' | 'work') => {
@@ -553,6 +590,67 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
                 })}
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        show={!!pendingAssignConfirm && !!selectedCell}
+        onClose={() => setPendingAssignConfirm(null)}
+        title="Підтвердження призначення"
+      >
+        {pendingAssignConfirm && selectedCell && (
+          <div>
+            <div className="alert alert-warning py-2">
+              Ви виконуєте ручну зміну призначення. Перевірте дію перед підтвердженням.
+            </div>
+
+            <div className="mb-3">
+              <div>
+                <strong>Боєць:</strong>{' '}
+                {users.find((u) => u.id === pendingAssignConfirm.userId)?.name || 'Невідомо'}
+              </div>
+              <div>
+                <strong>Нова дата:</strong>{' '}
+                {new Date(selectedCell.date).toLocaleDateString('uk-UA')}
+                {' · '}
+                тиждень #{getWeekNumber(new Date(selectedCell.date))} (тиждень призначення)
+              </div>
+              {pendingAssignConfirm.transferFrom && (
+                <div>
+                  <strong>Поточне чергування:</strong>{' '}
+                  {new Date(pendingAssignConfirm.transferFrom).toLocaleDateString('uk-UA')}
+                  {' · '}
+                  тиждень #{getWeekNumber(new Date(pendingAssignConfirm.transferFrom))}{' '}
+                  ({getWeekRelationLabel(pendingAssignConfirm.transferFrom, selectedCell.date)})
+                </div>
+              )}
+              {pendingAssignConfirm.isRestDay && (
+                <div className="text-warning-emphasis mt-2">
+                  Увага: це відсипний день (боєць чергував вчора).
+                </div>
+              )}
+            </div>
+
+            <div className="d-grid gap-2">
+              {pendingAssignConfirm.transferFrom && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => executeAssign(pendingAssignConfirm.userId, 'move')}
+                >
+                  Перенести старе чергування на нову дату
+                </button>
+              )}
+              <button
+                className="btn btn-soft-warning"
+                onClick={() => executeAssign(pendingAssignConfirm.userId, 'none')}
+              >
+                Лишити старе чергування і додати нове
+              </button>
+              <button className="btn btn-outline-secondary" onClick={() => setPendingAssignConfirm(null)}>
+                Скасувати
+              </button>
+            </div>
           </div>
         )}
       </Modal>

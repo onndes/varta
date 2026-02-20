@@ -149,17 +149,30 @@ export const useAutoScheduler = (
   // Get free users for a date
   const getFreeUsersForDate = useCallback(
     (date: string, weekDates: string[]) => {
-      return autoScheduler.getFreeUsersForDate(date, users, weekDates, schedule, dayWeights);
+      return autoScheduler.getFreeUsersForDate(
+        date,
+        users,
+        weekDates,
+        schedule,
+        dayWeights,
+        autoScheduleOptions
+      );
     },
-    [users, schedule, dayWeights]
+    [users, schedule, dayWeights, autoScheduleOptions]
   );
 
   // Get optimal assignment for a date
   const getOptimalAssignment = useCallback(
     (date: string) => {
-      return autoScheduler.calculateOptimalAssignment(date, users, schedule, dayWeights);
+      return autoScheduler.calculateOptimalAssignment(
+        date,
+        users,
+        schedule,
+        dayWeights,
+        autoScheduleOptions
+      );
     },
-    [users, schedule, dayWeights]
+    [users, schedule, dayWeights, autoScheduleOptions]
   );
 
   return {

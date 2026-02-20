@@ -26,6 +26,97 @@ const getPrevDateStr = (dateStr: string): string => {
   return toLocalISO(prev);
 };
 
+const getWeekWindow = (dateStr: string): { from: string; to: string } => {
+  const d = new Date(dateStr);
+  const dow = d.getDay(); // 0=Sun
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + mondayOffset);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { from: toLocalISO(monday), to: toLocalISO(sunday) };
+};
+
+const getDatesInRange = (fromDate: string, toDate: string): string[] => {
+  const dates: string[] = [];
+  const cursor = new Date(fromDate);
+  const end = new Date(toDate);
+  while (cursor <= end) {
+    dates.push(toLocalISO(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+};
+
+const shouldEnforceOneDutyPerWeek = (
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  weekDates: string[]
+): boolean => {
+  const minUsersNeeded = 7;
+  const eligibleThisWeek = users.filter((u) => {
+    if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
+    return weekDates.some((d) => isUserAvailable(u, d, schedule));
+  });
+  return eligibleThisWeek.length >= minUsersNeeded;
+};
+
+const hasDebtBacklog = (user: User): boolean => {
+  const owed = Object.values(user.owedDays || {}).some((v) => v > 0);
+  return (user.debt || 0) < 0 || owed;
+};
+
+const getWeeklyAssignmentCap = (
+  user: User,
+  options: AutoScheduleOptions
+): number => {
+  if (
+    options.allowDebtUsersExtraWeeklyAssignments &&
+    hasDebtBacklog(user)
+  ) {
+    return Math.min(4, Math.max(1, options.debtUsersWeeklyLimit || 1));
+  }
+  return 1;
+};
+
+const getDebtRepaymentScore = (user: User, dayIdx: number, dayWeight: number): number => {
+  const debtAbs = Math.abs(Math.min(0, user.debt || 0));
+  if (debtAbs <= 0) return 0;
+  const oweToday = (user.owedDays && user.owedDays[dayIdx]) || 0;
+  if (oweToday > 0) {
+    return Math.min(debtAbs, oweToday * dayWeight);
+  }
+  return 0;
+};
+
+const countUserAssignmentsInRange = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  fromDate: string,
+  toDate: string
+): number => {
+  return Object.values(schedule).filter((s) => {
+    if (s.date < fromDate || s.date > toDate) return false;
+    const ids = toAssignedUserIds(s.userId);
+    return ids.includes(userId);
+  }).length;
+};
+
+const daysSinceLastAssignment = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): number => {
+  const previousDates = Object.values(schedule)
+    .filter((s) => s.date < dateStr && toAssignedUserIds(s.userId).includes(userId))
+    .map((s) => s.date)
+    .sort();
+  if (previousDates.length === 0) return Number.POSITIVE_INFINITY;
+  const last = previousDates[previousDates.length - 1];
+  const diff = new Date(dateStr).getTime() - new Date(last).getTime();
+  return Math.floor(diff / 86400000);
+};
+
 const isHardUnavailable = (user: User, dateStr: string): boolean => {
   if (!user.isActive) return true;
   if (user.status === 'VACATION' || user.status === 'TRIP' || user.status === 'SICK') {
@@ -71,6 +162,10 @@ export const autoFillSchedule = async (
     respectOwedDays: true,
     considerLoad: true,
     minRestDays: 1,
+    limitOneDutyPerWeekWhenSevenPlus: true,
+    allowDebtUsersExtraWeeklyAssignments: true,
+    debtUsersWeeklyLimit: 3,
+    prioritizeFasterDebtRepayment: true,
   }
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
@@ -120,6 +215,12 @@ export const autoFillSchedule = async (
         if (oweA !== oweB) return oweB - oweA;
       }
 
+      if (options.prioritizeFasterDebtRepayment) {
+        const repayA = getDebtRepaymentScore(a, dayIdx, weight);
+        const repayB = getDebtRepaymentScore(b, dayIdx, weight);
+        if (repayA !== repayB) return repayB - repayA;
+      }
+
       if (options.considerLoad) {
         // Priority 2: Day-of-week balance normalized by availability in this weekday.
         const dowA = countUserDaysOfWeek(a.id, tempSchedule, compareFrom)[dayIdx] || 0;
@@ -130,7 +231,18 @@ export const autoFillSchedule = async (
         const dowRateB = dowB / dowAvailB;
         if (dowRateA !== dowRateB) return dowRateA - dowRateB;
 
-        // Priority 3: Total assignment count normalized by availability in window.
+        // Priority 3: Fewer assignments in current week (soft balancing inside week).
+        const week = getWeekWindow(dateStr);
+        const weekA = countUserAssignmentsInRange(a.id, tempSchedule, week.from, week.to);
+        const weekB = countUserAssignmentsInRange(b.id, tempSchedule, week.from, week.to);
+        if (weekA !== weekB) return weekA - weekB;
+
+        // Priority 4: Who has been waiting longer since last assignment.
+        const waitA = daysSinceLastAssignment(a.id, tempSchedule, dateStr);
+        const waitB = daysSinceLastAssignment(b.id, tempSchedule, dateStr);
+        if (waitA !== waitB) return waitB - waitA;
+
+        // Priority 5: Total assignment count normalized by availability in window.
         const totalA =
           countUserAssignments(a.id, tempSchedule, compareFrom) + tempLoadOffset[a.id];
         const totalB =
@@ -141,7 +253,7 @@ export const autoFillSchedule = async (
         const totalRateB = totalB / availB;
         if (totalRateA !== totalRateB) return totalRateA - totalRateB;
 
-        // Priority 4: Weighted load normalized by availability + debt (fine-grained balance)
+        // Priority 6: Weighted load normalized by availability + debt (fine-grained balance)
         const loadA =
           calculateUserLoad(a.id, tempSchedule, dayWeights, compareFrom) +
           tempLoadOffset[a.id] +
@@ -182,6 +294,22 @@ export const autoFillSchedule = async (
         }
         // If filtered is empty, keep original pool - this means we can't respect minRestDays
         // but at least the day will be filled
+      }
+    }
+
+    if (options.limitOneDutyPerWeekWhenSevenPlus) {
+      const week = getWeekWindow(dateStr);
+      const weekDates = getDatesInRange(week.from, week.to);
+      if (shouldEnforceOneDutyPerWeek(users, tempSchedule, weekDates)) {
+        const weeklyCapPool = pool.filter((u) => {
+          if (!u.id) return false;
+          const assignedInWeek = countUserAssignmentsInRange(u.id, tempSchedule, week.from, week.to);
+          const cap = getWeeklyAssignmentCap(u, options);
+          return assignedInWeek < cap;
+        });
+        if (weeklyCapPool.length > 0) {
+          pool = weeklyCapPool;
+        }
       }
     }
 
@@ -275,14 +403,20 @@ export const getFreeUsersForDate = (
   users: User[],
   weekDates: string[],
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  options: AutoScheduleOptions = {
+    avoidConsecutiveDays: true,
+    respectOwedDays: true,
+    considerLoad: true,
+    minRestDays: 1,
+    limitOneDutyPerWeekWhenSevenPlus: true,
+    allowDebtUsersExtraWeeklyAssignments: true,
+    debtUsersWeeklyLimit: 3,
+    prioritizeFasterDebtRepayment: true,
+  }
 ): User[] => {
   const dayIndex = new Date(dateStr).getDay();
-
-  // Get IDs of users already assigned this week
-  const assignedIds = new Set(
-    weekDates.flatMap((d) => toAssignedUserIds(schedule[d]?.userId))
-  );
+  const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
 
   // Filter available users and sort by priority (ladder + fairness)
   // Exclude isExtra and excludeFromAuto users from automatic scheduling
@@ -290,20 +424,43 @@ export const getFreeUsersForDate = (
     (u) =>
       !u.isExtra &&
       !u.excludeFromAuto &&
-      !assignedIds.has(u.id!) &&
+      !assignedOnDate.has(u.id!) &&
       isUserAvailable(u, dateStr, schedule)
   );
+
+  let candidatePool = filtered;
+  if (options.limitOneDutyPerWeekWhenSevenPlus) {
+    if (shouldEnforceOneDutyPerWeek(users, schedule, weekDates)) {
+      const week = getWeekWindow(dateStr);
+      const weeklyCapPool = filtered.filter((u) => {
+        if (!u.id) return false;
+        const assignedInWeek = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
+        const cap = getWeeklyAssignmentCap(u, options);
+        return assignedInWeek < cap;
+      });
+      if (weeklyCapPool.length > 0) {
+        candidatePool = weeklyCapPool;
+      }
+    }
+  }
 
   // Pool-wide baseline: ignore assignments before the newest pool member joined
   const poolCommonFrom = getPoolCommonFrom(filtered, dateStr);
   const compareFrom = poolCommonFrom || getScheduleStart(schedule, dateStr);
   const compareTo = getPrevDateStr(dateStr);
 
-  return filtered.sort((a, b) => {
+  return candidatePool.sort((a, b) => {
     // Priority 1: Owed Days
     const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
     const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
     if (oweA !== oweB) return oweB - oweA;
+
+    if (options.prioritizeFasterDebtRepayment) {
+      const weight = dayWeights[dayIndex] || 1.0;
+      const repayA = getDebtRepaymentScore(a, dayIndex, weight);
+      const repayB = getDebtRepaymentScore(b, dayIndex, weight);
+      if (repayA !== repayB) return repayB - repayA;
+    }
 
     // Priority 2: Day-of-week balance ("ladder"), availability-normalized
     const dowA = countUserDaysOfWeek(a.id!, schedule, compareFrom)[dayIndex] || 0;
@@ -314,7 +471,18 @@ export const getFreeUsersForDate = (
     const dowRateB = dowB / dowAvailB;
     if (dowRateA !== dowRateB) return dowRateA - dowRateB;
 
-    // Priority 3: Total assignments normalized by availability
+    // Priority 3: Fewer assignments in current week (soft balancing inside week)
+    const week = getWeekWindow(dateStr);
+    const weekA = countUserAssignmentsInRange(a.id!, schedule, week.from, week.to);
+    const weekB = countUserAssignmentsInRange(b.id!, schedule, week.from, week.to);
+    if (weekA !== weekB) return weekA - weekB;
+
+    // Priority 4: Who has been waiting longer since last assignment
+    const waitA = daysSinceLastAssignment(a.id!, schedule, dateStr);
+    const waitB = daysSinceLastAssignment(b.id!, schedule, dateStr);
+    if (waitA !== waitB) return waitB - waitA;
+
+    // Priority 5: Total assignments normalized by availability
     const totalA = countUserAssignments(a.id!, schedule, compareFrom);
     const totalB = countUserAssignments(b.id!, schedule, compareFrom);
     const availA = Math.max(1, countAvailableDaysInWindow(a, compareFrom, compareTo));
@@ -323,7 +491,7 @@ export const getFreeUsersForDate = (
     const totalRateB = totalB / availB;
     if (totalRateA !== totalRateB) return totalRateA - totalRateB;
 
-    // Priority 4: Effective load normalized by availability
+    // Priority 6: Effective load normalized by availability
     const loadA = calculateUserLoad(a.id!, schedule, dayWeights, compareFrom) + (a.debt || 0);
     const loadB = calculateUserLoad(b.id!, schedule, dayWeights, compareFrom) + (b.debt || 0);
     return loadA / availA - loadB / availB;
@@ -377,12 +545,38 @@ export const calculateOptimalAssignment = (
   dateStr: string,
   users: User[],
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  options: AutoScheduleOptions = {
+    avoidConsecutiveDays: true,
+    respectOwedDays: true,
+    considerLoad: true,
+    minRestDays: 1,
+    limitOneDutyPerWeekWhenSevenPlus: true,
+    allowDebtUsersExtraWeeklyAssignments: true,
+    debtUsersWeeklyLimit: 3,
+    prioritizeFasterDebtRepayment: true,
+  }
 ): User | null => {
   const dayIdx = new Date(dateStr).getDay();
-  const available = users.filter((u) => u.isActive && isUserAvailable(u, dateStr, schedule));
+  let available = users.filter((u) => u.isActive && isUserAvailable(u, dateStr, schedule));
 
   if (available.length === 0) return null;
+
+  if (options.limitOneDutyPerWeekWhenSevenPlus) {
+    const week = getWeekWindow(dateStr);
+    const weekDates = getDatesInRange(week.from, week.to);
+    if (shouldEnforceOneDutyPerWeek(users, schedule, weekDates)) {
+      const weeklyCapPool = available.filter((u) => {
+        if (!u.id) return false;
+        const assignedInWeek = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
+        const cap = getWeeklyAssignmentCap(u, options);
+        return assignedInWeek < cap;
+      });
+      if (weeklyCapPool.length > 0) {
+        available = weeklyCapPool;
+      }
+    }
+  }
 
   // Pool-wide baseline: ignore assignments before the newest member joined
   const poolCommonFrom = getPoolCommonFrom(available, dateStr);
@@ -397,6 +591,13 @@ export const calculateOptimalAssignment = (
     const oweB = (b.owedDays && b.owedDays[dayIdx]) || 0;
     if (oweA !== oweB) return oweB - oweA;
 
+    if (options.prioritizeFasterDebtRepayment) {
+      const weight = dayWeights[dayIdx] || 1.0;
+      const repayA = getDebtRepaymentScore(a, dayIdx, weight);
+      const repayB = getDebtRepaymentScore(b, dayIdx, weight);
+      if (repayA !== repayB) return repayB - repayA;
+    }
+
     // Day-of-week balance normalized by availability
     const dowA = countUserDaysOfWeek(a.id, schedule, compareFrom)[dayIdx] || 0;
     const dowB = countUserDaysOfWeek(b.id, schedule, compareFrom)[dayIdx] || 0;
@@ -405,6 +606,17 @@ export const calculateOptimalAssignment = (
     const dowRateA = dowA / dowAvailA;
     const dowRateB = dowB / dowAvailB;
     if (dowRateA !== dowRateB) return dowRateA - dowRateB;
+
+    // Weekly balancing (soft rule)
+    const week = getWeekWindow(dateStr);
+    const weekA = countUserAssignmentsInRange(a.id, schedule, week.from, week.to);
+    const weekB = countUserAssignmentsInRange(b.id, schedule, week.from, week.to);
+    if (weekA !== weekB) return weekA - weekB;
+
+    // Who has been waiting longer since last assignment
+    const waitA = daysSinceLastAssignment(a.id, schedule, dateStr);
+    const waitB = daysSinceLastAssignment(b.id, schedule, dateStr);
+    if (waitA !== waitB) return waitB - waitA;
 
     // Total assignments normalized by availability
     const totalA = countUserAssignments(a.id, schedule, compareFrom);

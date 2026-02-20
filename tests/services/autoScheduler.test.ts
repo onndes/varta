@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { DayWeights, ScheduleEntry, User } from '@/types';
+import type { AutoScheduleOptions, DayWeights, ScheduleEntry, User } from '@/types';
 import { autoFillSchedule, calculateOptimalAssignment } from '@/services/autoScheduler';
 import { db } from '@/db/db';
 
@@ -81,6 +81,160 @@ describe('autoScheduler', () => {
       expect(updates).toHaveLength(1);
       expect(Array.isArray(updates[0].userId)).toBe(true);
       expect((updates[0].userId as number[]).length).toBe(2);
+    });
+  });
+
+  describe('priority soft rules', () => {
+    it('повинен віддавати пріоритет менш завантаженому в поточному тижні', async () => {
+      const users: User[] = [
+        { id: 1, name: 'A', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 2, name: 'B', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+      ];
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' }, // same week
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const selected = calculateOptimalAssignment('2026-03-11', users, schedule, dayWeights);
+      expect(selected?.id).toBe(2);
+    });
+
+    it('повинен віддавати tie-break тому, хто довше не чергував', async () => {
+      const users: User[] = [
+        { id: 1, name: 'A', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 2, name: 'B', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+      ];
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-01': { date: '2026-03-01', userId: 2, type: 'auto' },
+        '2026-03-10': { date: '2026-03-10', userId: 1, type: 'auto' }, // more recent
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const selected = calculateOptimalAssignment('2026-03-12', users, schedule, dayWeights);
+      expect(selected?.id).toBe(2);
+    });
+
+    it('при 7+ доступних бійцях повинен спочатку ставити тих, хто ще не чергував у тижні', () => {
+      const users: User[] = Array.from({ length: 7 }, (_, idx) => ({
+        id: idx + 1,
+        name: `U${idx + 1}`,
+        rank: 'Солдат',
+        status: 'ACTIVE' as const,
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      }));
+
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const selected = calculateOptimalAssignment('2026-03-10', users, schedule, dayWeights);
+      expect(selected?.id).not.toBe(1);
+    });
+
+    it('повинен робити fallback, якщо всі доступні вже мають чергування в тижні', () => {
+      const users: User[] = Array.from({ length: 7 }, (_, idx) => ({
+        id: idx + 1,
+        name: `U${idx + 1}`,
+        rank: 'Солдат',
+        status: 'ACTIVE' as const,
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      }));
+
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
+        '2026-03-10': { date: '2026-03-10', userId: 2, type: 'auto' },
+        '2026-03-11': { date: '2026-03-11', userId: 3, type: 'auto' },
+        '2026-03-12': { date: '2026-03-12', userId: 4, type: 'auto' },
+        '2026-03-13': { date: '2026-03-13', userId: 5, type: 'auto' },
+        '2026-03-14': { date: '2026-03-14', userId: 6, type: 'auto' },
+        '2026-03-15': { date: '2026-03-15', userId: 7, type: 'auto' },
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const selected = calculateOptimalAssignment('2026-03-15', users, schedule, dayWeights);
+      expect(selected).toBeTruthy();
+    });
+
+    it('для бійця з боргом дозволяє >1 чергування на тиждень (за налаштуванням)', () => {
+      const users: User[] = Array.from({ length: 7 }, (_, idx) => ({
+        id: idx + 1,
+        name: `U${idx + 1}`,
+        rank: 'Солдат',
+        status: 'ACTIVE' as const,
+        isActive: true,
+        debt: idx === 0 ? -2 : 0,
+        owedDays: idx === 0 ? ({ 0: 1 } as Record<number, number>) : ({} as Record<number, number>),
+      }));
+
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
+        '2026-03-10': { date: '2026-03-10', userId: 2, type: 'auto' },
+        '2026-03-11': { date: '2026-03-11', userId: 3, type: 'auto' },
+        '2026-03-12': { date: '2026-03-12', userId: 4, type: 'auto' },
+        '2026-03-13': { date: '2026-03-13', userId: 5, type: 'auto' },
+        '2026-03-14': { date: '2026-03-14', userId: 6, type: 'auto' },
+        '2026-03-15': { date: '2026-03-15', userId: 7, type: 'auto' },
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        limitOneDutyPerWeekWhenSevenPlus: true,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: true,
+      };
+
+      const selected = calculateOptimalAssignment('2026-03-15', users, schedule, dayWeights, opts);
+      expect(selected?.id).toBe(1);
+    });
+
+    it('за пріоритету погашення карми обирає того, кому вигідніше гасити борг', () => {
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'Debt Heavy',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: -3,
+          owedDays: { 6: 2 },
+        },
+        {
+          id: 2,
+          name: 'Debt Light',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: -1,
+          owedDays: { 6: 1 },
+        },
+      ];
+
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-10': { date: '2026-03-10', userId: 1, type: 'auto' },
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        limitOneDutyPerWeekWhenSevenPlus: false,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: true,
+      };
+
+      const selected = calculateOptimalAssignment('2026-03-14', users, schedule, dayWeights, opts);
+      expect(selected?.id).toBe(1);
     });
   });
 });

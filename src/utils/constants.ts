@@ -86,6 +86,10 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   respectOwedDays: true,
   considerLoad: true,
   minRestDays: DEFAULT_MIN_REST_DAYS,
+  limitOneDutyPerWeekWhenSevenPlus: true,
+  allowDebtUsersExtraWeeklyAssignments: true,
+  debtUsersWeeklyLimit: 3,
+  prioritizeFasterDebtRepayment: true,
 };
 
 export const DEFAULT_SIGNATORIES: Signatories = {

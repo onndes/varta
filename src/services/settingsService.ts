@@ -153,7 +153,11 @@ export const getAutoScheduleOptions = async (): Promise<AutoScheduleOptions> => 
       return DEFAULT_AUTO_SCHEDULE_OPTIONS;
     }
   }
-  return value as AutoScheduleOptions;
+  if (!value || typeof value !== 'object') return DEFAULT_AUTO_SCHEDULE_OPTIONS;
+  return {
+    ...DEFAULT_AUTO_SCHEDULE_OPTIONS,
+    ...(value as Partial<AutoScheduleOptions>),
+  };
 };
 
 /**

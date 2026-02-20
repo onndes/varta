@@ -77,3 +77,32 @@ body.modal-open-fixed {
     overflow-y: auto;
   }
 }
+
+// Soft warning action for non-critical but risky operation.
+.btn-soft-warning {
+  background-color: #f4e6dc;
+  border: 1px solid #d8b19a;
+  color: #7a4630;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out,
+    color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+
+  &:hover {
+    background-color: #ecd7c8;
+    border-color: #c99578;
+    color: #653826;
+  }
+
+  &:focus,
+  &:focus-visible {
+    background-color: #ecd7c8;
+    border-color: #c99578;
+    color: #653826;
+    box-shadow: 0 0 0 0.2rem rgba(201, 149, 120, 0.35);
+  }
+
+  &:active {
+    background-color: #e4c7b3 !important;
+    border-color: #bd8465 !important;
+    color: #5a2f20 !important;
+  }
+}

@@ -55,6 +55,10 @@ export interface AutoScheduleOptions {
   respectOwedDays: boolean;
   considerLoad: boolean;
   minRestDays: number; // Minimum rest days between duties (1 = no consecutive, 2 = one day gap, etc.)
+  limitOneDutyPerWeekWhenSevenPlus: boolean;
+  allowDebtUsersExtraWeeklyAssignments: boolean;
+  debtUsersWeeklyLimit: number;
+  prioritizeFasterDebtRepayment: boolean;
 }
 
 export interface AuditLogEntry {

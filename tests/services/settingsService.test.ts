@@ -7,6 +7,7 @@ import {
   saveSignatories,
   getDutiesPerDay,
   saveDutiesPerDay,
+  getAutoScheduleOptions,
 } from '@/services/settingsService';
 import type { DayWeights, Signatories } from '@/types';
 
@@ -180,6 +181,34 @@ describe('settingsService', () => {
         const saved = await getDutiesPerDay();
         expect(saved).toBe(i);
       }
+    });
+  });
+
+  describe('getAutoScheduleOptions', () => {
+    it('повинен повертати нову опцію увімкненою за замовчуванням', async () => {
+      const opts = await getAutoScheduleOptions();
+      expect(opts.limitOneDutyPerWeekWhenSevenPlus).toBe(true);
+      expect(opts.allowDebtUsersExtraWeeklyAssignments).toBe(true);
+      expect(opts.debtUsersWeeklyLimit).toBe(3);
+      expect(opts.prioritizeFasterDebtRepayment).toBe(true);
+    });
+
+    it('повинен підставляти дефолт для нових полів у старих збережених опціях', async () => {
+      await db.appState.put({
+        key: 'autoScheduleOptions',
+        value: JSON.stringify({
+          avoidConsecutiveDays: true,
+          respectOwedDays: true,
+          considerLoad: true,
+          minRestDays: 1,
+        }),
+      });
+
+      const opts = await getAutoScheduleOptions();
+      expect(opts.limitOneDutyPerWeekWhenSevenPlus).toBe(true);
+      expect(opts.allowDebtUsersExtraWeeklyAssignments).toBe(true);
+      expect(opts.debtUsersWeeklyLimit).toBe(3);
+      expect(opts.prioritizeFasterDebtRepayment).toBe(true);
     });
   });
 });

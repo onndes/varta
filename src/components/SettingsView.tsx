@@ -266,6 +266,93 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </label>
           </div>
+
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="limitOnePerWeek"
+              checked={autoOpts.limitOneDutyPerWeekWhenSevenPlus}
+              onChange={(e) =>
+                setAutoOpts({
+                  ...autoOpts,
+                  limitOneDutyPerWeekWhenSevenPlus: e.target.checked,
+                })
+              }
+            />
+            <label className="form-check-label" htmlFor="limitOnePerWeek">
+              <strong>Якщо доступно 7+ бійців — не більше 1 чергування на тиждень</strong>
+              <div className="text-muted small">
+                Коли на тиждень вистачає людей, система спочатку ставить тих, хто ще не чергував у
+                цьому тижні. Якщо інакше не закривається графік — автоматично робить відкат.
+              </div>
+            </label>
+          </div>
+
+          <div className="form-check form-switch mb-2">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="allowDebtExtra"
+              checked={autoOpts.allowDebtUsersExtraWeeklyAssignments}
+              onChange={(e) =>
+                setAutoOpts({
+                  ...autoOpts,
+                  allowDebtUsersExtraWeeklyAssignments: e.target.checked,
+                })
+              }
+            />
+            <label className="form-check-label" htmlFor="allowDebtExtra">
+              <strong>Дозволити бійцям з боргом частіше чергувати в тижні</strong>
+              <div className="text-muted small">
+                Потрібно для швидшого погашення карми після зняття з наряду за рапортом.
+              </div>
+            </label>
+          </div>
+
+          {autoOpts.allowDebtUsersExtraWeeklyAssignments && (
+            <div className="ms-4 mb-3 p-3 bg-light rounded">
+              <label className="form-label fw-bold">Ліміт для бійців з боргом (разів/тиждень)</label>
+              <div className="d-flex align-items-center gap-3">
+                <input
+                  type="number"
+                  min="1"
+                  max="4"
+                  className="form-control"
+                  style={{ width: '80px' }}
+                  value={autoOpts.debtUsersWeeklyLimit}
+                  onChange={(e) =>
+                    setAutoOpts({
+                      ...autoOpts,
+                      debtUsersWeeklyLimit: Math.min(4, Math.max(1, parseInt(e.target.value) || 1)),
+                    })
+                  }
+                />
+                <span className="text-muted small">Від 1 до 4.</span>
+              </div>
+            </div>
+          )}
+
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="fasterDebtRepayment"
+              checked={autoOpts.prioritizeFasterDebtRepayment}
+              onChange={(e) =>
+                setAutoOpts({
+                  ...autoOpts,
+                  prioritizeFasterDebtRepayment: e.target.checked,
+                })
+              }
+            />
+            <label className="form-check-label" htmlFor="fasterDebtRepayment">
+              <strong>Пріоритет швидшого погашення карми</strong>
+              <div className="text-muted small">
+                За рівних умов система обирає бійця/день, де борг погашається швидше.
+              </div>
+            </label>
+          </div>
         </div>
       </div>
 
