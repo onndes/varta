@@ -196,6 +196,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       {viewStatsUser && (
         <UserStatsModal
           user={viewStatsUser}
+          users={users}
           schedule={schedule}
           dayWeights={dayWeights}
           onClose={() => setViewStatsUser(null)}

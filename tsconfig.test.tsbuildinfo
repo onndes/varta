@@ -1,0 +1,1 @@
+{"root":["./tests/setup.ts","./tests/services/autoscheduler.test.ts","./tests/services/scheduleservice.test.ts","./tests/services/settingsservice.test.ts","./tests/services/userservice.test.ts","./tests/utils/dateutils.test.ts","./vitest.config.ts"],"version":"5.9.3"}
