@@ -28,6 +28,32 @@ type TimelineEvent = {
   tone: 'primary' | 'warning' | 'danger' | 'success' | 'secondary';
 };
 
+type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'other' | 'request';
+type PeriodMode = 'all' | 'year' | 'month';
+
+const ABSENCE_LABELS: Record<AbsenceKey, string> = {
+  vacation: 'Відпустка',
+  trip: 'Відрядження',
+  sick: 'Лікарняний',
+  other: 'Інше',
+  request: 'За власним бажанням',
+};
+
+const MONTH_NAMES = [
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь',
+];
+
 const UserStatsModal: React.FC<UserStatsModalProps> = ({
   user,
   users = [],
@@ -54,6 +80,17 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
 
   const owedDays = user.owedDays || {};
   const hasOwedDays = Object.values(owedDays).some((v) => v > 0);
+  const now = new Date();
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('year');
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [shownAbsence, setShownAbsence] = useState<Record<AbsenceKey, boolean>>({
+    vacation: true,
+    trip: true,
+    sick: true,
+    other: true,
+    request: true,
+  });
 
   const statusEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
@@ -130,6 +167,90 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
       .slice(0, 120);
   }, [dutyEvents, statusEvents, auditEvents]);
 
+  const countOverlapDays = (
+    from?: string,
+    to?: string,
+    periodStart?: Date,
+    periodEnd?: Date
+  ): number => {
+    if (!from || !to || !periodStart || !periodEnd) return 0;
+    const start = new Date(from);
+    const end = new Date(to);
+    const lo = start < periodStart ? periodStart : start;
+    const hi = end > periodEnd ? periodEnd : end;
+    if (hi < lo) return 0;
+    return Math.floor((hi.getTime() - lo.getTime()) / 86400000) + 1;
+  };
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([now.getFullYear()]);
+    if (user.statusFrom) years.add(new Date(user.statusFrom).getFullYear());
+    if (user.statusTo) years.add(new Date(user.statusTo).getFullYear());
+    auditEvents
+      .filter((e) => e.title === 'Зняття за рапортом')
+      .forEach((e) => years.add(new Date(e.date).getFullYear()));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [auditEvents, now, user.statusFrom, user.statusTo]);
+
+  useEffect(() => {
+    if (!availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[0] || now.getFullYear());
+    }
+  }, [availableYears, now, selectedYear]);
+
+  const periodRange = useMemo(() => {
+    if (periodMode === 'all') {
+      return {
+        start: new Date('1970-01-01'),
+        end: new Date('2999-12-31'),
+        label: 'За весь час',
+      };
+    }
+    if (periodMode === 'year') {
+      return {
+        start: new Date(selectedYear, 0, 1),
+        end: new Date(selectedYear, 11, 31),
+        label: `За ${selectedYear} год`,
+      };
+    }
+    return {
+      start: new Date(selectedYear, selectedMonth, 1),
+      end: new Date(selectedYear, selectedMonth + 1, 0),
+      label: `За ${MONTH_NAMES[selectedMonth]} ${selectedYear}`,
+    };
+  }, [periodMode, selectedMonth, selectedYear]);
+
+  const absenceCounts = useMemo<Record<AbsenceKey, number>>(() => {
+    const counts: Record<AbsenceKey, number> = {
+      vacation: 0,
+      trip: 0,
+      sick: 0,
+      other: 0,
+      request: 0,
+    };
+
+    if (user.status !== 'ACTIVE' && user.statusFrom && user.statusTo) {
+      const days = countOverlapDays(user.statusFrom, user.statusTo, periodRange.start, periodRange.end);
+      if (user.status === 'VACATION') counts.vacation = days;
+      if (user.status === 'TRIP') counts.trip = days;
+      if (user.status === 'SICK') counts.sick = days;
+      if (user.status === 'OTHER') counts.other = days;
+    }
+
+    counts.request = auditEvents.filter((e) => {
+      if (e.title !== 'Зняття за рапортом') return false;
+      const d = new Date(e.date);
+      return d >= periodRange.start && d <= periodRange.end;
+    }).length;
+
+    return counts;
+  }, [auditEvents, periodRange.end, periodRange.start, user.status, user.statusFrom, user.statusTo]);
+
+  const visibleAbsenceKeys = useMemo(
+    () => (Object.keys(ABSENCE_LABELS) as AbsenceKey[]).filter((k) => shownAbsence[k]),
+    [shownAbsence]
+  );
+
   const queueInsight = useMemo(() => {
     const dayIdx = new Date(todayStr).getDay();
     const availability = getUserAvailabilityStatus(user, todayStr);
@@ -199,12 +320,127 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
           </div>
         )}
       </div>
+      <div className="card border-0 bg-light mb-3">
+        <div className="card-body py-2">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div className="fw-bold">Відсутність і рапорти</div>
+            <div className="small text-muted">{periodRange.label}</div>
+          </div>
+
+          <div className="d-flex flex-wrap gap-2 mb-2">
+            <div className="btn-group btn-group-sm">
+              <button
+                type="button"
+                className={`btn ${periodMode === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setPeriodMode('all')}
+              >
+                Всього
+              </button>
+              <button
+                type="button"
+                className={`btn ${periodMode === 'year' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setPeriodMode('year')}
+              >
+                Рік
+              </button>
+              <button
+                type="button"
+                className={`btn ${periodMode === 'month' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setPeriodMode('month')}
+              >
+                Місяць
+              </button>
+            </div>
+
+            {periodMode !== 'all' && (
+              <select
+                className="form-select form-select-sm"
+                style={{ width: '110px' }}
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {periodMode === 'month' && (
+              <select
+                className="form-select form-select-sm"
+                style={{ width: '140px' }}
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              >
+                {MONTH_NAMES.map((month, idx) => (
+                  <option key={month} value={idx}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="d-flex flex-wrap gap-2 mb-2">
+            {(Object.keys(ABSENCE_LABELS) as AbsenceKey[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`btn btn-sm ${
+                  shownAbsence[key] ? 'btn-outline-dark' : 'btn-outline-secondary'
+                }`}
+                onClick={() =>
+                  setShownAbsence((prev) => ({
+                    ...prev,
+                    [key]: !prev[key],
+                  }))
+                }
+              >
+                {ABSENCE_LABELS[key]}
+              </button>
+            ))}
+          </div>
+
+          <div className="small text-muted mb-2">
+            Показано тільки вибрані категорії. Для відсутностей враховуються дні, для рапортів -
+            кількість випадків.
+          </div>
+          <div className="table-responsive">
+            <table className="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Категорія</th>
+                  <th className="text-end">Кількість</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleAbsenceKeys.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="text-center text-muted">
+                      Оберіть хоча б одну категорію
+                    </td>
+                  </tr>
+                ) : (
+                  visibleAbsenceKeys.map((key) => (
+                    <tr key={key}>
+                      <td>{ABSENCE_LABELS[key]}</td>
+                      <td className="text-end fw-bold">{absenceCounts[key]}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div className="row mb-3">
         <div className="col-4">
           <div className="card bg-light">
             <div className="card-body text-center">
               <h3 className="fw-bold mb-0">{totalAssignments}</h3>
-              <small className="text-muted">Всього днів</small>
+              <small className="text-muted">Всього чергувань</small>
             </div>
           </div>
         </div>

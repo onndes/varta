@@ -90,8 +90,10 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           <thead className="table-light small">
             <tr>
               <th rowSpan={2}>Боєць</th>
-              <th rowSpan={2} style={{ minWidth: '60px' }}>
-                Всього
+              <th rowSpan={2} style={{ minWidth: '72px' }}>
+                Чергувань
+                <br />
+                <small className="fw-normal">всього</small>
               </th>
               <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
                 В черзі
@@ -212,7 +214,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           <div className="col-md-6">
             <ul className="mb-0">
               <li>
-                <strong>Всього</strong>: Загальна кількість нарядів за всю історію в базі.
+                <strong>Чергувань всього</strong>: Загальна кількість нарядів за всю історію в базі.
               </li>
               <li>
                 <strong>В черзі</strong>: Скільки нарядів враховується саме для поточної авточерги.
