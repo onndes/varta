@@ -40,18 +40,18 @@ const ABSENCE_LABELS: Record<AbsenceKey, string> = {
 };
 
 const MONTH_NAMES = [
-  'Январь',
-  'Февраль',
-  'Март',
-  'Апрель',
-  'Май',
-  'Июнь',
-  'Июль',
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь',
+  'Січень',
+  'Лютий',
+  'Березень',
+  'Квітень',
+  'Травень',
+  'Червень',
+  'Липень',
+  'Серпень',
+  'Вересень',
+  'Жовтень',
+  'Листопад',
+  'Грудень',
 ];
 
 const UserStatsModal: React.FC<UserStatsModalProps> = ({
@@ -186,11 +186,12 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
     const years = new Set<number>([now.getFullYear()]);
     if (user.statusFrom) years.add(new Date(user.statusFrom).getFullYear());
     if (user.statusTo) years.add(new Date(user.statusTo).getFullYear());
+    userSchedule.forEach((s) => years.add(new Date(s.date).getFullYear()));
     auditEvents
       .filter((e) => e.title === 'Зняття за рапортом')
       .forEach((e) => years.add(new Date(e.date).getFullYear()));
     return Array.from(years).sort((a, b) => b - a);
-  }, [auditEvents, now, user.statusFrom, user.statusTo]);
+  }, [auditEvents, now, user.statusFrom, user.statusTo, userSchedule]);
 
   useEffect(() => {
     if (!availableYears.includes(selectedYear)) {
@@ -202,7 +203,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
     if (periodMode === 'all') {
       return {
         start: new Date('1970-01-01'),
-        end: new Date('2999-12-31'),
+        end: new Date(todayStr),
         label: 'За весь час',
       };
     }
@@ -210,7 +211,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
       return {
         start: new Date(selectedYear, 0, 1),
         end: new Date(selectedYear, 11, 31),
-        label: `За ${selectedYear} год`,
+        label: `За ${selectedYear} рік`,
       };
     }
     return {
@@ -250,6 +251,37 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
     () => (Object.keys(ABSENCE_LABELS) as AbsenceKey[]).filter((k) => shownAbsence[k]),
     [shownAbsence]
   );
+
+  const availableDaysTotal = useMemo(() => {
+    const scheduleDates = Object.keys(schedule).sort();
+    const earliestScheduleDate = scheduleDates[0] || todayStr;
+    const start =
+      user.dateAddedToAuto && user.dateAddedToAuto > earliestScheduleDate
+        ? user.dateAddedToAuto
+        : earliestScheduleDate;
+
+    if (start > todayStr) return 0;
+
+    const totalWindowDays =
+      Math.floor((new Date(todayStr).getTime() - new Date(start).getTime()) / 86400000) + 1;
+
+    const overlapDays = (from: string, to: string, statusFrom?: string, statusTo?: string): number => {
+      if (!statusFrom || !statusTo) return 0;
+      const lo = statusFrom > from ? statusFrom : from;
+      const hi = statusTo < to ? statusTo : to;
+      if (hi < lo) return 0;
+      const d1 = new Date(lo);
+      const d2 = new Date(hi);
+      return Math.floor((d2.getTime() - d1.getTime()) / 86400000) + 1;
+    };
+
+    const statusBlockedDays =
+      user.status === 'VACATION' || user.status === 'TRIP' || user.status === 'SICK'
+        ? overlapDays(start, todayStr, user.statusFrom, user.statusTo)
+        : 0;
+
+    return Math.max(0, totalWindowDays - statusBlockedDays);
+  }, [schedule, todayStr, user.dateAddedToAuto, user.status, user.statusFrom, user.statusTo]);
 
   const queueInsight = useMemo(() => {
     const dayIdx = new Date(todayStr).getDay();
@@ -406,6 +438,9 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
           <div className="small text-muted mb-2">
             Показано тільки вибрані категорії. Для відсутностей враховуються дні, для рапортів -
             кількість випадків.
+          </div>
+          <div className="small mb-2">
+            <strong>Доступних днів для чергування:</strong> {availableDaysTotal}
           </div>
           <div className="table-responsive">
             <table className="table table-sm mb-0">

@@ -19,11 +19,31 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
   const todayStr = toLocalISO(new Date());
 
   const allStats = useMemo(() => {
+    const scheduleDates = Object.keys(schedule).sort();
+    const earliestScheduleDate = scheduleDates[0] || todayStr;
+    const overlapDays = (
+      from: string,
+      to: string,
+      statusFrom?: string,
+      statusTo?: string
+    ): number => {
+      if (!statusFrom || !statusTo) return 0;
+      const lo = statusFrom > from ? statusFrom : from;
+      const hi = statusTo < to ? statusTo : to;
+      if (hi < lo) return 0;
+      const d1 = new Date(lo);
+      const d2 = new Date(hi);
+      return Math.floor((d2.getTime() - d1.getTime()) / 86400000) + 1;
+    };
+
     return users
       .map((u) => {
         const allUserEntries = Object.values(schedule).filter((s) => s.userId === u.id);
         const fairnessFrom = getUserFairnessFrom(u, todayStr);
         const comparableEntries = allUserEntries.filter((s) => !fairnessFrom || s.date >= fairnessFrom);
+        const addedFrom = u.dateAddedToAuto && u.dateAddedToAuto > earliestScheduleDate
+          ? u.dateAddedToAuto
+          : earliestScheduleDate;
 
         let comparableLoad = 0;
         const dayCountComparable: Record<number, number> = {};
@@ -34,17 +54,30 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           dayCountComparable[dayIdx] = (dayCountComparable[dayIdx] || 0) + 1;
         });
 
+        let availableDaysForDuty = 0;
+        if (addedFrom <= todayStr) {
+          const totalWindowDays =
+            Math.floor((new Date(todayStr).getTime() - new Date(addedFrom).getTime()) / 86400000) + 1;
+          const statusBlockedDays =
+            u.status === 'VACATION' || u.status === 'TRIP' || u.status === 'SICK'
+              ? overlapDays(addedFrom, todayStr, u.statusFrom, u.statusTo)
+              : 0;
+          availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
+        }
+
         const balance = u.debt || 0;
         const availability = getUserAvailabilityStatus(u, todayStr);
         return {
           ...u,
           balance,
           fairnessFrom,
+          addedFrom,
           totalAllDuties: allUserEntries.length,
           totalComparableDuties: comparableEntries.length,
           comparableLoad,
           effectiveComparable: comparableLoad + balance,
           dayCountComparable,
+          availableDaysForDuty,
           availability,
         };
       })
@@ -97,6 +130,11 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </th>
               <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
                 В черзі
+              </th>
+              <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
+                Доступних
+                <br />
+                <small className="fw-normal">для чергування</small>
               </th>
               <th colSpan={7} className="text-center border-start">
                 По днях (у черзі)
@@ -166,6 +204,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                   </td>
                   <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
                   <td className="text-center fw-bold">{u.totalComparableDuties}</td>
+                  <td className="text-center">{u.availableDaysForDuty}</td>
                   {daysOrder.map((dayIdx, i) => (
                     <td
                       key={dayIdx}
@@ -218,6 +257,11 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </li>
               <li>
                 <strong>В черзі</strong>: Скільки нарядів враховується саме для поточної авточерги.
+              </li>
+              <li>
+                <strong>Доступних днів</strong>: Кількість днів, коли бійця можна було поставити на
+                чергування від дати включення в список (та початку графіка) до сьогодні, за
+                мінусом відпустки/відрядження/лікарняного.
               </li>
               <li>
                 <strong>Пн-Нд</strong>: Розподіл нарядів по дням тижня тільки в межах поточного
