@@ -41,6 +41,7 @@ export interface User {
   restBeforeStatus?: boolean;
   restAfterStatus?: boolean;
   blockedDays?: number[]; // Array of day indices (1=Mon, 7=Sun)
+  blockedDaysComment?: string; // Коментар до заблокованих днів
   owedDays?: Record<number, number>;
   isExtra?: boolean; // Special participant (trainee, driver) - manual assignment only
   dateAddedToAuto?: string; // Date when isExtra was disabled (included in auto schedule)

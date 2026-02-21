@@ -351,12 +351,13 @@
     text-align: center;
     font-size: 14pt;
     font-weight: bold;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
-  .print-status-period {
-    font-weight: normal;
+  .print-status-date {
+    text-align: center;
     font-size: 11pt;
+    margin-bottom: 10px;
   }
 
   .print-status-empty {
@@ -427,5 +428,34 @@
     p {
       margin: 0;
     }
+  }
+
+  .print-status-footer {
+    margin-top: 40px;
+    page-break-inside: avoid;
+    font-size: 11pt;
+  }
+
+  .status-footer-label {
+    font-size: 10pt;
+    margin-bottom: 6px;
+  }
+
+  .status-footer-line {
+    border-bottom: 0.5px solid #000;
+    height: 24px;
+    width: 100%;
+  }
+
+  .status-footer-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    width: 100%;
+  }
+
+  .status-footer-hint {
+    font-size: 8pt;
+    color: #666;
   }
 }

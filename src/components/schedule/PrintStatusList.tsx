@@ -95,17 +95,19 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, week
 
   const allRows = [...statusRows, ...swapRows];
 
-  const weekRange =
-    weekDates.length > 0
-      ? `${formatDate(weekDates[0])} — ${formatDate(weekDates[weekDates.length - 1])}`
-      : '';
+  const todayFormatted = new Date().toLocaleDateString('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  const activeCount = users.filter((u) => u.status === 'ACTIVE' && u.isActive).length;
+  const excludedCount = users.filter((u) => !u.isActive).length;
 
   return (
     <div className="print-only print-status-list-wrapper">
-      <h3 className="print-status-title">
-        Довідка по особовому складу
-        {weekRange && <span className="print-status-period"> ({weekRange})</span>}
-      </h3>
+      <h3 className="print-status-title">Довідка по особовому складу</h3>
+      <p className="print-status-date">Станом на {todayFormatted}</p>
 
       {allRows.length === 0 ? (
         <p className="print-status-empty">Всі бійці в строю. Змін та обмінів немає.</p>
@@ -144,14 +146,30 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, week
           Всього особового складу: <strong>{users.length}</strong>
         </p>
         <p>
-          В строю:{' '}
-          <strong>{users.filter((u) => u.status === 'ACTIVE' && u.isActive).length}</strong>
+          В строю: <strong>{activeCount}</strong>
         </p>
         {statusRows.length > 0 && (
           <p>
             Відсутні: <strong>{statusRows.length}</strong>
           </p>
         )}
+        {excludedCount > 0 && (
+          <p>
+            Виключений зі списків: <strong>{excludedCount}</strong>
+          </p>
+        )}
+      </div>
+
+      {/* Підпис — «Довідку склав:» */}
+      <div className="print-status-footer">
+        <div className="status-footer-label">Довідку склав:</div>
+        <div className="status-footer-line"></div>
+        <div className="status-footer-row">
+          <span className="status-footer-hint">(посада)</span>
+          <span className="status-footer-hint">(звання)</span>
+          <span className="status-footer-hint">(підпис)</span>
+          <span className="status-footer-hint">(ініціали, прізвище)</span>
+        </div>
       </div>
     </div>
   );

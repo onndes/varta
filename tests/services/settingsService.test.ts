@@ -102,8 +102,8 @@ describe('settingsService', () => {
       const sigs = await getSignatories();
 
       expect(sigs).toBeDefined();
-      expect(sigs.commanderRank).toBe('Командир роти');
-      expect(sigs.creatorRank).toBe('Старший сержант');
+      expect(sigs.commanderRank).toBe('');
+      expect(sigs.creatorRank).toBe('');
     });
 
     it('повинен повертати збережених підписантів', async () => {

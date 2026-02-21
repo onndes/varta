@@ -243,6 +243,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
               );
             })}
           </div>
+          {blockedDays.length > 0 && (
+            <div className="mt-2">
+              <input
+                className="form-control form-control-sm"
+                value={user.blockedDaysComment || ''}
+                onChange={(e) => onChange({ ...user, blockedDaysComment: e.target.value })}
+                placeholder="Причина блокування (необов'язково)"
+                maxLength={100}
+              />
+            </div>
+          )}
         </div>
       </div>
 
