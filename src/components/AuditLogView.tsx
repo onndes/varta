@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import * as auditService from '../services/auditService';
 import type { AuditLogEntry } from '../types';
+import { useDialog } from './useDialog';
 
 const ACTION_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   ADD: { label: 'Додано', icon: 'fa-user-plus', color: 'success' },
@@ -29,6 +30,8 @@ const AuditLogView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
   const [limit, setLimit] = useState(100);
+
+  const { showConfirm } = useDialog();
 
   const loadLogs = async () => {
     try {
@@ -82,7 +85,7 @@ const AuditLogView: React.FC = () => {
   }, [logs]);
 
   const handleClearOldLogs = async () => {
-    if (!confirm('Видалити логи старше 90 днів?')) return;
+    if (!(await showConfirm('Видалити логи старше 90 днів?'))) return;
     await auditService.clearOldLogs(90);
     await loadLogs();
   };

@@ -8,6 +8,7 @@ interface AssignmentModalProps {
   assignedUserId?: number;
   users: User[];
   freeUsers: User[];
+  swapUsers: User[];
   swapMode: 'replace' | 'remove';
   onSetSwapMode: (mode: 'replace' | 'remove') => void;
   onAssign: (userId: number) => void;
@@ -54,6 +55,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   assignedUserId,
   users,
   freeUsers,
+  swapUsers,
   swapMode,
   onSetSwapMode,
   onAssign,
@@ -89,7 +91,12 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
             {swapMode === 'replace' && (
               <div className="list-group" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {freeUsers.map((u) => (
+                {swapUsers.length === 0 && (
+                  <div className="text-muted text-center py-3">
+                    Немає доступних бійців цього тижня для заміни
+                  </div>
+                )}
+                {swapUsers.map((u) => (
                   <UserListItem
                     key={u.id}
                     user={u}

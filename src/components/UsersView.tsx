@@ -5,6 +5,7 @@ import AddUserForm from './users/AddUserForm';
 import UserRow from './users/UserRow';
 import EditUserModal from './users/EditUserModal';
 import UserStatsModal from './users/UserStatsModal';
+import { useDialog } from './useDialog';
 
 import { toLocalISO } from '../utils/dateUtils';
 
@@ -29,6 +30,8 @@ const UsersView: React.FC<UsersViewProps> = ({
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
+
+  const { showConfirm } = useDialog();
 
   const handleAdd = async (name: string, rank: string, note: string) => {
     // Set dateAddedToAuto to the day AFTER the last existing schedule entry.
@@ -92,7 +95,8 @@ const UsersView: React.FC<UsersViewProps> = ({
   };
 
   const handleDelete = async (u: User) => {
-    if (!u.id || !confirm('Видалити?')) return;
+    if (!u.id) return;
+    if (!(await showConfirm('Видалити?'))) return;
     await deleteUserHook(u.id);
     const todayStr = new Date().toISOString().split('T')[0];
     await updateCascadeTrigger(todayStr);
@@ -101,7 +105,8 @@ const UsersView: React.FC<UsersViewProps> = ({
   };
 
   const handleResetDebt = async (u: User) => {
-    if (!u.id || !confirm('Скинути карму в 0?')) return;
+    if (!u.id) return;
+    if (!(await showConfirm('Скинути карму в 0?'))) return;
     await resetUserDebt(u.id);
     await refreshData();
   };

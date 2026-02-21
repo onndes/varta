@@ -4,6 +4,7 @@ import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
 import * as performanceService from '../services/performanceService';
 import type { DatabaseStats } from '../services/performanceService';
 import Modal from './Modal';
+import { useDialog } from './useDialog';
 
 interface SettingsViewProps {
   dayWeights: DayWeights;
@@ -64,6 +65,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     setDebt(maxDebt);
   }, [maxDebt]);
 
+  const { showAlert, showConfirm } = useDialog();
+
   const loadDatabaseStats = async () => {
     const stats = await performanceService.getDatabaseStats();
     const needs = await performanceService.checkMaintenanceNeeded();
@@ -78,14 +81,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleMaintenance = async () => {
     if (
-      !confirm(
+      !(await showConfirm(
         'Видалити старі дані (графіки старше 1 року, логи старше 6 місяців)?\n\nРекомендується робити експорт перед очищенням!'
-      )
+      ))
     )
       return;
 
     const results = await performanceService.performMaintenance();
-    alert(
+    await showAlert(
       `Очищено:\n• Логів: ${results.logsDeleted}\n• Старих графіків: ${results.oldSchedulesDeleted}`
     );
     await loadDatabaseStats();
@@ -96,12 +99,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     await onSaveDutiesPerDay(perDay);
     await onSaveAutoScheduleOptions(autoOpts);
     await onSaveMaxDebt(debt);
-    alert('Налаштування логіки збережено!');
+    await showAlert('Налаштування логіки збережено!');
   };
 
   const handleSavePrint = async () => {
     await onSaveSignatories(sigs);
-    alert('Налаштування друку збережено!');
+    await showAlert('Налаштування друку збережено!');
   };
 
   // ─── Sub-tab: Logic ────────────────────────────────────────

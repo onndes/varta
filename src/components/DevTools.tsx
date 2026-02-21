@@ -3,12 +3,14 @@ import { db } from '../db/db';
 import { RANKS } from '../utils/constants';
 import type { User } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
+import { useDialog } from './useDialog';
 
 interface DevToolsProps {
   refreshData: () => Promise<void>;
 }
 
 const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
+  const { showAlert, showConfirm } = useDialog();
   const [genCount, setGenCount] = useState(10);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
@@ -73,7 +75,7 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
     }
 
     await db.users.bulkAdd(newUsers);
-    alert(`Згенеровано ${genCount} бійців`);
+    await showAlert(`Згенеровано ${genCount} бійців`);
     await refreshData();
     await loadUsers();
   };
@@ -81,19 +83,19 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
   const handleSetAddedDate = async () => {
     if (!selectedUserId) return;
     if (!newAddedDate) {
-      alert('Оберіть дату');
+      await showAlert('Оберіть дату');
       return;
     }
 
     await db.users.update(selectedUserId, { dateAddedToAuto: newAddedDate });
     const user = users.find((u) => u.id === selectedUserId);
-    alert(`Оновлено dateAddedToAuto: ${user?.name || 'Боєць'} -> ${newAddedDate}`);
+    await showAlert(`Оновлено dateAddedToAuto: ${user?.name || 'Боєць'} -> ${newAddedDate}`);
     await refreshData();
     await loadUsers();
   };
 
   const handleWipe = async () => {
-    if (confirm('УВАГА! Це видалить ВСЮ базу даних безповоротно. Продовжити?')) {
+    if (await showConfirm('УВАГА! Це видалить ВСЮ базу даних безповоротно. Продовжити?')) {
       await db.delete();
       window.location.reload();
     }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDialog } from './components/useDialog';
 
 // Hooks
 import { useUsers, useSchedule, useSettings, useExport } from './hooks';
@@ -18,6 +19,7 @@ import AuditLogView from './components/AuditLogView';
 import './styles/main.scss';
 
 const App = () => {
+  const { showAlert, showConfirm } = useDialog();
   const [activeTab, setActiveTab] = useState('schedule');
   const [showBackupAlert, setShowBackupAlert] = useState(false);
 
@@ -67,7 +69,7 @@ const App = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!confirm('Замінити всі дані?')) {
+    if (!(await showConfirm('Замінити всі дані?'))) {
       input.value = '';
       return;
     }
@@ -76,10 +78,10 @@ const App = () => {
       await handleImportData(file);
       await refreshData();
       setShowBackupAlert(false);
-      alert('Готово!');
+      await showAlert('Готово!');
     } catch (err) {
       console.error(err);
-      alert('Помилка файлу');
+      await showAlert('Помилка файлу');
     } finally {
       input.value = '';
     }

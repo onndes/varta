@@ -1,6 +1,8 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useDialog } from './useDialog';
 import type { User, ScheduleEntry, DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
+import { formatDate } from '../utils/dateUtils';
 import {
   applyKarmaForTransfer,
   calculateEffectiveLoad as calcEffectiveLoad,
@@ -87,15 +89,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       const replaceUserId = options?.replaceUserId;
       if (typeof replaceUserId === 'number' && nextIds.includes(replaceUserId)) {
         nextIds = nextIds.filter((id) => id !== replaceUserId);
-        const dayIdx = new Date(date).getDay();
-        const weight = dayWeights[dayIdx] || 1.0;
-        await userService.updateUserDebt(replaceUserId, -weight);
+        // No karma penalty for the replaced user — it's an administrative swap
         const prevUser = users.find((u) => u.id === replaceUserId);
         if (prevUser) {
-          await auditService.logAction(
-            'REMOVE',
-            `${prevUser.name} замінено на ${date} (Карма -${weight})`
-          );
+          await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
         }
       }
 
@@ -169,6 +166,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     null
   );
 
+  const { showAlert, showConfirm } = useDialog();
+
   const weekDates = useMemo(() => {
     const dates: string[] = [];
     for (let i = 0; i < 7; i++) {
@@ -228,11 +227,26 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return { conflicts, criticalConflicts, gaps, conflictByDate };
   }, [schedule, users, weekDates, dutiesPerDay]);
 
-  const shiftWeek = (offset: number) => {
-    const newDate = new Date(currentMonday);
-    newDate.setDate(newDate.getDate() + offset * 7);
-    setCurrentMonday(newDate);
-  };
+  const shiftWeek = useCallback((offset: number) => {
+    setCurrentMonday((prev) => {
+      const newDate = new Date(prev);
+      newDate.setDate(newDate.getDate() + offset * 7);
+      return newDate;
+    });
+  }, []);
+
+  // Keyboard navigation: ArrowLeft / ArrowRight to switch weeks
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (selectedCell || pendingAssignConfirm) return;
+      shiftWeek(e.key === 'ArrowLeft' ? -1 : 1);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shiftWeek, selectedCell, pendingAssignConfirm]);
 
   const jumpToWeek = (w: number) => setCurrentMonday(getMondayOfWeek(new Date().getFullYear(), w));
 
@@ -281,6 +295,39 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     [schedule, users, calculateEffectiveLoad]
   );
 
+  // Get users assigned on the same week (for swap/replace mode)
+  const getWeekAssignedUsers = useCallback(
+    (dateStr: string) => {
+      const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
+
+      // Collect all unique user IDs assigned on this week (excluding target date)
+      const weekUserIds = new Set<number>();
+      for (const wd of weekDates) {
+        if (wd === dateStr) continue;
+        const entry = schedule[wd];
+        if (entry) {
+          toAssignedUserIds(entry.userId).forEach((id) => weekUserIds.add(id));
+        }
+      }
+
+      // Filter: must be assigned this week, NOT assigned on target date, and available
+      return users
+        .filter(
+          (u) =>
+            u.id !== undefined &&
+            weekUserIds.has(u.id) &&
+            !assignedOnDate.has(u.id) &&
+            isUserAvailable(u, dateStr, schedule)
+        )
+        .sort((a, b) => {
+          const loadA = calculateEffectiveLoad(a);
+          const loadB = calculateEffectiveLoad(b);
+          return loadA - loadB;
+        });
+    },
+    [schedule, users, weekDates, calculateEffectiveLoad]
+  );
+
   // Check if cascade recalc could improve assignments (after getFreeUsers defined)
   const shouldShowCascadeRecalc = useMemo(() => {
     if (!cascadeStartDate) return false;
@@ -307,20 +354,20 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     });
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
-  const hasEnoughActiveUsers = useCallback((): boolean => {
+  const hasEnoughActiveUsers = useCallback(async (): Promise<boolean> => {
     const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
-      alert(
+      await showAlert(
         '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
           activeUsers.length
       );
       return false;
     }
     return true;
-  }, [users]);
+  }, [users, showAlert]);
 
   const runFillGaps = async () => {
-    if (!hasEnoughActiveUsers()) return;
+    if (!(await hasEnoughActiveUsers())) return;
 
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
     if (datesToFill.length === 0) return;
@@ -331,7 +378,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runFixConflicts = async () => {
-    if (!hasEnoughActiveUsers()) return;
+    if (!(await hasEnoughActiveUsers())) return;
 
     if (scheduleIssues.conflicts.length === 0) return;
 
@@ -340,7 +387,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       ? `Замінити ${scheduleIssues.criticalConflicts.length} блокованих працівників?`
       : `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?`;
 
-    if (!confirm(message)) return;
+    if (!(await showConfirm(message))) return;
 
     // Remove only conflicting assignees, keep valid assignees on same date
     for (const date of scheduleIssues.conflicts) {
@@ -372,19 +419,19 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runFullAutoSchedule = async () => {
-    if (!hasEnoughActiveUsers()) return;
+    if (!(await hasEnoughActiveUsers())) return;
 
     const validTargets = weekDates.filter((d) => d >= todayStr);
     if (validTargets.length === 0) {
-      alert('Неможливо змінити минуле.');
+      await showAlert('Неможливо змінити минуле.');
       return;
     }
     const hasExistingEntries = validTargets.some((d) => Boolean(schedule[d]));
     if (
       hasExistingEntries &&
-      !confirm(
-        'Перегенерувати тиждень?\n\nНезаблоковані призначення на цьому тижні буде очищено і побудовано заново.'
-      )
+      !(await showConfirm(
+        'Перегенерувати тиждень?\n\nНезаблоковані призначення на цьому тиждні буде очищено і побудовано заново.'
+      ))
     ) {
       return;
     }
@@ -400,14 +447,14 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const runClearWeek = async () => {
     const datesToClear = weekDates.filter((date) => Boolean(schedule[date]));
     if (datesToClear.length === 0) {
-      alert('На цьому тижні немає призначень для очищення.');
+      await showAlert('На цьому тиждні немає призначень для очищення.');
       return;
     }
 
     if (
-      !confirm(
+      !(await showConfirm(
         `Очистити призначення за поточний тиждень?\n\nБуде видалено записів: ${datesToClear.length}`
-      )
+      ))
     ) {
       return;
     }
@@ -419,11 +466,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runCascadeRecalc = async () => {
-    if (!hasEnoughActiveUsers()) return;
+    if (!(await hasEnoughActiveUsers())) return;
 
     if (!cascadeStartDate) return;
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
-    if (!confirm(`Перерахувати АВТОМАТИЧНІ призначення з ${start}?`)) return;
+    if (!(await showConfirm(`Перерахувати АВТОМАТИЧНІ призначення з ${formatDate(start)}?`)))
+      return;
 
     await recalculateFrom(start);
     await clearCascadeTrigger(); // Clear trigger after successful recalc
@@ -569,6 +617,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         assignedUserId={selectedCell?.assignedUserId}
         users={users}
         freeUsers={selectedCell ? getFreeUsers(selectedCell.date) : []}
+        swapUsers={selectedCell ? getWeekAssignedUsers(selectedCell.date) : []}
         swapMode={swapMode}
         onSetSwapMode={setSwapMode}
         onAssign={(userId) => handleAssign(userId)}

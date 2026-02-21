@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDate } from '../../utils/dateUtils';
 
 interface ScheduleControlsProps {
   weekDates: string[];
@@ -83,7 +84,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
         {cascadeStartDate && shouldShowCascade && (
           <button className="btn btn-sm btn-outline-info" onClick={onCascadeRecalc}>
             <i className="fas fa-sync-alt me-2"></i>
-            Оптимізувати (з {cascadeStartDate})
+            Оптимізувати (з {formatDate(cascadeStartDate!)})
           </button>
         )}
         <button
