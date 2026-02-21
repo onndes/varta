@@ -6,8 +6,6 @@ import { formatDate } from '../utils/dateUtils';
 import {
   applyKarmaForTransfer,
   calculateEffectiveLoad as calcEffectiveLoad,
-  countUserAssignments,
-  countUserDaysOfWeek,
   getAllSchedule,
   removeAssignmentWithDebt,
   saveScheduleEntry,
@@ -23,7 +21,7 @@ import PrintHeader from './schedule/PrintHeader';
 import PrintFooter from './PrintFooter';
 import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
-import AssignmentModal from './schedule/AssignmentModal';
+import AssignmentModal, { type SwapMode } from './schedule/AssignmentModal';
 import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import { isUserAvailable } from '../services/userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
@@ -53,6 +51,7 @@ interface PendingAssignConfirm {
   userId: number;
   transferFrom?: string;
   isRestDay: boolean;
+  penalizeReplaced?: boolean;
 }
 
 const ScheduleView: React.FC<ScheduleViewProps> = ({
@@ -79,7 +78,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       date: string,
       userId: number,
       isManual = true,
-      options?: { maxPerDay?: number; replaceUserId?: number }
+      options?: { maxPerDay?: number; replaceUserId?: number; penalizeReplaced?: boolean }
     ) => {
       const existing = schedule[date];
       const existingIds = toAssignedUserIds(existing?.userId);
@@ -89,10 +88,20 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       const replaceUserId = options?.replaceUserId;
       if (typeof replaceUserId === 'number' && nextIds.includes(replaceUserId)) {
         nextIds = nextIds.filter((id) => id !== replaceUserId);
-        // No karma penalty for the replaced user — it's an administrative swap
         const prevUser = users.find((u) => u.id === replaceUserId);
         if (prevUser) {
-          await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
+          if (options?.penalizeReplaced) {
+            // Apply karma penalty to the replaced user
+            const dayIdx = new Date(date).getDay();
+            const weight = dayWeights[dayIdx] || 1.0;
+            await userService.updateUserDebt(replaceUserId, -weight);
+            await auditService.logAction(
+              'REMOVE',
+              `${prevUser.name} замінено на ${date} (Карма -${weight})`
+            );
+          } else {
+            await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
+          }
         }
       }
 
@@ -102,10 +111,11 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
       nextIds.push(userId);
 
+      const isReplace = typeof replaceUserId === 'number';
       const entry: ScheduleEntry = {
         date,
         userId: nextIds.length === 1 ? nextIds[0] : nextIds,
-        type: isManual ? 'manual' : 'auto',
+        type: isManual ? (isReplace ? 'replace' : 'manual') : 'auto',
         isLocked: false,
       };
 
@@ -161,7 +171,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   });
 
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
-  const [swapMode, setSwapMode] = useState<'replace' | 'remove'>('replace');
+  const [swapMode, setSwapMode] = useState<SwapMode>('replace');
   const [pendingAssignConfirm, setPendingAssignConfirm] = useState<PendingAssignConfirm | null>(
     null
   );
@@ -263,36 +273,54 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     setCurrentMonday(new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))));
   };
 
+  const daysSinceLastDuty = useCallback(
+    (userId: number, refDate: string): number => {
+      const previousDates = Object.values(schedule)
+        .filter((s) => s.date < refDate && toAssignedUserIds(s.userId).includes(userId))
+        .map((s) => s.date)
+        .sort();
+      if (previousDates.length === 0) return Number.POSITIVE_INFINITY;
+      const last = previousDates[previousDates.length - 1];
+      const diff = new Date(refDate).getTime() - new Date(last).getTime();
+      return Math.floor(diff / 86400000);
+    },
+    [schedule]
+  );
+
   const getFreeUsers = useCallback(
-    (dateStr: string) => {
+    (dateStr: string, includeRestDay = false) => {
       const dayIndex = new Date(dateStr).getDay();
       const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
 
       return users
-        .filter((u) => !assignedOnDate.has(u.id!) && isUserAvailable(u, dateStr, schedule))
+        .filter((u) => {
+          if (assignedOnDate.has(u.id!)) return false;
+          // includeRestDay: skip rest-day check so rest-day users appear (with badge)
+          return includeRestDay
+            ? isUserAvailable(u, dateStr)
+            : isUserAvailable(u, dateStr, schedule);
+        })
         .sort((a, b) => {
           // Priority 1: Owed days for this day of week
           const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
           const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
           if (oweA !== oweB) return oweB - oweA;
 
-          // Priority 2: Day-of-week balance ("ladder")
-          const dowA = countUserDaysOfWeek(a.id!, schedule)[dayIndex] || 0;
-          const dowB = countUserDaysOfWeek(b.id!, schedule)[dayIndex] || 0;
-          if (dowA !== dowB) return dowA - dowB;
-
-          // Priority 3: Total assignments
-          const totalA = countUserAssignments(a.id!, schedule);
-          const totalB = countUserAssignments(b.id!, schedule);
-          if (totalA !== totalB) return totalA - totalB;
-
-          // Priority 4: Effective load (weighted + debt)
+          // Priority 2: Effective load (least load first)
           const loadA = calculateEffectiveLoad(a);
           const loadB = calculateEffectiveLoad(b);
-          return loadA - loadB;
+          if (loadA !== loadB) return loadA - loadB;
+
+          // Priority 3: Karma (most negative first)
+          if (a.debt !== b.debt) return a.debt - b.debt;
+
+          // Priority 4: Days since last duty (most idle first)
+          const idleA = daysSinceLastDuty(a.id!, dateStr);
+          const idleB = daysSinceLastDuty(b.id!, dateStr);
+          return idleB - idleA;
         });
     },
-    [schedule, users, calculateEffectiveLoad]
+    [schedule, users, calculateEffectiveLoad, daysSinceLastDuty]
   );
 
   // Get users assigned on the same week (for swap/replace mode)
@@ -310,22 +338,24 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         }
       }
 
-      // Filter: must be assigned this week, NOT assigned on target date, and available
+      // Filter: must be assigned this week, NOT assigned on target date, and active
+      // Don't check isUserAvailable — rest-day users should still be swappable
       return users
         .filter(
           (u) =>
-            u.id !== undefined &&
-            weekUserIds.has(u.id) &&
-            !assignedOnDate.has(u.id) &&
-            isUserAvailable(u, dateStr, schedule)
+            u.id !== undefined && u.isActive && weekUserIds.has(u.id) && !assignedOnDate.has(u.id)
         )
         .sort((a, b) => {
           const loadA = calculateEffectiveLoad(a);
           const loadB = calculateEffectiveLoad(b);
-          return loadA - loadB;
+          if (loadA !== loadB) return loadA - loadB;
+          if (a.debt !== b.debt) return a.debt - b.debt;
+          const idleA = daysSinceLastDuty(a.id!, dateStr);
+          const idleB = daysSinceLastDuty(b.id!, dateStr);
+          return idleB - idleA;
         });
     },
-    [schedule, users, weekDates, calculateEffectiveLoad]
+    [schedule, users, weekDates, calculateEffectiveLoad, daysSinceLastDuty]
   );
 
   // Check if cascade recalc could improve assignments (after getFreeUsers defined)
@@ -504,7 +534,11 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     [schedule]
   );
 
-  const executeAssign = async (userId: number, transferMode: 'none' | 'move') => {
+  const executeAssign = async (
+    userId: number,
+    transferMode: 'none' | 'move',
+    penalizeReplaced = false
+  ) => {
     if (!selectedCell) return;
 
     const transferFrom =
@@ -519,6 +553,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     await assignUser(selectedCell.date, userId, true, {
       maxPerDay: dutiesPerDay,
       replaceUserId: selectedCell.assignedUserId,
+      penalizeReplaced,
     });
     await updateCascadeTrigger(selectedCell.date);
 
@@ -532,18 +567,78 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     await refreshData();
   };
 
-  const handleAssign = async (userId: number | undefined) => {
+  const handleAssign = async (userId: number | undefined, penalizeReplaced = false) => {
     if (!userId || !selectedCell) return;
 
+    const isReplaceMode = Boolean(selectedCell.assignedUserId);
     const isRestDay = isOnRestDay(userId, selectedCell.date);
-    const transferFrom = getTransferSourceDate(userId, selectedCell.date);
 
-    if (isRestDay || transferFrom) {
-      setPendingAssignConfirm({ userId, transferFrom, isRestDay });
+    if (isReplaceMode) {
+      // Replace mode: skip transfer logic, just confirm if rest day
+      if (isRestDay) {
+        const userName = users.find((u) => u.id === userId)?.name || '';
+        const ok = await showConfirm(
+          `${userName} — відсипний (чергував вчора).\nВсе одно призначити?`
+        );
+        if (!ok) return;
+      }
+      await executeAssign(userId, 'none', penalizeReplaced);
       return;
     }
 
-    await executeAssign(userId, 'none');
+    // Fresh assignment mode: check rest day & transfer
+    const transferFrom = getTransferSourceDate(userId, selectedCell.date);
+    if (isRestDay || transferFrom) {
+      setPendingAssignConfirm({ userId, transferFrom, isRestDay, penalizeReplaced });
+      return;
+    }
+
+    await executeAssign(userId, 'none', penalizeReplaced);
+  };
+
+  const handleSwap = async (swapUserId: number, swapDate: string) => {
+    if (!selectedCell?.assignedUserId) return;
+    const { date: targetDate, assignedUserId: currentUserId } = selectedCell;
+
+    if (!swapDate) return;
+
+    // Remove both users from their respective dates
+    await removeAssignment(targetDate, 'work', currentUserId);
+    await removeAssignment(swapDate, 'work', swapUserId);
+
+    // Re-read schedule to get fresh state
+    const freshSchedule = await getAllSchedule();
+
+    // Assign swapUser to targetDate and currentUser to swapDate (no karma)
+    const targetEntry = freshSchedule[targetDate];
+    const targetIds = toAssignedUserIds(targetEntry?.userId);
+    targetIds.push(swapUserId);
+    await saveScheduleEntry({
+      date: targetDate,
+      userId: targetIds.length === 1 ? targetIds[0] : targetIds,
+      type: 'swap',
+      isLocked: false,
+    });
+
+    const swapEntry = freshSchedule[swapDate];
+    const swapIds = toAssignedUserIds(swapEntry?.userId);
+    swapIds.push(currentUserId);
+    await saveScheduleEntry({
+      date: swapDate,
+      userId: swapIds.length === 1 ? swapIds[0] : swapIds,
+      type: 'swap',
+      isLocked: false,
+    });
+
+    const currentUser = users.find((u) => u.id === currentUserId);
+    const swapUser = users.find((u) => u.id === swapUserId);
+    await logAction(
+      'SWAP',
+      `Обмін: ${currentUser?.name} (${targetDate}) ↔ ${swapUser?.name} (${swapDate})`
+    );
+
+    setSelectedCell(null);
+    await refreshData();
   };
 
   const handleRemove = async (reason: 'request' | 'work') => {
@@ -616,15 +711,19 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         date={selectedCell?.date || ''}
         assignedUserId={selectedCell?.assignedUserId}
         users={users}
-        freeUsers={selectedCell ? getFreeUsers(selectedCell.date) : []}
+        freeUsers={selectedCell ? getFreeUsers(selectedCell.date, true) : []}
         swapUsers={selectedCell ? getWeekAssignedUsers(selectedCell.date) : []}
+        schedule={schedule}
+        weekDates={weekDates}
         swapMode={swapMode}
         onSetSwapMode={setSwapMode}
-        onAssign={(userId) => handleAssign(userId)}
+        onAssign={(userId, penalize) => handleAssign(userId, penalize)}
+        onSwap={handleSwap}
         onRemove={handleRemove}
         onClose={() => setSelectedCell(null)}
         isOnRestDay={isOnRestDay}
         calculateEffectiveLoad={calculateEffectiveLoad}
+        daysSinceLastDuty={daysSinceLastDuty}
         hasEntry={!!selectedCell?.entry}
       />
 
@@ -633,8 +732,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         pending={pendingAssignConfirm}
         targetDate={selectedCell?.date || ''}
         users={users}
-        onConfirmMove={(userId) => executeAssign(userId, 'move')}
-        onConfirmAdd={(userId) => executeAssign(userId, 'none')}
+        onConfirmMove={(userId) =>
+          executeAssign(userId, 'move', pendingAssignConfirm?.penalizeReplaced)
+        }
+        onConfirmAdd={(userId) =>
+          executeAssign(userId, 'none', pendingAssignConfirm?.penalizeReplaced)
+        }
         onClose={() => setPendingAssignConfirm(null)}
       />
     </div>

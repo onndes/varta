@@ -7,6 +7,7 @@ import * as scheduleService from '../services/scheduleService';
 import * as auditService from '../services/auditService';
 import { toLocalISO } from '../utils/dateUtils';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
+import { isManualType } from '../utils/assignment';
 
 /**
  * Custom hook for automatic scheduling operations
@@ -119,10 +120,10 @@ export const useAutoScheduler = (
         const todayStr = toLocalISO(new Date());
         const validDates = weekDates.filter((d) => d >= todayStr);
 
-        // Remove existing entries for these dates (except locked)
+        // Remove existing entries for these dates (except locked and manual/replace/swap)
         const datesToClear = validDates.filter((d) => {
           const entry = schedule[d];
-          return !entry || !entry.isLocked;
+          return !entry || (!entry.isLocked && !isManualType(entry));
         });
 
         if (datesToClear.length > 0) {

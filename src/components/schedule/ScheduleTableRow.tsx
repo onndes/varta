@@ -107,12 +107,18 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         if (isAssigned) {
           cellClass += isPast ? ' past-locked' : ' assigned' + (entry.isLocked ? ' locked' : '');
 
-          // Show hand for manual, lock for locked
+          // Show icon for type: lock, replace, swap, manual, auto
           let icon = '';
           if (entry.isLocked) {
             icon = ' 🔒';
+          } else if (entry.type === 'replace') {
+            icon = ' 🔀';
+          } else if (entry.type === 'swap') {
+            icon = ' 🔁';
           } else if (entry.type === 'manual') {
             icon = ' ✋';
+          } else if (entry.type === 'auto') {
+            icon = ' ⚙️';
           }
           screenContent = 'НАРЯД' + icon;
           printContent = '08:00';

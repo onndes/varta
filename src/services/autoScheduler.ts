@@ -6,7 +6,7 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getPoolCommonFrom } from '../utils/fairness';
 import { isUserAvailable } from './userService';
 import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
-import { toAssignedUserIds } from '../utils/assignment';
+import { toAssignedUserIds, isManualType } from '../utils/assignment';
 
 /**
  * Service for automatic schedule generation
@@ -187,8 +187,11 @@ export const autoFillSchedule = async (
     const existingEntry = tempSchedule[dateStr];
     const existingIds = toAssignedUserIds(existingEntry?.userId);
 
-    // Skip locked entries that are already fully staffed
-    if (existingEntry?.isLocked && existingIds.length >= Math.max(1, dutiesPerDay)) {
+    // Skip locked or manual entries that are already fully staffed
+    if (
+      (existingEntry?.isLocked || isManualType(existingEntry)) &&
+      existingIds.length >= Math.max(1, dutiesPerDay)
+    ) {
       continue;
     }
 
@@ -354,7 +357,7 @@ export const autoFillSchedule = async (
       const entry: ScheduleEntry = {
         date: dateStr,
         userId: selectedIds.length === 1 ? selectedIds[0] : selectedIds,
-        type: existingEntry?.type === 'manual' ? 'manual' : 'auto',
+        type: isManualType(existingEntry) ? existingEntry!.type : 'auto',
         isLocked: existingEntry?.isLocked || false,
       };
       const prevIds = toAssignedUserIds(existingEntry?.userId);
@@ -559,7 +562,7 @@ export const recalculateScheduleFrom = async (
   while (d <= endD) {
     const iso = toLocalISO(d);
     // Keep locked entries and manual entries (only recalculate auto entries)
-    if (!schedule[iso] || (!schedule[iso].isLocked && schedule[iso].type !== 'manual')) {
+    if (!schedule[iso] || (!schedule[iso].isLocked && !isManualType(schedule[iso]))) {
       datesToRegen.push(iso);
     }
     d.setDate(d.getDate() + 1);
