@@ -55,6 +55,8 @@ export interface AutoScheduleOptions {
   respectOwedDays: boolean;
   considerLoad: boolean;
   minRestDays: number; // Minimum rest days between duties (1 = no consecutive, 2 = one day gap, etc.)
+  aggressiveLoadBalancing: boolean;
+  aggressiveLoadBalancingThreshold: number;
   limitOneDutyPerWeekWhenSevenPlus: boolean;
   allowDebtUsersExtraWeeklyAssignments: boolean;
   debtUsersWeeklyLimit: number;
@@ -66,4 +68,11 @@ export interface AuditLogEntry {
   timestamp: Date;
   action: string;
   details: string;
+}
+
+export interface TimelineEvent {
+  date: string;
+  title: string;
+  details: string;
+  tone: 'primary' | 'warning' | 'danger' | 'success' | 'secondary';
 }

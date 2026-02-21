@@ -299,7 +299,7 @@ export const getLockedDates = async (): Promise<string[]> => {
  * If moved to an easier day → negative karma (penalty).
  * Returns the karma delta to add to user's debt.
  */
-export const calculateKarmaForTransfer = (
+const calculateKarmaForTransfer = (
   fromDate: string,
   toDate: string,
   dayWeights: DayWeights

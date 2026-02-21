@@ -51,7 +51,7 @@ export const exportData = async (): Promise<ExportData> => {
 /**
  * Import data from JSON
  */
-export const importData = async (data: ExportData): Promise<void> => {
+const importData = async (data: ExportData): Promise<void> => {
   await db.transaction('rw', db.users, db.schedule, db.auditLog, db.appState, async () => {
     // Clear existing data
     await db.users.clear();

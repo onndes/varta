@@ -66,14 +66,8 @@ const hasDebtBacklog = (user: User): boolean => {
   return (user.debt || 0) < 0 || owed;
 };
 
-const getWeeklyAssignmentCap = (
-  user: User,
-  options: AutoScheduleOptions
-): number => {
-  if (
-    options.allowDebtUsersExtraWeeklyAssignments &&
-    hasDebtBacklog(user)
-  ) {
+const getWeeklyAssignmentCap = (user: User, options: AutoScheduleOptions): number => {
+  if (options.allowDebtUsersExtraWeeklyAssignments && hasDebtBacklog(user)) {
     return Math.min(4, Math.max(1, options.debtUsersWeeklyLimit || 1));
   }
   return 1;
@@ -87,6 +81,11 @@ const getDebtRepaymentScore = (user: User, dayIdx: number, dayWeight: number): n
     return Math.min(debtAbs, oweToday * dayWeight);
   }
   return 0;
+};
+
+const getAggressiveBalanceDecision = (loadA: number, loadB: number, threshold: number): number => {
+  const gap = loadA - loadB;
+  return Math.abs(gap) > threshold ? gap : 0;
 };
 
 const countUserAssignmentsInRange = (
@@ -162,6 +161,8 @@ export const autoFillSchedule = async (
     respectOwedDays: true,
     considerLoad: true,
     minRestDays: 1,
+    aggressiveLoadBalancing: false,
+    aggressiveLoadBalancingThreshold: 0.2,
     limitOneDutyPerWeekWhenSevenPlus: true,
     allowDebtUsersExtraWeeklyAssignments: true,
     debtUsersWeeklyLimit: 3,
@@ -208,6 +209,20 @@ export const autoFillSchedule = async (
     const sortPool = (a: User, b: User): number => {
       if (!a.id || !b.id) return 0;
 
+      if (options.considerLoad && options.aggressiveLoadBalancing) {
+        const threshold = Math.max(0, options.aggressiveLoadBalancingThreshold ?? 0.2);
+        const loadA =
+          calculateUserLoad(a.id, tempSchedule, dayWeights, compareFrom) +
+          tempLoadOffset[a.id] +
+          (a.debt || 0);
+        const loadB =
+          calculateUserLoad(b.id, tempSchedule, dayWeights, compareFrom) +
+          tempLoadOffset[b.id] +
+          (b.debt || 0);
+        const forced = getAggressiveBalanceDecision(loadA, loadB, threshold);
+        if (forced !== 0) return forced;
+      }
+
       // Priority 1: Owed Days (debt for specific day of week)
       if (options.respectOwedDays) {
         const oweA = (a.owedDays && a.owedDays[dayIdx]) || 0;
@@ -225,8 +240,14 @@ export const autoFillSchedule = async (
         // Priority 2: Day-of-week balance normalized by availability in this weekday.
         const dowA = countUserDaysOfWeek(a.id, tempSchedule, compareFrom)[dayIdx] || 0;
         const dowB = countUserDaysOfWeek(b.id, tempSchedule, compareFrom)[dayIdx] || 0;
-        const dowAvailA = Math.max(1, countAvailableDaysInWindow(a, compareFrom, compareTo, dayIdx));
-        const dowAvailB = Math.max(1, countAvailableDaysInWindow(b, compareFrom, compareTo, dayIdx));
+        const dowAvailA = Math.max(
+          1,
+          countAvailableDaysInWindow(a, compareFrom, compareTo, dayIdx)
+        );
+        const dowAvailB = Math.max(
+          1,
+          countAvailableDaysInWindow(b, compareFrom, compareTo, dayIdx)
+        );
         const dowRateA = dowA / dowAvailA;
         const dowRateB = dowB / dowAvailB;
         if (dowRateA !== dowRateB) return dowRateA - dowRateB;
@@ -243,10 +264,8 @@ export const autoFillSchedule = async (
         if (waitA !== waitB) return waitB - waitA;
 
         // Priority 5: Total assignment count normalized by availability in window.
-        const totalA =
-          countUserAssignments(a.id, tempSchedule, compareFrom) + tempLoadOffset[a.id];
-        const totalB =
-          countUserAssignments(b.id, tempSchedule, compareFrom) + tempLoadOffset[b.id];
+        const totalA = countUserAssignments(a.id, tempSchedule, compareFrom) + tempLoadOffset[a.id];
+        const totalB = countUserAssignments(b.id, tempSchedule, compareFrom) + tempLoadOffset[b.id];
         const availA = Math.max(1, countAvailableDaysInWindow(a, compareFrom, compareTo));
         const availB = Math.max(1, countAvailableDaysInWindow(b, compareFrom, compareTo));
         const totalRateA = totalA / availA;
@@ -273,7 +292,7 @@ export const autoFillSchedule = async (
     // minRestDays: 1 = no consecutive (check yesterday), 2 = one day gap (check last 2 days), etc.
     if (options.avoidConsecutiveDays) {
       const minRest = options.minRestDays || 1;
-      
+
       // Collect userIds assigned in the last N days
       const recentUserIds = new Set<number>();
       for (let i = 1; i <= minRest; i++) {
@@ -282,7 +301,7 @@ export const autoFillSchedule = async (
         const rawId = tempSchedule[toLocalISO(checkDate)]?.userId;
         if (rawId) {
           const ids = Array.isArray(rawId) ? rawId : [rawId];
-          ids.forEach(id => recentUserIds.add(id));
+          ids.forEach((id) => recentUserIds.add(id));
         }
       }
 
@@ -303,7 +322,12 @@ export const autoFillSchedule = async (
       if (shouldEnforceOneDutyPerWeek(users, tempSchedule, weekDates)) {
         const weeklyCapPool = pool.filter((u) => {
           if (!u.id) return false;
-          const assignedInWeek = countUserAssignmentsInRange(u.id, tempSchedule, week.from, week.to);
+          const assignedInWeek = countUserAssignmentsInRange(
+            u.id,
+            tempSchedule,
+            week.from,
+            week.to
+          );
           const cap = getWeeklyAssignmentCap(u, options);
           return assignedInWeek < cap;
         });
@@ -409,6 +433,8 @@ export const getFreeUsersForDate = (
     respectOwedDays: true,
     considerLoad: true,
     minRestDays: 1,
+    aggressiveLoadBalancing: false,
+    aggressiveLoadBalancingThreshold: 0.2,
     limitOneDutyPerWeekWhenSevenPlus: true,
     allowDebtUsersExtraWeeklyAssignments: true,
     debtUsersWeeklyLimit: 3,
@@ -450,6 +476,14 @@ export const getFreeUsersForDate = (
   const compareTo = getPrevDateStr(dateStr);
 
   return candidatePool.sort((a, b) => {
+    if (options.considerLoad && options.aggressiveLoadBalancing) {
+      const threshold = Math.max(0, options.aggressiveLoadBalancingThreshold ?? 0.2);
+      const loadA = calculateUserLoad(a.id!, schedule, dayWeights, compareFrom) + (a.debt || 0);
+      const loadB = calculateUserLoad(b.id!, schedule, dayWeights, compareFrom) + (b.debt || 0);
+      const forced = getAggressiveBalanceDecision(loadA, loadB, threshold);
+      if (forced !== 0) return forced;
+    }
+
     // Priority 1: Owed Days
     const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
     const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
@@ -506,7 +540,8 @@ export const recalculateScheduleFrom = async (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
-  dutiesPerDay = 1
+  dutiesPerDay = 1,
+  options?: AutoScheduleOptions
 ): Promise<void> => {
   const todayStr = toLocalISO(new Date());
   const start = startDate < todayStr ? todayStr : startDate;
@@ -534,7 +569,14 @@ export const recalculateScheduleFrom = async (
   await db.schedule.bulkDelete(datesToRegen);
 
   // Regenerate
-  const updates = await autoFillSchedule(datesToRegen, users, schedule, dayWeights, dutiesPerDay);
+  const updates = await autoFillSchedule(
+    datesToRegen,
+    users,
+    schedule,
+    dayWeights,
+    dutiesPerDay,
+    options
+  );
   await saveAutoSchedule(updates, dayWeights);
 };
 
@@ -551,6 +593,8 @@ export const calculateOptimalAssignment = (
     respectOwedDays: true,
     considerLoad: true,
     minRestDays: 1,
+    aggressiveLoadBalancing: false,
+    aggressiveLoadBalancingThreshold: 0.2,
     limitOneDutyPerWeekWhenSevenPlus: true,
     allowDebtUsersExtraWeeklyAssignments: true,
     debtUsersWeeklyLimit: 3,
@@ -586,6 +630,14 @@ export const calculateOptimalAssignment = (
   // Sort by priority (ladder + fairness)
   available.sort((a, b) => {
     if (!a.id || !b.id) return 0;
+
+    if (options.considerLoad && options.aggressiveLoadBalancing) {
+      const threshold = Math.max(0, options.aggressiveLoadBalancingThreshold ?? 0.2);
+      const loadA = calculateUserLoad(a.id, schedule, dayWeights, compareFrom) + (a.debt || 0);
+      const loadB = calculateUserLoad(b.id, schedule, dayWeights, compareFrom) + (b.debt || 0);
+      const forced = getAggressiveBalanceDecision(loadA, loadB, threshold);
+      if (forced !== 0) return forced;
+    }
 
     const oweA = (a.owedDays && a.owedDays[dayIdx]) || 0;
     const oweB = (b.owedDays && b.owedDays[dayIdx]) || 0;

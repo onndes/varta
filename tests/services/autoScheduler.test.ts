@@ -186,6 +186,8 @@ describe('autoScheduler', () => {
         respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
         allowDebtUsersExtraWeeklyAssignments: true,
         debtUsersWeeklyLimit: 3,
@@ -227,6 +229,8 @@ describe('autoScheduler', () => {
         respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: false,
         allowDebtUsersExtraWeeklyAssignments: true,
         debtUsersWeeklyLimit: 3,
@@ -235,6 +239,52 @@ describe('autoScheduler', () => {
 
       const selected = calculateOptimalAssignment('2026-03-14', users, schedule, dayWeights, opts);
       expect(selected?.id).toBe(1);
+    });
+
+    it('жорсткий баланс ON/OFF реально міняє вибір при великій різниці навантаження', () => {
+      const users: User[] = [
+        { id: 1, name: 'LowLoad', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 2, name: 'HighLoad', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+      ];
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-01': { date: '2026-03-01', userId: 2, type: 'auto' },
+        '2026-03-02': { date: '2026-03-02', userId: 2, type: 'auto' },
+        '2026-03-03': { date: '2026-03-03', userId: 2, type: 'auto' },
+        '2026-03-10': { date: '2026-03-10', userId: 1, type: 'auto' }, // week soft rule would prefer user2 on 03-12
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const optsOff: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: false,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: false,
+      };
+      const optsOn: AutoScheduleOptions = { ...optsOff, aggressiveLoadBalancing: true };
+
+      const withoutAggressive = calculateOptimalAssignment(
+        '2026-03-12',
+        users,
+        schedule,
+        dayWeights,
+        optsOff
+      );
+      const withAggressive = calculateOptimalAssignment(
+        '2026-03-12',
+        users,
+        schedule,
+        dayWeights,
+        optsOn
+      );
+
+      expect(withoutAggressive?.id).toBe(2);
+      expect(withAggressive?.id).toBe(1);
     });
   });
 });

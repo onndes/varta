@@ -14,6 +14,7 @@ interface ScheduleControlsProps {
   onFixConflicts: () => void;
   onAutoSchedule: () => void;
   onCascadeRecalc: () => void;
+  onClearWeek: () => void;
 }
 
 /**
@@ -34,6 +35,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onFixConflicts,
   onAutoSchedule,
   onCascadeRecalc,
+  onClearWeek,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
@@ -84,6 +86,13 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             Оптимізувати (з {cascadeStartDate})
           </button>
         )}
+        <button
+          className="btn btn-sm btn-outline-danger"
+          onClick={onClearWeek}
+          title="Очистити всі призначення на цьому тижні"
+        >
+          <i className="fas fa-trash-alt me-2"></i>Очистити тиждень
+        </button>
         <button
           className="btn btn-sm btn-outline-primary"
           onClick={onFillGaps}

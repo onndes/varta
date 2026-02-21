@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { db } from '../db/db';
 import { RANKS } from '../utils/constants';
 import type { User } from '../types';
@@ -14,18 +14,18 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [newAddedDate, setNewAddedDate] = useState<string>(toLocalISO(new Date()));
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     const all = await db.users.toArray();
     all.sort((a, b) => a.name.localeCompare(b.name));
     setUsers(all);
     if (all.length > 0 && selectedUserId === '') {
       setSelectedUserId(all[0].id || '');
     }
-  };
+  }, [selectedUserId]);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    loadUsers(); // eslint-disable-line react-hooks/set-state-in-effect -- Initial data fetch on mount
+  }, [loadUsers]);
 
   const handleGenerate = async () => {
     const surnames = [
@@ -87,9 +87,7 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
 
     await db.users.update(selectedUserId, { dateAddedToAuto: newAddedDate });
     const user = users.find((u) => u.id === selectedUserId);
-    alert(
-      `Оновлено dateAddedToAuto: ${user?.name || 'Боєць'} -> ${newAddedDate}`
-    );
+    alert(`Оновлено dateAddedToAuto: ${user?.name || 'Боєць'} -> ${newAddedDate}`);
     await refreshData();
     await loadUsers();
   };

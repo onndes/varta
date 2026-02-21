@@ -191,6 +191,8 @@ describe('settingsService', () => {
       expect(opts.allowDebtUsersExtraWeeklyAssignments).toBe(true);
       expect(opts.debtUsersWeeklyLimit).toBe(3);
       expect(opts.prioritizeFasterDebtRepayment).toBe(true);
+      expect(opts.aggressiveLoadBalancing).toBe(false);
+      expect(opts.aggressiveLoadBalancingThreshold).toBe(0.2);
     });
 
     it('повинен підставляти дефолт для нових полів у старих збережених опціях', async () => {
@@ -209,6 +211,8 @@ describe('settingsService', () => {
       expect(opts.allowDebtUsersExtraWeeklyAssignments).toBe(true);
       expect(opts.debtUsersWeeklyLimit).toBe(3);
       expect(opts.prioritizeFasterDebtRepayment).toBe(true);
+      expect(opts.aggressiveLoadBalancing).toBe(false);
+      expect(opts.aggressiveLoadBalancingThreshold).toBe(0.2);
     });
   });
 });

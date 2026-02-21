@@ -2,7 +2,7 @@
 
 import { db } from '../db/db';
 import type { User, ScheduleEntry } from '../types';
-import { MAX_DEBT } from '../utils/constants';
+import { DEFAULT_MAX_DEBT } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
 
 /**
@@ -46,6 +46,7 @@ export const deleteUser = async (id: number): Promise<string[]> => {
   const allSchedule = await db.schedule.toArray();
   const orphanedDates = allSchedule
     .filter((entry) => {
+      if (!entry.userId) return false;
       const userId = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
       return userId.includes(id) && entry.date >= todayStr;
     })
@@ -71,11 +72,16 @@ export const resetUserDebt = async (id: number): Promise<void> => {
  * Negative = soldier owes system (was removed by request)
  * Positive = soldier helped out (manually assigned to harder day)
  */
-export const updateUserDebt = async (id: number, amount: number): Promise<void> => {
+export const updateUserDebt = async (
+  id: number,
+  amount: number,
+  maxDebt?: number
+): Promise<void> => {
   const user = await db.users.get(id);
   if (user) {
+    const cap = maxDebt ?? DEFAULT_MAX_DEBT;
     const rawDebt = Number(((user.debt || 0) + amount).toFixed(2));
-    const newDebt = Math.max(-MAX_DEBT, rawDebt);
+    const newDebt = Math.max(-cap, rawDebt);
     await db.users.update(id, { debt: newDebt });
   }
 };
@@ -171,15 +177,22 @@ export const isUserAvailable = (
 export const getUserAvailabilityStatus = (
   user: User,
   dateStr: string
-): 'AVAILABLE' | 'UNAVAILABLE' | 'STATUS_BUSY' | 'PRE_STATUS_DAY' | 'REST_DAY' => {
+): 'AVAILABLE' | 'UNAVAILABLE' | 'STATUS_BUSY' | 'PRE_STATUS_DAY' | 'REST_DAY' | 'DAY_BLOCKED' => {
   if (!user.isActive) return 'UNAVAILABLE';
+
+  // Check if day of week is blocked
+  if (user.blockedDays && user.blockedDays.length > 0) {
+    const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun
+    if (user.blockedDays.includes(dayIdx)) return 'DAY_BLOCKED';
+  }
+
   if (user.status === 'ACTIVE') return 'AVAILABLE';
 
   if (user.statusFrom || user.statusTo) {
     const from = user.statusFrom || '0000-01-01';
     const to = user.statusTo || '9999-12-31';
-
-    if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
 
     // Check day before status ONLY if restBeforeStatus flag is set
     if (user.restBeforeStatus && user.statusFrom) {
@@ -189,7 +202,7 @@ export const getUserAvailabilityStatus = (
       if (dateStr === dayBeforeStr) return 'PRE_STATUS_DAY';
     }
 
-    // Check rest day after
+    // Check rest day after status
     if (user.restAfterStatus && user.statusTo) {
       const endDate = new Date(user.statusTo);
       const nextDay = new Date(endDate);
@@ -197,6 +210,8 @@ export const getUserAvailabilityStatus = (
       const nextDayStr = toLocalISO(nextDay);
       if (dateStr === nextDayStr) return 'REST_DAY';
     }
+
+    if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
 
     return 'AVAILABLE';
   }

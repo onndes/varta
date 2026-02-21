@@ -3,20 +3,26 @@ import type { User, ScheduleEntry, DayWeights, Signatories, AutoScheduleOptions 
 import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
 import {
   applyKarmaForTransfer,
+  calculateEffectiveLoad as calcEffectiveLoad,
   countUserAssignments,
   countUserDaysOfWeek,
   getAllSchedule,
   removeAssignmentWithDebt,
+  saveScheduleEntry,
+  bulkDeleteSchedule,
 } from '../services/scheduleService';
-import { useSchedule, useAutoScheduler } from '../hooks';
+import * as userService from '../services/userService';
+import { useAutoScheduler } from '../hooks';
 import * as autoSchedulerService from '../services/autoScheduler';
-import Modal from './Modal';
+import * as auditService from '../services/auditService';
 import WeekNavigator from './schedule/WeekNavigator';
 import ScheduleControls from './schedule/ScheduleControls';
 import PrintHeader from './schedule/PrintHeader';
 import PrintFooter from './PrintFooter';
 import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
+import AssignmentModal from './schedule/AssignmentModal';
+import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import { isUserAvailable } from '../services/userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 import { getAssignedCount, isAssignedInEntry, toAssignedUserIds } from '../utils/assignment';
@@ -60,8 +66,89 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   dutiesPerDay,
 }) => {
-  const { assignUser, removeAssignment, calculateEffectiveLoad } = useSchedule(users);
-  const { fillGaps, recalculateFrom } = useAutoScheduler(
+  // Direct service operations (no duplicate useSchedule hook)
+  const calculateEffectiveLoad = useCallback(
+    (user: User) => calcEffectiveLoad(user, schedule, dayWeights),
+    [schedule, dayWeights]
+  );
+
+  const assignUser = useCallback(
+    async (
+      date: string,
+      userId: number,
+      isManual = true,
+      options?: { maxPerDay?: number; replaceUserId?: number }
+    ) => {
+      const existing = schedule[date];
+      const existingIds = toAssignedUserIds(existing?.userId);
+      if (existingIds.includes(userId)) return;
+
+      let nextIds = [...existingIds];
+      const replaceUserId = options?.replaceUserId;
+      if (typeof replaceUserId === 'number' && nextIds.includes(replaceUserId)) {
+        nextIds = nextIds.filter((id) => id !== replaceUserId);
+        const dayIdx = new Date(date).getDay();
+        const weight = dayWeights[dayIdx] || 1.0;
+        await userService.updateUserDebt(replaceUserId, -weight);
+        const prevUser = users.find((u) => u.id === replaceUserId);
+        if (prevUser) {
+          await auditService.logAction(
+            'REMOVE',
+            `${prevUser.name} замінено на ${date} (Карма -${weight})`
+          );
+        }
+      }
+
+      if (options?.maxPerDay && nextIds.length >= options.maxPerDay) {
+        throw new Error('Досягнуто ліміт чергувань на день');
+      }
+
+      nextIds.push(userId);
+
+      const entry: ScheduleEntry = {
+        date,
+        userId: nextIds.length === 1 ? nextIds[0] : nextIds,
+        type: isManual ? 'manual' : 'auto',
+        isLocked: false,
+      };
+
+      await saveScheduleEntry(entry);
+
+      // Repay owedDays if user owes this day of week
+      const user = users.find((u) => u.id === userId);
+      if (user && isManual) {
+        const dayIdx = new Date(date).getDay();
+        if (user.owedDays && user.owedDays[dayIdx] > 0) {
+          const weight = dayWeights[dayIdx] || 1.0;
+          await userService.updateOwedDays(userId, dayIdx, -1);
+          if (user.debt < 0) {
+            const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+            await userService.updateUserDebt(userId, newDebt - user.debt);
+          }
+        }
+        await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
+      } else if (user) {
+        await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
+      }
+    },
+    [users, dayWeights, schedule]
+  );
+
+  const removeAssignment = useCallback(
+    async (date: string, reason: 'request' | 'work' = 'work', targetUserId?: number) => {
+      const entry = schedule[date];
+      if (!entry || !entry.userId) return;
+      await removeAssignmentWithDebt(date, reason, dayWeights, targetUserId);
+    },
+    [schedule, dayWeights]
+  );
+
+  const bulkDelete = useCallback(async (dates: string[]) => {
+    await bulkDeleteSchedule(dates);
+    await auditService.logAction('BULK_DELETE', `Видалено ${dates.length} записів`);
+  }, []);
+
+  const { fillGaps, recalculateFrom, generateWeekSchedule } = useAutoScheduler(
     users,
     schedule,
     dayWeights,
@@ -220,16 +307,20 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     });
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
-  const runFillGaps = async () => {
-    // Check if there are at least 2 active users available for scheduling
+  const hasEnoughActiveUsers = useCallback((): boolean => {
     const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
       alert(
         '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
           activeUsers.length
       );
-      return;
+      return false;
     }
+    return true;
+  }, [users]);
+
+  const runFillGaps = async () => {
+    if (!hasEnoughActiveUsers()) return;
 
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
     if (datesToFill.length === 0) return;
@@ -240,15 +331,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runFixConflicts = async () => {
-    // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
-    if (activeUsers.length < 2) {
-      alert(
-        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
-          activeUsers.length
-      );
-      return;
-    }
+    if (!hasEnoughActiveUsers()) return;
 
     if (scheduleIssues.conflicts.length === 0) return;
 
@@ -289,38 +372,54 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   };
 
   const runFullAutoSchedule = async () => {
-    // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
-    if (activeUsers.length < 2) {
-      alert(
-        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
-          activeUsers.length
-      );
-      return;
-    }
+    if (!hasEnoughActiveUsers()) return;
 
     const validTargets = weekDates.filter((d) => d >= todayStr);
     if (validTargets.length === 0) {
       alert('Неможливо змінити минуле.');
       return;
     }
-    if (validTargets.some((d) => schedule[d]) && !confirm('Перезаписати пусті місця?')) return;
+    const hasExistingEntries = validTargets.some((d) => Boolean(schedule[d]));
+    if (
+      hasExistingEntries &&
+      !confirm(
+        'Перегенерувати тиждень?\n\nНезаблоковані призначення на цьому тижні буде очищено і побудовано заново.'
+      )
+    ) {
+      return;
+    }
 
-    await fillGaps(validTargets);
-    await logAction('AUTO_SCHEDULE', `Автоматичне планування тижня`);
+    await generateWeekSchedule(validTargets);
+    await logAction(
+      'AUTO_SCHEDULE',
+      `Перегенеровано тиждень ${validTargets[0]} - ${validTargets[validTargets.length - 1]}`
+    );
+    await refreshData();
+  };
+
+  const runClearWeek = async () => {
+    const datesToClear = weekDates.filter((date) => Boolean(schedule[date]));
+    if (datesToClear.length === 0) {
+      alert('На цьому тижні немає призначень для очищення.');
+      return;
+    }
+
+    if (
+      !confirm(
+        `Очистити призначення за поточний тиждень?\n\nБуде видалено записів: ${datesToClear.length}`
+      )
+    ) {
+      return;
+    }
+
+    await bulkDelete(datesToClear);
+    await updateCascadeTrigger(weekDates[0]);
+    await logAction('CLEAR_WEEK', `Очищено тиждень ${weekDates[0]} - ${weekDates[6]}`);
     await refreshData();
   };
 
   const runCascadeRecalc = async () => {
-    // Check if there are at least 2 active users available for scheduling
-    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
-    if (activeUsers.length < 2) {
-      alert(
-        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
-          activeUsers.length
-      );
-      return;
-    }
+    if (!hasEnoughActiveUsers()) return;
 
     if (!cascadeStartDate) return;
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
@@ -332,45 +431,36 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     await refreshData();
   };
 
-  const isOnRestDay = (userId: number, dateStr: string): boolean => {
-    const prevDate = new Date(dateStr);
-    prevDate.setDate(prevDate.getDate() - 1);
-    const prevEntry = schedule[toLocalISO(prevDate)];
-    return isAssignedInEntry(prevEntry, userId);
-  };
+  const isOnRestDay = useCallback(
+    (userId: number, dateStr: string): boolean => {
+      const prevDate = new Date(dateStr);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevEntry = schedule[toLocalISO(prevDate)];
+      return isAssignedInEntry(prevEntry, userId);
+    },
+    [schedule]
+  );
 
-  const getTransferSourceDate = (userId: number, targetDate: string): string | undefined => {
-    const assignedDates = Object.keys(schedule)
-      .filter((d) => d !== targetDate && isAssignedInEntry(schedule[d], userId))
-      .sort();
-    if (assignedDates.length === 0) return undefined;
+  const getTransferSourceDate = useCallback(
+    (userId: number, targetDate: string): string | undefined => {
+      const assignedDates = Object.keys(schedule)
+        .filter((d) => d !== targetDate && isAssignedInEntry(schedule[d], userId))
+        .sort();
+      if (assignedDates.length === 0) return undefined;
 
-    const prevDates = assignedDates.filter((d) => d < targetDate);
-    if (prevDates.length > 0) return prevDates[prevDates.length - 1];
+      const prevDates = assignedDates.filter((d) => d < targetDate);
+      if (prevDates.length > 0) return prevDates[prevDates.length - 1];
 
-    // If there is no previous duty, use the nearest upcoming one.
-    return assignedDates[0];
-  };
+      return assignedDates[0];
+    },
+    [schedule]
+  );
 
-  const getWeekRelationLabel = (fromDate: string, toDate: string): string => {
-    const fromMonday = getMondayOfWeek(new Date(fromDate).getFullYear(), getWeekNumber(new Date(fromDate)));
-    const toMonday = getMondayOfWeek(new Date(toDate).getFullYear(), getWeekNumber(new Date(toDate)));
-    const diffMs = fromMonday.getTime() - toMonday.getTime();
-    if (diffMs < 0) return 'з минулого тижня';
-    if (diffMs > 0) return 'з наступного тижня';
-    return 'з цього тижня';
-  };
-
-  const executeAssign = async (
-    userId: number,
-    transferMode: 'none' | 'move'
-  ) => {
+  const executeAssign = async (userId: number, transferMode: 'none' | 'move') => {
     if (!selectedCell) return;
 
     const transferFrom =
-      transferMode === 'move'
-        ? getTransferSourceDate(userId, selectedCell.date)
-        : undefined;
+      transferMode === 'move' ? getTransferSourceDate(userId, selectedCell.date) : undefined;
 
     if (transferFrom) {
       await removeAssignment(transferFrom, 'work', userId);
@@ -453,6 +543,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onFixConflicts={runFixConflicts}
         onAutoSchedule={runFullAutoSchedule}
         onCascadeRecalc={runCascadeRecalc}
+        onClearWeek={runClearWeek}
       />
 
       <PrintHeader signatories={signatories} weekDates={weekDates} />
@@ -472,188 +563,31 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
       <PrintFooter signatories={signatories} />
 
-      <Modal
+      <AssignmentModal
         show={!!selectedCell}
+        date={selectedCell?.date || ''}
+        assignedUserId={selectedCell?.assignedUserId}
+        users={users}
+        freeUsers={selectedCell ? getFreeUsers(selectedCell.date) : []}
+        swapMode={swapMode}
+        onSetSwapMode={setSwapMode}
+        onAssign={(userId) => handleAssign(userId)}
+        onRemove={handleRemove}
         onClose={() => setSelectedCell(null)}
-        title={`Наряд на ${selectedCell?.date}`}
-      >
-        {selectedCell && (
-          <div>
-            {selectedCell.entry ? (
-              <div>
-                <div className="alert alert-secondary py-2 mb-3">
-                  <strong>{users.find((u) => u.id === selectedCell.assignedUserId)?.name}</strong>
-                </div>
-                <div className="btn-group w-100 mb-3">
-                  <button
-                    className={`btn btn-sm ${swapMode === 'replace' ? 'btn-primary' : 'btn-outline-primary'}`}
-                    onClick={() => setSwapMode('replace')}
-                  >
-                    Заміна
-                  </button>
-                  <button
-                    className={`btn btn-sm ${swapMode === 'remove' ? 'btn-danger' : 'btn-outline-danger'}`}
-                    onClick={() => setSwapMode('remove')}
-                  >
-                    Зняти
-                  </button>
-                </div>
-                {swapMode === 'replace' && (
-                  <div className="list-group" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    {getFreeUsers(selectedCell.date).map((u) => {
-                      const dayIdx = new Date(selectedCell.date).getDay();
-                      const owes = (u.owedDays && u.owedDays[dayIdx]) || 0;
-                      return (
-                        <button
-                          key={u.id}
-                          className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`}
-                          onClick={() => handleAssign(u.id)}
-                        >
-                          <div>
-                            <span className="fw-bold">{u.name}</span>
-                            {owes > 0 && (
-                              <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>
-                            )}
-                            {isOnRestDay(u.id!, selectedCell.date) && (
-                              <span className="badge bg-warning text-dark ms-2">відсипний</span>
-                            )}
-                            <div className="small text-muted">
-                              Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}
-                            </div>
-                          </div>
-                          <span
-                            className={
-                              u.debt < 0
-                                ? 'text-danger'
-                                : u.debt > 0
-                                  ? 'text-success'
-                                  : 'text-muted'
-                            }
-                          >
-                            Карма: {u.debt > 0 ? '+' + u.debt : u.debt}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {swapMode === 'remove' && (
-                  <div className="d-grid gap-2">
-                    <button
-                      className="btn btn-outline-danger"
-                      onClick={() => handleRemove('request')}
-                    >
-                      За рапортом (Карма МІНУС)
-                    </button>
-                    <div className="small text-muted text-center">Боєць буде "винен" системі.</div>
-                    <button
-                      className="btn btn-outline-secondary"
-                      onClick={() => handleRemove('work')}
-                    >
-                      Службова (Карма 0)
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="list-group" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {getFreeUsers(selectedCell.date).map((u) => {
-                  const dayIdx = new Date(selectedCell.date).getDay();
-                  const owes = (u.owedDays && u.owedDays[dayIdx]) || 0;
-                  return (
-                    <button
-                      key={u.id}
-                      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isOnRestDay(u.id!, selectedCell.date) ? 'list-group-item-warning' : ''}`}
-                      onClick={() => handleAssign(u.id)}
-                    >
-                      <div>
-                        <span className="fw-bold">{u.name}</span>
-                        {owes > 0 && (
-                          <span className="badge bg-danger ms-2">борг цього дня: {owes}</span>
-                        )}
-                        {isOnRestDay(u.id!, selectedCell.date) && (
-                          <span className="badge bg-warning text-dark ms-2">відсипний</span>
-                        )}
-                        <div className="small text-muted">
-                          Ефект. навант: {calculateEffectiveLoad(u).toFixed(1)}
-                        </div>
-                      </div>
-                      <span
-                        className={
-                          u.debt < 0 ? 'text-danger' : u.debt > 0 ? 'text-success' : 'text-muted'
-                        }
-                      >
-                        Карма: {u.debt > 0 ? '+' + u.debt : u.debt}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
+        isOnRestDay={isOnRestDay}
+        calculateEffectiveLoad={calculateEffectiveLoad}
+        hasEntry={!!selectedCell?.entry}
+      />
 
-      <Modal
+      <ConfirmAssignModal
         show={!!pendingAssignConfirm && !!selectedCell}
+        pending={pendingAssignConfirm}
+        targetDate={selectedCell?.date || ''}
+        users={users}
+        onConfirmMove={(userId) => executeAssign(userId, 'move')}
+        onConfirmAdd={(userId) => executeAssign(userId, 'none')}
         onClose={() => setPendingAssignConfirm(null)}
-        title="Підтвердження призначення"
-      >
-        {pendingAssignConfirm && selectedCell && (
-          <div>
-            <div className="alert alert-warning py-2">
-              Ви виконуєте ручну зміну призначення. Перевірте дію перед підтвердженням.
-            </div>
-
-            <div className="mb-3">
-              <div>
-                <strong>Боєць:</strong>{' '}
-                {users.find((u) => u.id === pendingAssignConfirm.userId)?.name || 'Невідомо'}
-              </div>
-              <div>
-                <strong>Нова дата:</strong>{' '}
-                {new Date(selectedCell.date).toLocaleDateString('uk-UA')}
-                {' · '}
-                тиждень #{getWeekNumber(new Date(selectedCell.date))} (тиждень призначення)
-              </div>
-              {pendingAssignConfirm.transferFrom && (
-                <div>
-                  <strong>Поточне чергування:</strong>{' '}
-                  {new Date(pendingAssignConfirm.transferFrom).toLocaleDateString('uk-UA')}
-                  {' · '}
-                  тиждень #{getWeekNumber(new Date(pendingAssignConfirm.transferFrom))}{' '}
-                  ({getWeekRelationLabel(pendingAssignConfirm.transferFrom, selectedCell.date)})
-                </div>
-              )}
-              {pendingAssignConfirm.isRestDay && (
-                <div className="text-warning-emphasis mt-2">
-                  Увага: це відсипний день (боєць чергував вчора).
-                </div>
-              )}
-            </div>
-
-            <div className="d-grid gap-2">
-              {pendingAssignConfirm.transferFrom && (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => executeAssign(pendingAssignConfirm.userId, 'move')}
-                >
-                  Перенести старе чергування на нову дату
-                </button>
-              )}
-              <button
-                className="btn btn-soft-warning"
-                onClick={() => executeAssign(pendingAssignConfirm.userId, 'none')}
-              >
-                Лишити старе чергування і додати нове
-              </button>
-              <button className="btn btn-outline-secondary" onClick={() => setPendingAssignConfirm(null)}>
-                Скасувати
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      />
     </div>
   );
 };

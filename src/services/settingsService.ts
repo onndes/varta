@@ -26,7 +26,7 @@ export const getDayWeights = async (): Promise<DayWeights> => {
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);
-    } catch (e) {
+    } catch {
       return DEFAULT_DAY_WEIGHTS;
     }
   }
@@ -53,7 +53,7 @@ export const getSignatories = async (): Promise<Signatories> => {
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);
-    } catch (e) {
+    } catch {
       return DEFAULT_SIGNATORIES;
     }
   }
@@ -107,9 +107,7 @@ export const clearCascadeTrigger = async (): Promise<void> => {
 /**
  * Get app setting by key
  */
-export const getAppSetting = async <
-  T extends DayWeights | Signatories | string | number | boolean | null,
->(
+const getAppSetting = async <T extends DayWeights | Signatories | string | number | boolean | null>(
   key: string,
   defaultValue: T
 ): Promise<T> => {
@@ -132,7 +130,7 @@ export const getAppSetting = async <
 /**
  * Save app setting
  */
-export const saveAppSetting = async (
+const saveAppSetting = async (
   key: string,
   value: DayWeights | Signatories | string | number | boolean | null
 ): Promise<void> => {

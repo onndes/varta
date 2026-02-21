@@ -5,6 +5,7 @@ import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as scheduleService from '../services/scheduleService';
 import * as auditService from '../services/auditService';
 import * as settingsService from '../services/settingsService';
+import * as userService from '../services/userService';
 import { toAssignedUserIds } from '../utils/assignment';
 
 /**
@@ -59,10 +60,13 @@ export const useSchedule = (users: User[]) => {
 
           const dayIdx = new Date(date).getDay();
           const weight = dayWeights[dayIdx] || 1.0;
-          await import('../services/userService').then((us) => us.updateUserDebt(replaceUserId, -weight));
+          await userService.updateUserDebt(replaceUserId, -weight);
           const prevUser = users.find((u) => u.id === replaceUserId);
           if (prevUser) {
-            await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date} (Карма -${weight})`);
+            await auditService.logAction(
+              'REMOVE',
+              `${prevUser.name} замінено на ${date} (Карма -${weight})`
+            );
           }
         }
 
@@ -87,14 +91,12 @@ export const useSchedule = (users: User[]) => {
           const dayIdx = new Date(date).getDay();
           if (user.owedDays && user.owedDays[dayIdx] > 0) {
             const weight = dayWeights[dayIdx] || 1.0;
-            await import('../services/userService').then(async (us) => {
-              await us.updateOwedDays(userId, dayIdx, -1);
-              // Restore karma (owed day repaid)
-              if (user.debt < 0) {
-                const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
-                await us.updateUserDebt(userId, newDebt - user.debt);
-              }
-            });
+            await userService.updateOwedDays(userId, dayIdx, -1);
+            // Restore karma (owed day repaid)
+            if (user.debt < 0) {
+              const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+              await userService.updateUserDebt(userId, newDebt - user.debt);
+            }
           }
           await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
         } else if (user) {
@@ -148,7 +150,9 @@ export const useSchedule = (users: User[]) => {
   // Get schedule for a user
   const getUserSchedule = useCallback(
     (userId: number) => {
-      return Object.values(schedule).filter((entry) => toAssignedUserIds(entry.userId).includes(userId));
+      return Object.values(schedule).filter((entry) =>
+        toAssignedUserIds(entry.userId).includes(userId)
+      );
     },
     [schedule]
   );

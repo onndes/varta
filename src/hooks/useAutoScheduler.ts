@@ -88,7 +88,14 @@ export const useAutoScheduler = (
         const todayStr = toLocalISO(new Date());
         const start = startDate < todayStr ? todayStr : startDate;
 
-        await autoScheduler.recalculateScheduleFrom(start, users, schedule, dayWeights, dutiesPerDay);
+        await autoScheduler.recalculateScheduleFrom(
+          start,
+          users,
+          schedule,
+          dayWeights,
+          dutiesPerDay,
+          autoScheduleOptions
+        );
         await auditService.logAction('CASCADE', `Перерахунок з ${start}`);
 
         if (onComplete) onComplete();
@@ -99,7 +106,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights, dutiesPerDay]
+    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions]
   );
 
   // Generate full week schedule

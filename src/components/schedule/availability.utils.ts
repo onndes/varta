@@ -1,5 +1,5 @@
 import type { User } from '../../types';
-import { toLocalISO } from '../../utils/helpers';
+import { toLocalISO } from '../../utils/dateUtils';
 
 export type UserAvailabilityStatus =
   | 'AVAILABLE'
@@ -33,7 +33,7 @@ export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailab
     if (u.restBeforeStatus && u.statusFrom) {
       const dayBefore = new Date(u.statusFrom);
       dayBefore.setDate(dayBefore.getDate() - 1);
-      if (toLocalISO(new Date(dateStr)) === toLocalISO(dayBefore)) return 'REST_DAY';
+      if (toLocalISO(new Date(dateStr)) === toLocalISO(dayBefore)) return 'PRE_STATUS_DAY';
     }
 
     // Check "Rest day after status" BEFORE checking availability

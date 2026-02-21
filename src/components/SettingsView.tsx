@@ -11,11 +11,11 @@ interface SettingsViewProps {
   dutiesPerDay: number;
   autoScheduleOptions: AutoScheduleOptions;
   maxDebt: number;
-  onSave: (w: DayWeights) => void;
-  onSaveSignatories: (s: Signatories) => void;
-  onSaveDutiesPerDay: (count: number) => void;
-  onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => void;
-  onSaveMaxDebt: (value: number) => void;
+  onSave: (w: DayWeights) => Promise<void>;
+  onSaveSignatories: (s: Signatories) => Promise<void>;
+  onSaveDutiesPerDay: (count: number) => Promise<void>;
+  onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
+  onSaveMaxDebt: (value: number) => Promise<void>;
 }
 
 type SubTab = 'logic' | 'print';
@@ -91,16 +91,16 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     await loadDatabaseStats();
   };
 
-  const handleSaveLogic = () => {
-    onSave(weights);
-    onSaveDutiesPerDay(perDay);
-    onSaveAutoScheduleOptions(autoOpts);
-    onSaveMaxDebt(debt);
+  const handleSaveLogic = async () => {
+    await onSave(weights);
+    await onSaveDutiesPerDay(perDay);
+    await onSaveAutoScheduleOptions(autoOpts);
+    await onSaveMaxDebt(debt);
     alert('Налаштування логіки збережено!');
   };
 
-  const handleSavePrint = () => {
-    onSaveSignatories(sigs);
+  const handleSavePrint = async () => {
+    await onSaveSignatories(sigs);
     alert('Налаштування друку збережено!');
   };
 
@@ -312,7 +312,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
           {autoOpts.allowDebtUsersExtraWeeklyAssignments && (
             <div className="ms-4 mb-3 p-3 bg-light rounded">
-              <label className="form-label fw-bold">Ліміт для бійців з боргом (разів/тиждень)</label>
+              <label className="form-label fw-bold">
+                Ліміт для бійців з боргом (разів/тиждень)
+              </label>
               <div className="d-flex align-items-center gap-3">
                 <input
                   type="number"
