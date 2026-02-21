@@ -101,7 +101,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         const isPast = new Date(date) < new Date(todayStr);
 
         let cellClass = 'compact-cell';
-        let screenContent = '';
+        let screenContent: React.ReactNode = '';
         let printContent = '';
 
         if (isAssigned) {
@@ -110,17 +110,22 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           // Show icon for type: lock, replace, swap, manual, auto
           let icon = '';
           if (entry.isLocked) {
-            icon = ' 🔒';
+            icon = ' bi bi-lock-fill';
           } else if (entry.type === 'replace') {
-            icon = ' 🔀';
+            icon = ' bi bi-arrow-repeat';
           } else if (entry.type === 'swap') {
-            icon = ' 🔁';
+            icon = ' bi bi-arrow-left-right';
           } else if (entry.type === 'manual') {
-            icon = ' ✋';
+            icon = ' bi bi-hand-index-thumb';
           } else if (entry.type === 'auto') {
-            icon = ' ⚙️';
+            icon = ' bi bi-gear-fill';
           }
-          screenContent = 'НАРЯД' + icon;
+
+          screenContent = (
+            <>
+              НАРЯД <i className={`${icon} ms-1`} />
+            </>
+          );
           printContent = '08:00';
         } else if (!available) {
           cellClass += ' unavailable';
