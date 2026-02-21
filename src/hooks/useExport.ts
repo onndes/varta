@@ -114,12 +114,14 @@ export const useExport = () => {
     checkExportStatus();
   }, [checkExportStatus]);
 
-  // Log action wrapper
-  const logAction = useCallback(async (action: string, details: string) => {
-    await auditService.logAction(action, details);
-    await markAsNeedsExport();
-    await checkExportStatus();
-  }, [markAsNeedsExport, checkExportStatus]);
+  // Log action wrapper (auditService.logAction вже викликає markAsNeedsExport)
+  const logAction = useCallback(
+    async (action: string, details: string) => {
+      await auditService.logAction(action, details);
+      await checkExportStatus();
+    },
+    [checkExportStatus]
+  );
 
   return {
     needsExport,

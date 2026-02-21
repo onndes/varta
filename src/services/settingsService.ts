@@ -14,59 +14,68 @@ import {
  * Service for application settings
  */
 
-/**
- * Get day weights
- */
-export const getDayWeights = async (): Promise<DayWeights> => {
-  const record = await db.appState.get('dayWeights');
-  if (!record) return DEFAULT_DAY_WEIGHTS;
+// ── Загальні хелпери ──────────────────────────────────────────────────
 
-  // Handle JSON string values
+/** Зчитати JSON-значення з appState, повернути defaultValue при помилці */
+const getJsonSetting = async <T>(key: string, defaultValue: T): Promise<T> => {
+  const record = await db.appState.get(key);
+  if (!record) return defaultValue;
   let value = record.value;
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);
     } catch {
-      return DEFAULT_DAY_WEIGHTS;
+      return defaultValue;
     }
   }
-
-  return value as DayWeights;
+  return (value ?? defaultValue) as T;
 };
 
-/**
- * Save day weights
- */
-export const saveDayWeights = async (weights: DayWeights): Promise<void> => {
-  await db.appState.put({ key: 'dayWeights', value: weights });
+/** Зберегти значення в appState */
+const saveSetting = async (
+  key: string,
+  value: DayWeights | Signatories | AutoScheduleOptions | string | number | boolean | null
+): Promise<void> => {
+  await db.appState.put({ key, value });
 };
 
-/**
- * Get signatories
- */
-export const getSignatories = async (): Promise<Signatories> => {
-  const record = await db.appState.get('signatories');
-  if (!record) return DEFAULT_SIGNATORIES;
+// ── Day weights ───────────────────────────────────────────────────────
 
-  // Handle JSON string values
-  let value = record.value;
-  if (typeof value === 'string') {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return DEFAULT_SIGNATORIES;
-    }
-  }
+export const getDayWeights = async (): Promise<DayWeights> =>
+  getJsonSetting('dayWeights', DEFAULT_DAY_WEIGHTS);
 
-  return value as Signatories;
+export const saveDayWeights = async (weights: DayWeights): Promise<void> =>
+  saveSetting('dayWeights', weights);
+
+// ── Signatories ───────────────────────────────────────────────────────
+
+export const getSignatories = async (): Promise<Signatories> =>
+  getJsonSetting('signatories', DEFAULT_SIGNATORIES);
+
+export const saveSignatories = async (signatories: Signatories): Promise<void> =>
+  saveSetting('signatories', signatories);
+
+// ── Auto-schedule options ─────────────────────────────────────────────
+
+export const getAutoScheduleOptions = async (): Promise<AutoScheduleOptions> => {
+  const partial = await getJsonSetting<Partial<AutoScheduleOptions>>('autoScheduleOptions', {});
+  return { ...DEFAULT_AUTO_SCHEDULE_OPTIONS, ...partial };
 };
 
-/**
- * Save signatories
- */
-export const saveSignatories = async (signatories: Signatories): Promise<void> => {
-  await db.appState.put({ key: 'signatories', value: signatories });
-};
+export const saveAutoScheduleOptions = async (opts: AutoScheduleOptions): Promise<void> =>
+  saveSetting('autoScheduleOptions', opts);
+
+// ── Scalar settings ───────────────────────────────────────────────────
+
+export const getMaxDebt = async (): Promise<number> => getJsonSetting('maxDebt', DEFAULT_MAX_DEBT);
+
+export const saveMaxDebt = async (value: number): Promise<void> => saveSetting('maxDebt', value);
+
+export const getDutiesPerDay = async (): Promise<number> =>
+  getJsonSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
+
+export const saveDutiesPerDay = async (count: number): Promise<void> =>
+  saveSetting('dutiesPerDay', count);
 
 /**
  * Get cascade start date
@@ -104,103 +113,15 @@ export const clearCascadeTrigger = async (): Promise<void> => {
   await db.appState.put({ key: 'cascadeStartDate', value: null });
 };
 
-/**
- * Get app setting by key
- */
-const getAppSetting = async <T extends DayWeights | Signatories | string | number | boolean | null>(
-  key: string,
-  defaultValue: T
-): Promise<T> => {
-  const record = await db.appState.get(key);
-  if (!record) return defaultValue;
+// ── Cascade trigger ───────────────────────────────────────────────────
 
-  // Handle JSON string values and type conversions
-  const value = record.value;
-  if (typeof value === 'string') {
-    // Try to parse as number if defaultValue is a number
-    if (typeof defaultValue === 'number') {
-      const num = Number(value);
-      if (!isNaN(num)) return num as T;
-    }
-  }
+// ── Reset ─────────────────────────────────────────────────────────────
 
-  return value as T;
-};
-
-/**
- * Save app setting
- */
-const saveAppSetting = async (
-  key: string,
-  value: DayWeights | Signatories | string | number | boolean | null
-): Promise<void> => {
-  await db.appState.put({ key, value });
-};
-
-/**
- * Get auto-schedule options
- */
-export const getAutoScheduleOptions = async (): Promise<AutoScheduleOptions> => {
-  const record = await db.appState.get('autoScheduleOptions');
-  if (!record) return DEFAULT_AUTO_SCHEDULE_OPTIONS;
-  let value = record.value;
-  if (typeof value === 'string') {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return DEFAULT_AUTO_SCHEDULE_OPTIONS;
-    }
-  }
-  if (!value || typeof value !== 'object') return DEFAULT_AUTO_SCHEDULE_OPTIONS;
-  return {
-    ...DEFAULT_AUTO_SCHEDULE_OPTIONS,
-    ...(value as Partial<AutoScheduleOptions>),
-  };
-};
-
-/**
- * Save auto-schedule options
- */
-export const saveAutoScheduleOptions = async (opts: AutoScheduleOptions): Promise<void> => {
-  await db.appState.put({ key: 'autoScheduleOptions', value: opts });
-};
-
-/**
- * Get max debt (karma cap)
- */
-export const getMaxDebt = async (): Promise<number> => {
-  return await getAppSetting('maxDebt', DEFAULT_MAX_DEBT);
-};
-
-/**
- * Save max debt
- */
-export const saveMaxDebt = async (value: number): Promise<void> => {
-  await saveAppSetting('maxDebt', value);
-};
-
-/**
- * Reset all settings to defaults
- */
 export const resetAllSettings = async (): Promise<void> => {
-  await db.appState.put({ key: 'dayWeights', value: DEFAULT_DAY_WEIGHTS });
-  await db.appState.put({ key: 'signatories', value: DEFAULT_SIGNATORIES });
-  await db.appState.put({ key: 'cascadeStartDate', value: null });
-  await db.appState.put({ key: 'dutiesPerDay', value: DEFAULT_DUTIES_PER_DAY });
-  await db.appState.put({ key: 'autoScheduleOptions', value: DEFAULT_AUTO_SCHEDULE_OPTIONS });
-  await db.appState.put({ key: 'maxDebt', value: DEFAULT_MAX_DEBT });
-};
-
-/**
- * Get duties per day setting
- */
-export const getDutiesPerDay = async (): Promise<number> => {
-  return await getAppSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
-};
-
-/**
- * Save duties per day setting
- */
-export const saveDutiesPerDay = async (count: number): Promise<void> => {
-  await saveAppSetting('dutiesPerDay', count);
+  await saveSetting('dayWeights', DEFAULT_DAY_WEIGHTS);
+  await saveSetting('signatories', DEFAULT_SIGNATORIES);
+  await saveSetting('cascadeStartDate', null);
+  await saveSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
+  await saveSetting('autoScheduleOptions', DEFAULT_AUTO_SCHEDULE_OPTIONS);
+  await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
 };

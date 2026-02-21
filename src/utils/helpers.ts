@@ -4,8 +4,13 @@ import { RANKS_SHORT } from './constants';
 // Re-export date utils to maintain backward compatibility
 export { toLocalISO, getWeekNumber, getWeekYear, getMondayOfWeek } from './dateUtils';
 
+/** Отримати скорочення звання ("Старший солдат" → "ст. сол.") */
 export const formatRank = (rank: string) => RANKS_SHORT[rank] || rank;
 
+/**
+ * Форматувати ПІБ для друку: «ПРІЗВИЩЕ Ім'я По-батькові»
+ * Формат: прізвище — ВЕЛИКИМИ, ініціали — з великої букви
+ */
 export const formatNameForPrint = (fullName: string) => {
   if (!fullName) return '';
   const parts = fullName.trim().split(/\s+/);
@@ -18,6 +23,7 @@ export const formatNameForPrint = (fullName: string) => {
   return `${surname} ${others}`;
 };
 
+/** Розділити ПІБ на окремі поля (прізвище, ім'я, по-батькові) */
 export const splitFormattedName = (fullName: string) => {
   if (!fullName) {
     return {

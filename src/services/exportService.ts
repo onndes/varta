@@ -44,98 +44,117 @@ const SUPPORTED_BACKUP_VERSIONS = new Set([6, CURRENT_BACKUP_VERSION, BACKUP_VER
 const isValidTimestamp = (value: string): boolean => {
   const isoDateTimePattern =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/;
-
   return isoDateTimePattern.test(value) && !Number.isNaN(Date.parse(value));
 };
 
 /** Type guard for multi-workspace format */
 export const isMultiWorkspaceExport = (data: unknown): data is MultiWorkspaceExportData => {
   if (!data || typeof data !== 'object') return false;
-  const d = data as Record<string, unknown>;
-  return d.version === BACKUP_VERSION_MULTI;
+  return (data as Record<string, unknown>).version === BACKUP_VERSION_MULTI;
 };
 
-/** Read all data from a specific database by name (opens a temporary connection) */
+// ── Спільні хелпери: читання / запис БД ───────────────────────────────
+
+/** Зчитати всі дані з БД-хендла (db або тимчасовий) */
+const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
+  const [
+    users,
+    schedule,
+    auditLog,
+    dayWeightsRec,
+    signatoriesRec,
+    autoOptsRec,
+    maxDebtRec,
+    dutiesPerDayRec,
+  ] = await Promise.all([
+    targetDb.users.toArray(),
+    targetDb.schedule.toArray(),
+    targetDb.auditLog.toArray(),
+    targetDb.appState.get('dayWeights'),
+    targetDb.appState.get('signatories'),
+    targetDb.appState.get('autoScheduleOptions'),
+    targetDb.appState.get('maxDebt'),
+    targetDb.appState.get('dutiesPerDay'),
+  ]);
+  return {
+    version: CURRENT_BACKUP_VERSION,
+    timestamp: new Date().toISOString(),
+    users,
+    schedule,
+    auditLog,
+    dayWeights: dayWeightsRec as ExportData['dayWeights'],
+    signatories: signatoriesRec as ExportData['signatories'],
+    autoScheduleOptions: autoOptsRec as ExportData['autoScheduleOptions'],
+    maxDebt: maxDebtRec ? (maxDebtRec.value as number) : undefined,
+    dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
+  };
+};
+
+/** Відновити ExportData в БД-хендл (db або тимчасовий). Очищає таблиці перед записом. */
+const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<void> => {
+  await targetDb.transaction(
+    'rw',
+    targetDb.users,
+    targetDb.schedule,
+    targetDb.auditLog,
+    targetDb.appState,
+    async () => {
+      // Очистити таблиці
+      await targetDb.users.clear();
+      await targetDb.schedule.clear();
+      await targetDb.auditLog.clear();
+
+      // Записати дані
+      await targetDb.users.bulkAdd(data.users as never[]);
+      await targetDb.schedule.bulkAdd(data.schedule as never[]);
+      if (Array.isArray(data.auditLog)) {
+        await targetDb.auditLog.bulkAdd(data.auditLog as never[]);
+      }
+
+      // Налаштування
+      if (data.dayWeights)
+        await targetDb.appState.put({ key: 'dayWeights', value: data.dayWeights.value });
+      if (data.signatories)
+        await targetDb.appState.put({ key: 'signatories', value: data.signatories.value });
+      if (data.autoScheduleOptions)
+        await targetDb.appState.put({
+          key: 'autoScheduleOptions',
+          value: data.autoScheduleOptions.value,
+        });
+      if (data.maxDebt != null)
+        await targetDb.appState.put({ key: 'maxDebt', value: data.maxDebt });
+      if (data.dutiesPerDay != null)
+        await targetDb.appState.put({ key: 'dutiesPerDay', value: data.dutiesPerDay });
+
+      // Прапорці
+      await targetDb.appState.put({ key: 'needsExport', value: false });
+      await targetDb.appState.put({
+        key: 'lastExportTimestamp',
+        value: new Date().toISOString(),
+      });
+    }
+  );
+};
+
+// ── Операції з тимчасовою БД ──────────────────────────────────────────
+
+/** Зчитати дані з окремої БД за іменем (відкриває тимчасове з'єднання) */
 const readDbData = async (dbName: string): Promise<ExportData> => {
   const tempDb = createDatabase(dbName);
   try {
     await tempDb.open();
-    const [
-      users,
-      schedule,
-      auditLog,
-      dayWeightsRec,
-      signatoriesRec,
-      autoOptsRec,
-      maxDebtRec,
-      dutiesPerDayRec,
-    ] = await Promise.all([
-      tempDb.users.toArray(),
-      tempDb.schedule.toArray(),
-      tempDb.auditLog.toArray(),
-      tempDb.appState.get('dayWeights'),
-      tempDb.appState.get('signatories'),
-      tempDb.appState.get('autoScheduleOptions'),
-      tempDb.appState.get('maxDebt'),
-      tempDb.appState.get('dutiesPerDay'),
-    ]);
-    return {
-      version: CURRENT_BACKUP_VERSION,
-      timestamp: new Date().toISOString(),
-      users,
-      schedule,
-      auditLog,
-      dayWeights: dayWeightsRec as { key: string; value: DayWeights } | undefined,
-      signatories: signatoriesRec as { key: string; value: Signatories } | undefined,
-      autoScheduleOptions: autoOptsRec as { key: string; value: AutoScheduleOptions } | undefined,
-      maxDebt: maxDebtRec ? (maxDebtRec.value as number) : undefined,
-      dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
-    };
+    return await readDataFromDb(tempDb);
   } finally {
     tempDb.close();
   }
 };
 
-/** Write ExportData into a specific database by name (opens a temporary connection) */
+/** Записати дані в окрему БД за іменем (відкриває тимчасове з'єднання) */
 const writeDbData = async (dbName: string, data: ExportData): Promise<void> => {
   const tempDb = createDatabase(dbName);
   try {
     await tempDb.open();
-    await tempDb.transaction(
-      'rw',
-      tempDb.users,
-      tempDb.schedule,
-      tempDb.auditLog,
-      tempDb.appState,
-      async () => {
-        await tempDb.users.clear();
-        await tempDb.schedule.clear();
-        await tempDb.auditLog.clear();
-        await tempDb.users.bulkAdd(data.users as never[]);
-        await tempDb.schedule.bulkAdd(data.schedule as never[]);
-        if (Array.isArray(data.auditLog)) {
-          await tempDb.auditLog.bulkAdd(data.auditLog as never[]);
-        }
-        if (data.dayWeights)
-          await tempDb.appState.put({ key: 'dayWeights', value: data.dayWeights.value });
-        if (data.signatories)
-          await tempDb.appState.put({ key: 'signatories', value: data.signatories.value });
-        if (data.autoScheduleOptions)
-          await tempDb.appState.put({
-            key: 'autoScheduleOptions',
-            value: data.autoScheduleOptions.value,
-          });
-        if (data.maxDebt != null)
-          await tempDb.appState.put({ key: 'maxDebt', value: data.maxDebt });
-        if (data.dutiesPerDay != null)
-          await tempDb.appState.put({ key: 'dutiesPerDay', value: data.dutiesPerDay });
-        await tempDb.appState.put({ key: 'needsExport', value: false });
-        await tempDb.appState.put({
-          key: 'lastExportTimestamp',
-          value: new Date().toISOString(),
-        });
-      }
-    );
+    await restoreDataToDb(tempDb, data);
   } finally {
     tempDb.close();
   }
@@ -162,71 +181,16 @@ const importAllWorkspaces = async (data: MultiWorkspaceExportData): Promise<void
   await switchDatabase(data.activeWorkspaceId);
 };
 
-/**
- * Export all data to JSON
- */
-export const exportData = async (): Promise<ExportData> => {
-  const dayWeightsRec = await db.appState.get('dayWeights');
-  const signatoriesRec = await db.appState.get('signatories');
-  const autoOptsRec = await db.appState.get('autoScheduleOptions');
-  const maxDebtRec = await db.appState.get('maxDebt');
-  const dutiesPerDayRec = await db.appState.get('dutiesPerDay');
+// ── Export / Import ───────────────────────────────────────────────────
 
-  const data: ExportData = {
-    version: CURRENT_BACKUP_VERSION,
-    timestamp: new Date().toISOString(),
-    users: await db.users.toArray(),
-    schedule: await db.schedule.toArray(),
-    auditLog: await db.auditLog.toArray(),
-    dayWeights: dayWeightsRec as { key: string; value: DayWeights } | undefined,
-    signatories: signatoriesRec as { key: string; value: Signatories } | undefined,
-    autoScheduleOptions: autoOptsRec as { key: string; value: AutoScheduleOptions } | undefined,
-    maxDebt: maxDebtRec ? (maxDebtRec.value as number) : undefined,
-    dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
-  };
+/** Експортувати дані поточної БД */
+export const exportData = async (): Promise<ExportData> => readDataFromDb(db);
 
-  return data;
-};
-
-/**
- * Import data from JSON
- */
+/** Імпортувати дані в поточну БД (v6/v7 single-workspace формат) */
 const importData = async (data: ExportData): Promise<void> => {
-  await db.transaction('rw', db.users, db.schedule, db.auditLog, db.appState, async () => {
-    // Clear existing data
-    await db.users.clear();
-    await db.schedule.clear();
-    await db.auditLog.clear();
-
-    // Import new data
-    await db.users.bulkAdd(data.users as never[]);
-    await db.schedule.bulkAdd(data.schedule as never[]);
-    if (Array.isArray(data.auditLog)) {
-      await db.auditLog.bulkAdd(data.auditLog as never[]);
-    }
-
-    // Import settings
-    if (data.dayWeights) {
-      await db.appState.put({ key: 'dayWeights', value: data.dayWeights.value });
-    }
-    if (data.signatories) {
-      await db.appState.put({ key: 'signatories', value: data.signatories.value });
-    }
-    if (data.autoScheduleOptions) {
-      await db.appState.put({ key: 'autoScheduleOptions', value: data.autoScheduleOptions.value });
-    }
-    if (data.maxDebt != null) {
-      await db.appState.put({ key: 'maxDebt', value: data.maxDebt });
-    }
-    if (data.dutiesPerDay != null) {
-      await db.appState.put({ key: 'dutiesPerDay', value: data.dutiesPerDay });
-    }
-
-    // Reset flags
-    await db.appState.put({ key: 'needsExport', value: false });
-    await db.appState.put({ key: 'cascadeStartDate', value: null });
-    await db.appState.put({ key: 'lastExportTimestamp', value: new Date().toISOString() });
-  });
+  await restoreDataToDb(db, data);
+  // Додатково скидаємо cascade trigger (для поточного db)
+  await db.appState.put({ key: 'cascadeStartDate', value: null });
 };
 
 /**

@@ -12,6 +12,9 @@ export const toLocalISO = (date: Date): string => {
   return new Date(date.getTime() - offset).toISOString().split('T')[0];
 };
 
+/** Мілісекунд у добі */
+const MS_PER_DAY = 86_400_000;
+
 /**
  * Get ISO week number for a date
  */
@@ -19,7 +22,7 @@ export const getWeekNumber = (d: Date): number => {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return Math.ceil(((date.getTime() - yearStart.getTime()) / MS_PER_DAY + 1) / 7);
 };
 
 /** Returns the ISO week-year (may differ from calendar year for week 1 / week 52-53 boundary dates) */

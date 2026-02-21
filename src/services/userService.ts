@@ -5,6 +5,30 @@ import type { User, ScheduleEntry } from '../types';
 import { DEFAULT_MAX_DEBT } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
 
+/** Дата-сентінел: «з початку часів» */
+const MIN_DATE = '0000-01-01';
+/** Дата-сентінел: «до кінця часів» */
+const MAX_DATE = '9999-12-31';
+
+/** Конвертація JS dayOfWeek (0=Нд) → ISO dayIdx (1=Пн..7=Нд) */
+const toIsoDayIdx = (jsDow: number): number => (jsDow === 0 ? 7 : jsDow);
+
+/** Чи призначений боєць на попередній день (перевірка відпочинку після наряду) */
+const wasPrevDayAssigned = (
+  user: User,
+  dateStr: string,
+  schedule?: Record<string, ScheduleEntry>
+): boolean => {
+  if (!schedule || !user.id) return false;
+  const prevDate = new Date(dateStr);
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevEntry = schedule[toLocalISO(prevDate)];
+  if (!prevEntry?.userId) return false;
+  return Array.isArray(prevEntry.userId)
+    ? prevEntry.userId.includes(user.id)
+    : prevEntry.userId === user.id;
+};
+
 /**
  * Service for managing users
  */
@@ -103,76 +127,50 @@ export const updateOwedDays = async (
 };
 
 /**
- * Check if user is available on a specific date
- * Now also checks for rest day after previous duty
+ * Погасити борг за конкретний день тижня (owedDays[dayIdx]--)
+ * та відновити карму на вагу цього дня.
+ * Викликається і при авто-призначенні, і при ручному.
+ * @returns true якщо борг був і погашено, false якщо нічого не було
+ */
+export const repayOwedDay = async (
+  userId: number,
+  dayIdx: number,
+  weight: number
+): Promise<boolean> => {
+  const user = await db.users.get(userId);
+  if (!user || !user.owedDays || !user.owedDays[dayIdx] || user.owedDays[dayIdx] <= 0) {
+    return false;
+  }
+  // Зменшити борг за цей день тижня
+  user.owedDays[dayIdx]--;
+  await db.users.update(userId, { owedDays: user.owedDays });
+
+  // Відновити карму (наближаємо до 0, не перевищуючи)
+  if (user.debt < 0) {
+    const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
+    await db.users.update(userId, { debt: newDebt });
+  }
+  return true;
+};
+
+/**
+ * Перевірити чи боєць доступний на дату.
+ * Враховує: активність, заблоковані дні, статус (дати), відпочинок, попередній наряд.
  */
 export const isUserAvailable = (
   user: User,
   dateStr: string,
   schedule?: Record<string, ScheduleEntry>
 ): boolean => {
-  if (!user.isActive) return false;
-
-  // Check if day of week is blocked
-  if (user.blockedDays && user.blockedDays.length > 0) {
-    const date = new Date(dateStr);
-    const dayOfWeek = date.getDay();
-    const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun
-    if (user.blockedDays.includes(dayIdx)) return false;
-  }
-
-  // Helper: check if previous day was assigned to this user (rest day after duty)
-  const isPrevDayAssigned = (): boolean => {
-    if (!schedule || !user.id) return false;
-    const prevDate = new Date(dateStr);
-    prevDate.setDate(prevDate.getDate() - 1);
-    const prevEntry = schedule[toLocalISO(prevDate)];
-    if (!prevEntry?.userId) return false;
-    return Array.isArray(prevEntry.userId)
-      ? prevEntry.userId.includes(user.id)
-      : prevEntry.userId === user.id;
-  };
-
-  if (user.status === 'ACTIVE') {
-    // Still need to check rest day after duty if schedule provided
-    if (isPrevDayAssigned()) return false;
-    return true;
-  }
-
-  if (user.statusFrom || user.statusTo) {
-    const from = user.statusFrom || '0000-01-01';
-    const to = user.statusTo || '9999-12-31';
-
-    if (dateStr >= from && dateStr <= to) return false;
-
-    // Check day before status ONLY if restBeforeStatus flag is set
-    if (user.restBeforeStatus && user.statusFrom) {
-      const dayBefore = new Date(user.statusFrom);
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      const dayBeforeStr = toLocalISO(dayBefore);
-      if (dateStr === dayBeforeStr) return false;
-    }
-
-    // Check rest day after status
-    if (user.restAfterStatus && user.statusTo) {
-      const endDate = new Date(user.statusTo);
-      const nextDay = new Date(endDate);
-      nextDay.setDate(endDate.getDate() + 1);
-      const nextDayStr = toLocalISO(nextDay);
-      if (dateStr === nextDayStr) return false;
-    }
-
-    // Check rest day after last duty (if schedule provided)
-    if (isPrevDayAssigned()) return false;
-
-    return true;
-  }
-
-  return false;
+  const status = getUserAvailabilityStatus(user, dateStr);
+  if (status !== 'AVAILABLE') return false;
+  // Додаткова перевірка: чи був наряд вчора (потрібен розклад)
+  return !wasPrevDayAssigned(user, dateStr, schedule);
 };
 
 /**
- * Get user availability status
+ * Отримати статус доступності бійця на дату (без перевірки розкладу).
+ * Повертає конкретну причину недоступності для UI.
  */
 export const getUserAvailabilityStatus = (
   user: User,
@@ -180,35 +178,31 @@ export const getUserAvailabilityStatus = (
 ): 'AVAILABLE' | 'UNAVAILABLE' | 'STATUS_BUSY' | 'PRE_STATUS_DAY' | 'REST_DAY' | 'DAY_BLOCKED' => {
   if (!user.isActive) return 'UNAVAILABLE';
 
-  // Check if day of week is blocked
+  // Заблокований день тижня
   if (user.blockedDays && user.blockedDays.length > 0) {
-    const date = new Date(dateStr);
-    const dayOfWeek = date.getDay();
-    const dayIdx = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1=Mon...7=Sun
+    const dayIdx = toIsoDayIdx(new Date(dateStr).getDay());
     if (user.blockedDays.includes(dayIdx)) return 'DAY_BLOCKED';
   }
 
   if (user.status === 'ACTIVE') return 'AVAILABLE';
 
+  // Перевірка діапазону статусу та відпочинку навколо нього
   if (user.statusFrom || user.statusTo) {
-    const from = user.statusFrom || '0000-01-01';
-    const to = user.statusTo || '9999-12-31';
+    const from = user.statusFrom || MIN_DATE;
+    const to = user.statusTo || MAX_DATE;
 
-    // Check day before status ONLY if restBeforeStatus flag is set
+    // День до початку статусу (якщо увімкнено)
     if (user.restBeforeStatus && user.statusFrom) {
       const dayBefore = new Date(user.statusFrom);
       dayBefore.setDate(dayBefore.getDate() - 1);
-      const dayBeforeStr = toLocalISO(dayBefore);
-      if (dateStr === dayBeforeStr) return 'PRE_STATUS_DAY';
+      if (dateStr === toLocalISO(dayBefore)) return 'PRE_STATUS_DAY';
     }
 
-    // Check rest day after status
+    // День після завершення статусу (якщо увімкнено)
     if (user.restAfterStatus && user.statusTo) {
-      const endDate = new Date(user.statusTo);
-      const nextDay = new Date(endDate);
-      nextDay.setDate(endDate.getDate() + 1);
-      const nextDayStr = toLocalISO(nextDay);
-      if (dateStr === nextDayStr) return 'REST_DAY';
+      const nextDay = new Date(user.statusTo);
+      nextDay.setDate(nextDay.getDate() + 1);
+      if (dateStr === toLocalISO(nextDay)) return 'REST_DAY';
     }
 
     if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';

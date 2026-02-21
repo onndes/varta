@@ -3,7 +3,7 @@
 import { db } from '../db/db';
 import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as userService from './userService';
-import { toAssignedUserIds } from '../utils/assignment';
+import { toAssignedUserIds, isAssignedInEntry } from '../utils/assignment';
 
 /**
  * Service for managing schedule
@@ -107,7 +107,7 @@ export const bulkSaveSchedule = async (entries: ScheduleEntry[]): Promise<void> 
  * Get schedule entries for a user
  */
 export const getUserSchedule = async (userId: number): Promise<ScheduleEntry[]> => {
-  return (await db.schedule.toArray()).filter((entry) => isAssignedTo(entry, userId));
+  return (await db.schedule.toArray()).filter((entry) => isAssignedInEntry(entry, userId));
 };
 
 /**
@@ -122,18 +122,6 @@ export const getScheduleRange = async (
   );
 };
 
-/**
- * Calculate total load for a user
- */
-/**
- * Helper: check if a schedule entry is assigned to a given userId
- * (handles both single number and number[] userId)
- */
-const isAssignedTo = (entry: ScheduleEntry, userId: number): boolean => {
-  if (Array.isArray(entry.userId)) return entry.userId.includes(userId);
-  return entry.userId === userId;
-};
-
 export const calculateUserLoad = (
   userId: number,
   schedule: Record<string, ScheduleEntry>,
@@ -141,7 +129,7 @@ export const calculateUserLoad = (
   fromDate?: string
 ): number => {
   const assignments = Object.values(schedule).filter(
-    (s) => isAssignedTo(s, userId) && (!fromDate || s.date >= fromDate)
+    (s) => isAssignedInEntry(s, userId) && (!fromDate || s.date >= fromDate)
   );
   let load = 0;
   assignments.forEach((s) => {
@@ -161,7 +149,7 @@ export const countUserDaysOfWeek = (
 ): Record<number, number> => {
   const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   Object.values(schedule).forEach((s) => {
-    if (isAssignedTo(s, userId) && (!fromDate || s.date >= fromDate)) {
+    if (isAssignedInEntry(s, userId) && (!fromDate || s.date >= fromDate)) {
       const day = new Date(s.date).getDay();
       counts[day]++;
     }
@@ -178,7 +166,7 @@ export const countUserAssignments = (
   fromDate?: string
 ): number => {
   return Object.values(schedule).filter(
-    (s) => isAssignedTo(s, userId) && (!fromDate || s.date >= fromDate)
+    (s) => isAssignedInEntry(s, userId) && (!fromDate || s.date >= fromDate)
   ).length;
 };
 

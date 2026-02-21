@@ -40,46 +40,51 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
     return users
       .map((u) => {
         const allUserEntries = Object.values(schedule).filter((s) => isAssignedInEntry(s, u.id!));
-        const fairnessFrom = getUserFairnessFrom(u, todayStr);
-        const comparableEntries = allUserEntries.filter(
-          (s) => !fairnessFrom || s.date >= fairnessFrom
-        );
-        const addedFrom =
-          u.dateAddedToAuto && u.dateAddedToAuto > earliestScheduleDate
-            ? u.dateAddedToAuto
-            : earliestScheduleDate;
 
+        // Дата, з якої ведеться облік для цього бійця:
+        // - dateAddedToAuto (якщо задана) — дата включення в авточергу
+        // - інакше — дата першого графіка у базі (або сьогодні)
+        const rawFairnessFrom = getUserFairnessFrom(u, todayStr);
+        const fallbackFrom = earliestScheduleDate <= todayStr ? earliestScheduleDate : todayStr;
+        const trackingFrom = rawFairnessFrom || fallbackFrom;
+
+        // Наряди, які враховуються в облікковому періоді
+        const comparableEntries = allUserEntries.filter((s) => s.date >= trackingFrom);
+
+        // Скільки днів боєць був доступний для чергування (від trackingFrom до сьогодні)
+        let availableDaysForDuty = 0;
+        if (trackingFrom <= todayStr) {
+          const totalWindowDays =
+            Math.floor(
+              (new Date(todayStr).getTime() - new Date(trackingFrom).getTime()) / 86400000
+            ) + 1;
+          const statusBlockedDays =
+            u.status === 'VACATION' || u.status === 'TRIP' || u.status === 'SICK'
+              ? overlapDays(trackingFrom, todayStr, u.statusFrom, u.statusTo)
+              : 0;
+          availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
+        }
+
+        // Навантаження (зважена сума) та розподіл по днях тижня
         let comparableLoad = 0;
         const dayCountComparable: Record<number, number> = {};
-
         comparableEntries.forEach((s) => {
           const dayIdx = new Date(s.date).getDay();
           comparableLoad += dayWeights[dayIdx] || 1.0;
           dayCountComparable[dayIdx] = (dayCountComparable[dayIdx] || 0) + 1;
         });
 
-        let availableDaysForDuty = 0;
-        if (addedFrom <= todayStr) {
-          const totalWindowDays =
-            Math.floor((new Date(todayStr).getTime() - new Date(addedFrom).getTime()) / 86400000) +
-            1;
-          const statusBlockedDays =
-            u.status === 'VACATION' || u.status === 'TRIP' || u.status === 'SICK'
-              ? overlapDays(addedFrom, todayStr, u.statusFrom, u.statusTo)
-              : 0;
-          availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
-        }
-
         const balance = u.debt || 0;
         const availability = getUserAvailabilityStatus(u, todayStr);
+
+        // Частота: середнє число нарядів на один доступний день
         const dutyRate =
           availableDaysForDuty > 0 ? comparableEntries.length / availableDaysForDuty : 0;
 
         return {
           ...u,
           balance,
-          fairnessFrom,
-          addedFrom,
+          trackingFrom,
           totalAllDuties: allUserEntries.length,
           totalComparableDuties: comparableEntries.length,
           comparableLoad,
@@ -267,20 +272,14 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                     )}
                   </td>
                   <td className="text-center border-start small">
-                    {u.fairnessFrom ? (
-                      <>
-                        <div className="text-muted">
-                          {new Date(u.fairnessFrom).toLocaleDateString('uk-UA', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: '2-digit',
-                          })}
-                        </div>
-                        <div className="fw-bold">{u.totalComparableDuties}</div>
-                      </>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
+                    <div className="text-muted">
+                      {new Date(u.trackingFrom).toLocaleDateString('uk-UA', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                      })}
+                    </div>
+                    <div className="fw-bold">{u.totalComparableDuties}</div>
                   </td>
                 </tr>
               );
