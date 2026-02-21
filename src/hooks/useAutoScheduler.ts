@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../types';
 import * as autoScheduler from '../services/autoScheduler';
 import * as scheduleService from '../services/scheduleService';
-import * as auditService from '../services/auditService';
 import { toLocalISO } from '../utils/dateUtils';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 import { isManualType } from '../utils/assignment';
@@ -46,7 +45,6 @@ export const useAutoScheduler = (
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
-        await auditService.logAction('AUTO_FILL', `Заповнено ${updates.length} записів`);
 
         if (onComplete) onComplete();
       } catch (err) {
@@ -68,7 +66,6 @@ export const useAutoScheduler = (
       if (conflictDates.length === 0) return;
 
       await scheduleService.bulkDeleteSchedule(conflictDates);
-      await auditService.logAction('AUTO_FIX', `Видалено ${conflictDates.length} конфліктів`);
 
       if (onComplete) onComplete();
     } catch (err) {
@@ -97,7 +94,6 @@ export const useAutoScheduler = (
           dutiesPerDay,
           autoScheduleOptions
         );
-        await auditService.logAction('CASCADE', `Перерахунок з ${start}`);
 
         if (onComplete) onComplete();
       } catch (err) {
@@ -141,7 +137,6 @@ export const useAutoScheduler = (
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
-        await auditService.logAction('AUTO_GEN', `Згенеровано тиждень (${validDates.length} днів)`);
 
         if (onComplete) onComplete();
       } catch (err) {

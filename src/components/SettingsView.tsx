@@ -17,6 +17,7 @@ interface SettingsViewProps {
   onSaveDutiesPerDay: (count: number) => Promise<void>;
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
   onSaveMaxDebt: (value: number) => Promise<void>;
+  logAction: (action: string, details: string) => Promise<void>;
 }
 
 type SubTab = 'logic' | 'print';
@@ -32,6 +33,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   onSaveDutiesPerDay,
   onSaveAutoScheduleOptions,
   onSaveMaxDebt,
+  logAction,
 }) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
   const [weights, setWeights] = useState<DayWeights>(dayWeights);
@@ -71,35 +73,50 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     if (!mountedRef.current) return;
     if (JSON.stringify(weights) === JSON.stringify(dayWeights)) return;
-    const t = setTimeout(() => onSave(weights), 600);
+    const t = setTimeout(() => {
+      onSave(weights);
+      logAction('SETTINGS', 'Вага днів змінено');
+    }, 600);
     return () => clearTimeout(t);
   }, [weights]);
 
   useEffect(() => {
     if (!mountedRef.current) return;
     if (perDay === dutiesPerDay) return;
-    const t = setTimeout(() => onSaveDutiesPerDay(perDay), 600);
+    const t = setTimeout(() => {
+      onSaveDutiesPerDay(perDay);
+      logAction('SETTINGS', `Чергових на добу: ${perDay}`);
+    }, 600);
     return () => clearTimeout(t);
   }, [perDay]);
 
   useEffect(() => {
     if (!mountedRef.current) return;
     if (JSON.stringify(autoOpts) === JSON.stringify(autoScheduleOptions)) return;
-    const t = setTimeout(() => onSaveAutoScheduleOptions(autoOpts), 600);
+    const t = setTimeout(() => {
+      onSaveAutoScheduleOptions(autoOpts);
+      logAction('SETTINGS', 'Параметри алгоритму змінено');
+    }, 600);
     return () => clearTimeout(t);
   }, [autoOpts]);
 
   useEffect(() => {
     if (!mountedRef.current) return;
     if (debt === maxDebt) return;
-    const t = setTimeout(() => onSaveMaxDebt(debt), 600);
+    const t = setTimeout(() => {
+      onSaveMaxDebt(debt);
+      logAction('SETTINGS', `Макс. борг: ${debt}`);
+    }, 600);
     return () => clearTimeout(t);
   }, [debt]);
 
   useEffect(() => {
     if (!mountedRef.current) return;
     if (JSON.stringify(sigs) === JSON.stringify(signatories)) return;
-    const t = setTimeout(() => onSaveSignatories(sigs), 600);
+    const t = setTimeout(() => {
+      onSaveSignatories(sigs);
+      logAction('SETTINGS', 'Підписи/заголовок змінено');
+    }, 600);
     return () => clearTimeout(t);
   }, [sigs]);
 

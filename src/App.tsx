@@ -124,6 +124,7 @@ const App = () => {
         onImport={handleImport}
         onExport={handleExport}
         onPrint={handlePrint}
+        onWorkspaceSwitch={refreshData}
       />
 
       <div className="px-4">
@@ -170,6 +171,7 @@ const App = () => {
               onSaveDutiesPerDay={saveDutiesPerDay}
               onSaveAutoScheduleOptions={saveAutoScheduleOptions}
               onSaveMaxDebt={saveMaxDebt}
+              logAction={logAction}
             />
           )}
           {activeTab === 'logs' && <AuditLogView />}

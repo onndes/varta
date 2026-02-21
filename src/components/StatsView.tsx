@@ -41,10 +41,13 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
       .map((u) => {
         const allUserEntries = Object.values(schedule).filter((s) => isAssignedInEntry(s, u.id!));
         const fairnessFrom = getUserFairnessFrom(u, todayStr);
-        const comparableEntries = allUserEntries.filter((s) => !fairnessFrom || s.date >= fairnessFrom);
-        const addedFrom = u.dateAddedToAuto && u.dateAddedToAuto > earliestScheduleDate
-          ? u.dateAddedToAuto
-          : earliestScheduleDate;
+        const comparableEntries = allUserEntries.filter(
+          (s) => !fairnessFrom || s.date >= fairnessFrom
+        );
+        const addedFrom =
+          u.dateAddedToAuto && u.dateAddedToAuto > earliestScheduleDate
+            ? u.dateAddedToAuto
+            : earliestScheduleDate;
 
         let comparableLoad = 0;
         const dayCountComparable: Record<number, number> = {};
@@ -58,7 +61,8 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         let availableDaysForDuty = 0;
         if (addedFrom <= todayStr) {
           const totalWindowDays =
-            Math.floor((new Date(todayStr).getTime() - new Date(addedFrom).getTime()) / 86400000) + 1;
+            Math.floor((new Date(todayStr).getTime() - new Date(addedFrom).getTime()) / 86400000) +
+            1;
           const statusBlockedDays =
             u.status === 'VACATION' || u.status === 'TRIP' || u.status === 'SICK'
               ? overlapDays(addedFrom, todayStr, u.statusFrom, u.statusTo)
@@ -68,6 +72,9 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
 
         const balance = u.debt || 0;
         const availability = getUserAvailabilityStatus(u, todayStr);
+        const dutyRate =
+          availableDaysForDuty > 0 ? comparableEntries.length / availableDaysForDuty : 0;
+
         return {
           ...u,
           balance,
@@ -79,6 +86,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           effectiveComparable: comparableLoad + balance,
           dayCountComparable,
           availableDaysForDuty,
+          dutyRate,
           availability,
         };
       })
@@ -150,6 +158,11 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </th>
               <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
                 Рейтинг
+              </th>
+              <th rowSpan={2} className="text-center border-start" style={{ minWidth: '80px' }}>
+                Частота
+                <br />
+                <small className="fw-normal">(нар/день)</small>
               </th>
               <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
                 З дати
@@ -230,7 +243,29 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                   >
                     {u.balance > 0 ? `+${u.balance}` : u.balance}
                   </td>
-                  <td className="text-center fw-bold bg-light">{u.effectiveComparable.toFixed(1)}</td>
+                  <td className="text-center fw-bold bg-light">
+                    {u.effectiveComparable.toFixed(1)}
+                  </td>
+                  <td
+                    className="text-center border-start fw-bold"
+                    title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
+                  >
+                    {u.availableDaysForDuty > 0 ? (
+                      <span
+                        className={
+                          u.dutyRate > 0.15
+                            ? 'text-danger'
+                            : u.dutyRate > 0.08
+                              ? 'text-warning'
+                              : 'text-success'
+                        }
+                      >
+                        {u.dutyRate.toFixed(3)}
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
                   <td className="text-center border-start small">
                     {u.fairnessFrom ? (
                       <>
@@ -265,8 +300,8 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </li>
               <li>
                 <strong>Доступних днів</strong>: Кількість днів, коли бійця можна було поставити на
-                чергування від дати включення в список (та початку графіка) до сьогодні, за
-                мінусом відпустки/відрядження/лікарняного.
+                чергування від дати включення в список (та початку графіка) до сьогодні, за мінусом
+                відпустки/відрядження/лікарняного.
               </li>
               <li>
                 <strong>Пн-Нд</strong>: Розподіл нарядів по дням тижня тільки в межах поточного
@@ -284,8 +319,14 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                 <strong>Рейтинг</strong>: Навантаження + Карма. Чим менше, тим вища черга на наряд.
               </li>
               <li>
-                <strong>З дати</strong>: Дата, з якої система веде порівняння для авточерги.
-                Це не перезапуск "з нуля" після повернення, а базова дата участі в авточерзі.
+                <strong>Частота (нар/день)</strong>: Кількість нарядів поділена на кількість
+                доступних днів. Чим менше значення, тим рідше боєць чергує відносно свого часу в
+                підрозділі. Використовується для порівняння честності розподілу між бійцями, які
+                дежурять різний період часу.
+              </li>
+              <li>
+                <strong>З дати</strong>: Дата, з якої система веде порівняння для авточерги. Це не
+                перезапуск "з нуля" після повернення, а базова дата участі в авточерзі.
               </li>
             </ul>
           </div>

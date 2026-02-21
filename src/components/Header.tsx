@@ -1,14 +1,22 @@
 import React from 'react';
 import InfoButton from './InfoButton';
+import WorkspaceSelector from './WorkspaceSelector';
 
 interface HeaderProps {
   needsExport: boolean;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onExport: () => void;
   onPrint: () => void;
+  onWorkspaceSwitch: () => Promise<void>;
 }
 
-const Header: React.FC<HeaderProps> = ({ needsExport, onImport, onExport, onPrint }) => {
+const Header: React.FC<HeaderProps> = ({
+  needsExport,
+  onImport,
+  onExport,
+  onPrint,
+  onWorkspaceSwitch,
+}) => {
   return (
     <div className="header-simple d-flex justify-content-between align-items-center no-print">
       <div className="d-flex align-items-center">
@@ -24,6 +32,11 @@ const Header: React.FC<HeaderProps> = ({ needsExport, onImport, onExport, onPrin
             <InfoButton />
           </div>
           <small className="text-muted">Система розподілу чергувань</small>
+        </div>
+      </div>
+      <div className="d-flex align-items-center">
+        <div className="ms-3">
+          <WorkspaceSelector onSwitch={onWorkspaceSwitch} />
         </div>
       </div>
       <div className="d-flex gap-2">

@@ -10,12 +10,18 @@ const ACTION_LABELS: Record<string, { label: string; icon: string; color: string
   ASSIGN: { label: 'Призначення', icon: 'fa-calendar-check', color: 'primary' },
   MANUAL: { label: 'Ручне', icon: 'fa-hand-pointer', color: 'primary' },
   REMOVE: { label: 'Зняття', icon: 'fa-calendar-minus', color: 'warning' },
+  REPLACE: { label: 'Заміна', icon: 'fa-arrow-right-arrow-left', color: 'info' },
+  SWAP: { label: 'Обмін', icon: 'fa-repeat', color: 'info' },
+  TRANSFER: { label: 'Перенесення', icon: 'fa-arrows-alt', color: 'info' },
   AUTO_FILL: { label: 'Автозаповнення', icon: 'fa-fill-drip', color: 'info' },
   AUTO_FIX: { label: 'Автовиправлення', icon: 'fa-wrench', color: 'warning' },
   AUTO_SCHEDULE: { label: 'Генерація', icon: 'fa-magic', color: 'primary' },
   AUTO_GEN: { label: 'Генерація', icon: 'fa-magic', color: 'primary' },
   CASCADE: { label: 'Перерахунок', icon: 'fa-sync-alt', color: 'secondary' },
+  CLEAR_WEEK: { label: 'Очищення тижня', icon: 'fa-eraser', color: 'danger' },
   BULK_DELETE: { label: 'Масове видалення', icon: 'fa-trash-alt', color: 'danger' },
+  BULK_ADD: { label: 'Масове додавання', icon: 'fa-users', color: 'success' },
+  SETTINGS: { label: 'Налаштування', icon: 'fa-cog', color: 'secondary' },
   EXPORT: { label: 'Експорт', icon: 'fa-file-export', color: 'secondary' },
   IMPORT: { label: 'Імпорт', icon: 'fa-file-import', color: 'secondary' },
 };
@@ -23,7 +29,7 @@ const ACTION_LABELS: Record<string, { label: string; icon: string; color: string
 const getActionInfo = (action: string) =>
   ACTION_LABELS[action] || { label: action, icon: 'fa-info-circle', color: 'secondary' };
 
-type FilterType = 'all' | 'schedule' | 'users';
+type FilterType = 'all' | 'schedule' | 'users' | 'settings';
 
 const AuditLogView: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
@@ -55,16 +61,20 @@ const AuditLogView: React.FC = () => {
         'ASSIGN',
         'MANUAL',
         'REMOVE',
+        'REPLACE',
+        'SWAP',
+        'TRANSFER',
         'AUTO_FILL',
         'AUTO_FIX',
         'AUTO_SCHEDULE',
         'AUTO_GEN',
         'CASCADE',
+        'CLEAR_WEEK',
         'BULK_DELETE',
       ]),
     []
   );
-  const userActions = useMemo(() => new Set(['ADD', 'EDIT', 'DELETE']), []);
+  const userActions = useMemo(() => new Set(['ADD', 'EDIT', 'DELETE', 'BULK_ADD']), []);
 
   const filteredLogs = useMemo(() => {
     let filtered = logs;
@@ -72,6 +82,8 @@ const AuditLogView: React.FC = () => {
       filtered = logs.filter((l) => scheduleActions.has(l.action));
     } else if (filter === 'users') {
       filtered = logs.filter((l) => userActions.has(l.action));
+    } else if (filter === 'settings') {
+      filtered = logs.filter((l) => l.action === 'SETTINGS');
     }
     return filtered.slice(0, limit);
   }, [logs, filter, limit, scheduleActions, userActions]);
@@ -170,6 +182,13 @@ const AuditLogView: React.FC = () => {
               >
                 <i className="fas fa-users me-1" />
                 Особовий склад
+              </button>
+              <button
+                className={`btn ${filter === 'settings' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setFilter('settings')}
+              >
+                <i className="fas fa-cog me-1" />
+                Налаштування
               </button>
             </div>
 
