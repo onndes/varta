@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { PrintMode } from './types';
 import { useDialog } from './components/useDialog';
 
 // Hooks
@@ -22,6 +23,7 @@ const App = () => {
   const { showAlert, showConfirm } = useDialog();
   const [activeTab, setActiveTab] = useState('schedule');
   const [showBackupAlert, setShowBackupAlert] = useState(false);
+  const [printMode, setPrintMode] = useState<PrintMode>('calendar');
 
   // Use custom hooks
   const { users, loading: usersLoading, loadUsers } = useUsers();
@@ -88,8 +90,9 @@ const App = () => {
   };
 
   // Handle print
-  const handlePrint = () => {
+  const handlePrint = (mode: PrintMode) => {
     const previousTab = activeTab;
+    setPrintMode(mode);
 
     if (activeTab !== 'schedule') {
       setActiveTab('schedule');
@@ -99,6 +102,7 @@ const App = () => {
       if (previousTab !== 'schedule') {
         setActiveTab(previousTab);
       }
+      setPrintMode('calendar');
     };
 
     window.addEventListener('afterprint', restoreTab, { once: true });
@@ -106,7 +110,7 @@ const App = () => {
   };
 
   return (
-    <div className="main-container show-print-calendar">
+    <div className={`main-container show-print-${printMode}`}>
       {loading && (
         <div className="loading-overlay">
           <div className="spinner-border text-primary"></div>
@@ -144,6 +148,7 @@ const App = () => {
               signatories={signatories}
               autoScheduleOptions={autoScheduleOptions}
               dutiesPerDay={dutiesPerDay}
+              printMode={printMode}
             />
           )}
           {activeTab === 'users' && (

@@ -1,6 +1,13 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useDialog } from './useDialog';
-import type { User, ScheduleEntry, DayWeights, Signatories, AutoScheduleOptions } from '../types';
+import type {
+  User,
+  ScheduleEntry,
+  DayWeights,
+  Signatories,
+  AutoScheduleOptions,
+  PrintMode,
+} from '../types';
 import { toLocalISO, getMondayOfWeek, getWeekNumber, getWeekYear } from '../utils/helpers';
 import { formatDate } from '../utils/dateUtils';
 import {
@@ -21,6 +28,8 @@ import PrintHeader from './schedule/PrintHeader';
 import PrintFooter from './PrintFooter';
 import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
+import PrintDutyTable from './schedule/PrintDutyTable';
+import PrintStatusList from './schedule/PrintStatusList';
 import AssignmentModal, { type SwapMode } from './schedule/AssignmentModal';
 import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import { isUserAvailable } from '../services/userService';
@@ -39,6 +48,7 @@ interface ScheduleViewProps {
   signatories: Signatories;
   autoScheduleOptions?: AutoScheduleOptions;
   dutiesPerDay: number;
+  printMode: PrintMode;
 }
 
 interface SelectedCell {
@@ -66,6 +76,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   signatories,
   autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   dutiesPerDay,
+  printMode,
 }) => {
   // Direct service operations (no duplicate useSchedule hook)
   const calculateEffectiveLoad = useCallback(
@@ -696,7 +707,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onClearWeek={runClearWeek}
       />
 
-      <PrintHeader signatories={signatories} weekDates={weekDates} />
+      {/* Друк: заголовок (для календаря та таблиці чергувань) */}
+      {printMode !== 'status-list' && (
+        <PrintHeader signatories={signatories} weekDates={weekDates} />
+      )}
 
       <ScheduleTable
         users={users}
@@ -710,9 +724,23 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         }}
       />
 
-      <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
+      {/* Друк: календар */}
+      {printMode === 'calendar' && (
+        <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
+      )}
 
-      <PrintFooter signatories={signatories} />
+      {/* Друк: таблиця чергувань */}
+      {printMode === 'duty-table' && (
+        <PrintDutyTable weekDates={weekDates} schedule={schedule} users={users} />
+      )}
+
+      {/* Друк: довідка по складу */}
+      {printMode === 'status-list' && (
+        <PrintStatusList users={users} schedule={schedule} weekDates={weekDates} />
+      )}
+
+      {/* Друк: підписи (для календаря та таблиці чергувань) */}
+      {printMode !== 'status-list' && <PrintFooter signatories={signatories} />}
 
       <AssignmentModal
         show={!!selectedCell}

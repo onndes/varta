@@ -1,4 +1,5 @@
 import React from 'react';
+import type { PrintMode } from '../types';
 import InfoButton from './InfoButton';
 import WorkspaceSelector from './WorkspaceSelector';
 
@@ -6,7 +7,7 @@ interface HeaderProps {
   needsExport: boolean;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onExport: () => void;
-  onPrint: () => void;
+  onPrint: (mode: PrintMode) => void;
   onWorkspaceSwitch: () => Promise<void>;
 }
 
@@ -50,9 +51,38 @@ const Header: React.FC<HeaderProps> = ({
         >
           <i className="fas fa-download me-1"></i>Експорт
         </button>
-        <button className="btn btn-dark btn-sm" onClick={onPrint}>
-          <i className="fas fa-print me-1"></i>Друк
-        </button>
+        <div className="btn-group">
+          <button className="btn btn-dark btn-sm" onClick={() => onPrint('calendar')}>
+            <i className="fas fa-print me-1"></i>Друк
+          </button>
+          <button
+            className="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <span className="visually-hidden">Обрати формат</span>
+          </button>
+          <ul className="dropdown-menu dropdown-menu-end">
+            <li>
+              <button className="dropdown-item" onClick={() => onPrint('calendar')}>
+                <i className="fas fa-calendar-days me-2"></i>Графік (календар)
+              </button>
+            </li>
+            <li>
+              <button className="dropdown-item" onClick={() => onPrint('duty-table')}>
+                <i className="fas fa-table me-2"></i>Графік (таблиця)
+              </button>
+            </li>
+            <li>
+              <hr className="dropdown-divider" />
+            </li>
+            <li>
+              <button className="dropdown-item" onClick={() => onPrint('status-list')}>
+                <i className="fas fa-clipboard-list me-2"></i>Довідка по складу
+              </button>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,8 @@
 // src/types/index.ts
 
+/** Режим друку: календар / таблиця чергувань / довідка по складу */
+export type PrintMode = 'calendar' | 'duty-table' | 'status-list';
+
 export interface DayWeights {
   [key: number]: number;
 }
