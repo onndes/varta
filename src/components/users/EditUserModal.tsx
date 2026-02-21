@@ -42,6 +42,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
               </option>
             ))}
           </select>
+          {user.status === 'OTHER' && (
+            <div className="mt-2">
+              <input
+                className="form-control form-control-sm"
+                value={user.statusComment || ''}
+                onChange={(e) => onChange({ ...user, statusComment: e.target.value })}
+                placeholder="Причина / коментар"
+                maxLength={100}
+              />
+            </div>
+          )}
         </div>
         <div className="col-md-6">
           <label className="small text-muted">Посада / Примітка</label>

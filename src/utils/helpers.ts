@@ -2,7 +2,7 @@
 import { RANKS_SHORT } from './constants';
 
 // Re-export date utils to maintain backward compatibility
-export { toLocalISO, getWeekNumber, getMondayOfWeek } from './dateUtils';
+export { toLocalISO, getWeekNumber, getWeekYear, getMondayOfWeek } from './dateUtils';
 
 export const formatRank = (rank: string) => RANKS_SHORT[rank] || rank;
 

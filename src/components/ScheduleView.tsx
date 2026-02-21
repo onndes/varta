@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useDialog } from './useDialog';
 import type { User, ScheduleEntry, DayWeights, Signatories, AutoScheduleOptions } from '../types';
-import { toLocalISO, getMondayOfWeek, getWeekNumber } from '../utils/helpers';
+import { toLocalISO, getMondayOfWeek, getWeekNumber, getWeekYear } from '../utils/helpers';
 import { formatDate } from '../utils/dateUtils';
 import {
   applyKarmaForTransfer,
@@ -190,10 +190,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   const todayStr = useMemo(() => toLocalISO(new Date()), []);
 
-  const scheduledWeeks = useMemo(() => {
-    const weeks = new Set<number>();
-    Object.keys(schedule).forEach((dateStr) => weeks.add(getWeekNumber(new Date(dateStr))));
-    return weeks;
+  const scheduledWeeksMap = useMemo(() => {
+    const map = new Map<number, Set<number>>();
+    Object.keys(schedule).forEach((dateStr) => {
+      const d = new Date(dateStr);
+      const year = getWeekYear(d); // ISO week-year, not calendar year
+      const week = getWeekNumber(d);
+      if (!map.has(year)) map.set(year, new Set());
+      map.get(year)!.add(week);
+    });
+    return map;
   }, [schedule]);
 
   const scheduleIssues = useMemo(() => {
@@ -258,7 +264,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [shiftWeek, selectedCell, pendingAssignConfirm]);
 
-  const jumpToWeek = (w: number) => setCurrentMonday(getMondayOfWeek(new Date().getFullYear(), w));
+  const jumpToWeek = (w: number, year?: number) =>
+    setCurrentMonday(getMondayOfWeek(year ?? new Date().getFullYear(), w));
 
   const goToToday = () => {
     const d = new Date();
@@ -668,7 +675,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       <WeekNavigator
         currentDate={new Date()}
         activeDate={new Date(weekDates[0])}
-        scheduledWeeks={scheduledWeeks}
+        scheduledWeeksMap={scheduledWeeksMap}
         onJumpToWeek={jumpToWeek}
       />
 

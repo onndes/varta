@@ -41,6 +41,7 @@ export interface User {
   owedDays?: Record<number, number>;
   isExtra?: boolean; // Special participant (trainee, driver) - manual assignment only
   dateAddedToAuto?: string; // Date when isExtra was disabled (included in auto schedule)
+  statusComment?: string; // Comment for OTHER status reason
 }
 
 export interface ScheduleEntry {

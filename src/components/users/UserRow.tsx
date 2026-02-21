@@ -1,6 +1,6 @@
 import React from 'react';
 import type { User } from '../../types';
-import { STATUSES } from '../../utils/constants';
+import { STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
 import { formatRank } from '../../utils/helpers';
 
 interface UserRowProps {
@@ -55,7 +55,35 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
                 : ''}
             </small>
           )}
+          {u.status === 'OTHER' && u.statusComment && (
+            <small className="text-muted fst-italic" style={{ fontSize: '0.7rem' }}>
+              {u.statusComment}
+            </small>
+          )}
         </div>
+      </td>
+      <td>
+        {u.blockedDays && u.blockedDays.length > 0 ? (
+          <div className="d-flex gap-1 justify-content-center flex-wrap">
+            {u.blockedDays
+              .sort((a, b) => a - b)
+              .map((d) => {
+                // Convert 1=Mon..7=Sun to JS day index: 1→1, 2→2,...,6→6, 7→0
+                const jsIdx = d === 7 ? 0 : d;
+                return (
+                  <span
+                    key={d}
+                    className="badge bg-danger bg-opacity-75"
+                    style={{ fontSize: '0.6rem' }}
+                  >
+                    {DAY_SHORT_NAMES[jsIdx] || d}
+                  </span>
+                );
+              })}
+          </div>
+        ) : (
+          <span className="text-muted">—</span>
+        )}
       </td>
       <td>
         <span

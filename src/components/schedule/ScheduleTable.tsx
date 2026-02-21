@@ -48,6 +48,11 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
               {weekDates.map((date) => {
                 const d = new Date(date);
                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const dayMonth = d.toLocaleDateString('uk-UA', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: '2-digit',
+                });
                 return (
                   <th
                     key={date}
@@ -56,7 +61,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                       backgroundColor: isWeekend ? '#e9ecef' : '#f8f9fa',
                     }}
                   >
-                    {d.toLocaleDateString('uk-UA', { weekday: 'short', day: 'numeric' })}
+                    {dayMonth}
                   </th>
                 );
               })}

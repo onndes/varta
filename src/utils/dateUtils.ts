@@ -22,6 +22,13 @@ export const getWeekNumber = (d: Date): number => {
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 };
 
+/** Returns the ISO week-year (may differ from calendar year for week 1 / week 52-53 boundary dates) */
+export const getWeekYear = (d: Date): number => {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  return date.getUTCFullYear();
+};
+
 /**
  * Get Monday of a specific week in a year
  */

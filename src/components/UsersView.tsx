@@ -81,6 +81,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       restBeforeStatus: editingUser.restBeforeStatus,
       restAfterStatus: editingUser.restAfterStatus,
       blockedDays: editingUser.blockedDays,
+      statusComment: editingUser.status === 'OTHER' ? editingUser.statusComment : undefined,
     });
 
     if (editingUser.status !== 'ACTIVE' && editingUser.statusFrom) {
@@ -131,6 +132,7 @@ const UsersView: React.FC<UsersViewProps> = ({
               <tr>
                 <th className="text-start">Боєць</th>
                 <th>Статус</th>
+                <th>Блокування</th>
                 <th>Карма</th>
                 <th className="text-end">Дії</th>
               </tr>
@@ -166,6 +168,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                 <tr>
                   <th className="text-start">Боєць</th>
                   <th>Статус</th>
+                  <th>Блокування</th>
                   <th>Карма</th>
                   <th className="text-end">Дії</th>
                 </tr>

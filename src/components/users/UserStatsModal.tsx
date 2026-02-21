@@ -116,17 +116,28 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
 
   const dutyEvents = useMemo<TimelineEvent[]>(
     () =>
-      userSchedule.map((s) => ({
-        date: s.date,
-        title:
-          s.type === 'manual'
-            ? 'Ручне чергування'
-            : s.type === 'auto'
-              ? 'Авто чергування'
-              : 'Критичний день',
-        details: `Запис у графіку (${s.type})`,
-        tone: s.type === 'manual' ? 'primary' : s.type === 'auto' ? 'success' : 'warning',
-      })),
+      userSchedule.map((s) => {
+        const typeLabel: Record<string, string> = {
+          manual: 'Ручне чергування',
+          auto: 'Авто чергування',
+          replace: 'Заміна',
+          swap: 'Обмін',
+          critical: 'Критичний день',
+        };
+        const toneMap: Record<string, TimelineEvent['tone']> = {
+          manual: 'primary',
+          auto: 'success',
+          replace: 'warning',
+          swap: 'warning',
+          critical: 'danger',
+        };
+        return {
+          date: s.date,
+          title: typeLabel[s.type] || s.type,
+          details: `Запис у графіку (${s.type})`,
+          tone: toneMap[s.type] || 'secondary',
+        };
+      }),
     [userSchedule]
   );
 

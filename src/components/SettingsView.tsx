@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
 import * as performanceService from '../services/performanceService';
@@ -65,6 +65,49 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     setDebt(maxDebt);
   }, [maxDebt]);
 
+  // ─── Auto-save effects (debounced) ──────────────────────
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (JSON.stringify(weights) === JSON.stringify(dayWeights)) return;
+    const t = setTimeout(() => onSave(weights), 600);
+    return () => clearTimeout(t);
+  }, [weights]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (perDay === dutiesPerDay) return;
+    const t = setTimeout(() => onSaveDutiesPerDay(perDay), 600);
+    return () => clearTimeout(t);
+  }, [perDay]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (JSON.stringify(autoOpts) === JSON.stringify(autoScheduleOptions)) return;
+    const t = setTimeout(() => onSaveAutoScheduleOptions(autoOpts), 600);
+    return () => clearTimeout(t);
+  }, [autoOpts]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (debt === maxDebt) return;
+    const t = setTimeout(() => onSaveMaxDebt(debt), 600);
+    return () => clearTimeout(t);
+  }, [debt]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (JSON.stringify(sigs) === JSON.stringify(signatories)) return;
+    const t = setTimeout(() => onSaveSignatories(sigs), 600);
+    return () => clearTimeout(t);
+  }, [sigs]);
+
+  // Mark mounted LAST so the above effects skip on initial render
+  useEffect(() => {
+    mountedRef.current = true;
+  }, []);
+
   const { showAlert, showConfirm } = useDialog();
 
   const loadDatabaseStats = async () => {
@@ -92,19 +135,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       `Очищено:\n• Логів: ${results.logsDeleted}\n• Старих графіків: ${results.oldSchedulesDeleted}`
     );
     await loadDatabaseStats();
-  };
-
-  const handleSaveLogic = async () => {
-    await onSave(weights);
-    await onSaveDutiesPerDay(perDay);
-    await onSaveAutoScheduleOptions(autoOpts);
-    await onSaveMaxDebt(debt);
-    await showAlert('Налаштування логіки збережено!');
-  };
-
-  const handleSavePrint = async () => {
-    await onSaveSignatories(sigs);
-    await showAlert('Налаштування друку збережено!');
   };
 
   // ─── Sub-tab: Logic ────────────────────────────────────────
@@ -389,12 +419,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       </div>
-
-      <div className="text-end">
-        <button className="btn btn-primary btn-lg" onClick={handleSaveLogic}>
-          <i className="fas fa-save me-2"></i>Зберегти логіку
-        </button>
-      </div>
     </>
   );
 
@@ -531,12 +555,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <small className="text-muted">Додатковий рядок під підзаголовком (необов'язково)</small>
           </div>
         </div>
-      </div>
-
-      <div className="text-end">
-        <button className="btn btn-primary btn-lg" onClick={handleSavePrint}>
-          <i className="fas fa-save me-2"></i>Зберегти друк
-        </button>
       </div>
     </>
   );
