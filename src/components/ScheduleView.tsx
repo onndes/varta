@@ -703,6 +703,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         weekDates={weekDates}
         schedule={schedule}
         todayStr={todayStr}
+        dutiesPerDay={dutiesPerDay}
         onCellClick={(date, entry, assignedUserId) => {
           setSelectedCell({ date, entry, assignedUserId });
           setSwapMode('replace');

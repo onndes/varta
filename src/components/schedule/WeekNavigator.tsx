@@ -20,7 +20,9 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
   onJumpToWeek,
 }) => {
   const [displayYear, setDisplayYear] = useState(activeDate.getFullYear());
-  const weeks = Array.from({ length: 53 }, (_, i) => i + 1);
+  // Dec 28 is always in the last ISO week of the year — its week number = max weeks for that year
+  const maxWeeks = getWeekNumber(new Date(displayYear, 11, 28));
+  const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
   const currentWeek = getWeekNumber(currentDate);
   const activeWeek = getWeekNumber(activeDate);
   const isActiveYear = displayYear === activeDate.getFullYear();

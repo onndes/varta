@@ -68,6 +68,12 @@
     cursor: not-allowed;
   }
 
+  &.assigned.locked {
+    border-color: #ffc107;
+    background-color: #fff9e6;
+    color: #7a5c00;
+  }
+
   &.unavailable {
     background-color: #f5f5f5;
     color: #888;
@@ -79,6 +85,11 @@
     white-space: normal;
     cursor: not-allowed;
   }
+}
+
+.view-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .user-row-inactive {

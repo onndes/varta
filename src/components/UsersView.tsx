@@ -131,25 +131,36 @@ const UsersView: React.FC<UsersViewProps> = ({
             <thead className="table-light small">
               <tr>
                 <th className="text-start">Боєць</th>
-                <th>Статус</th>
-                <th>Блокування</th>
-                <th>Карма</th>
-                <th className="text-end">Дії</th>
+                <th style={{ width: '32%' }}>Статус</th>
+                <th style={{ width: '120px' }}>Блокування</th>
+                <th style={{ width: '76px' }}>Карма</th>
+                <th className="text-end" style={{ width: '116px' }}>
+                  Дії
+                </th>
               </tr>
             </thead>
             <tbody>
-              {users
-                .filter((u) => u.isActive)
-                .map((u) => (
-                  <UserRow
-                    key={u.id}
-                    user={u}
-                    onEdit={setEditingUser}
-                    onDelete={handleDelete}
-                    onViewStats={setViewStatsUser}
-                    onResetDebt={handleResetDebt}
-                  />
-                ))}
+              {users.filter((u) => u.isActive).length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center text-muted py-4">
+                    <i className="fas fa-users me-2"></i>Список порожній — додайте бійців за
+                    допомогою форми зліва
+                  </td>
+                </tr>
+              ) : (
+                users
+                  .filter((u) => u.isActive)
+                  .map((u) => (
+                    <UserRow
+                      key={u.id}
+                      user={u}
+                      onEdit={setEditingUser}
+                      onDelete={handleDelete}
+                      onViewStats={setViewStatsUser}
+                      onResetDebt={handleResetDebt}
+                    />
+                  ))
+              )}
             </tbody>
           </table>
         </div>
@@ -167,10 +178,12 @@ const UsersView: React.FC<UsersViewProps> = ({
               <thead className="table-light small">
                 <tr>
                   <th className="text-start">Боєць</th>
-                  <th>Статус</th>
-                  <th>Блокування</th>
-                  <th>Карма</th>
-                  <th className="text-end">Дії</th>
+                  <th style={{ width: '32%' }}>Статус</th>
+                  <th style={{ width: '120px' }}>Блокування</th>
+                  <th style={{ width: '76px' }}>Карма</th>
+                  <th className="text-end" style={{ width: '116px' }}>
+                    Дії
+                  </th>
                 </tr>
               </thead>
               <tbody>

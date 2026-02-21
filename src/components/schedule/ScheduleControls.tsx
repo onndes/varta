@@ -43,7 +43,15 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
 
   return (
     <div className="card border-0 shadow-sm p-3 mb-3 no-print">
-      <div className="d-flex justify-content-between align-items-center mb-2">
+      <div
+        className="mb-2"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
         <div className="d-flex align-items-center gap-2">
           <button className="btn btn-outline-secondary btn-sm" onClick={onPrevWeek}>
             <i className="fas fa-chevron-left"></i>
@@ -62,10 +70,11 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             value={weekDates[0]}
           />
         </div>
-        <div className="fw-bold fs-5">
+        <div className="fw-bold fs-5 text-center">
           {startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} —{' '}
           {endDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
+        <div />
       </div>
 
       <div className="d-flex justify-content-end gap-2 flex-wrap">

@@ -68,7 +68,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         {!user.isActive && (
           <span
             className="badge bg-secondary text-white ms-2 no-print"
-            style={{ fontSize: '0.6rem' }}
+            style={{ fontSize: '0.65rem' }}
           >
             ВІДСУТНІЙ
           </span>
@@ -76,13 +76,16 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         {user.excludeFromAuto && (
           <span
             className="badge bg-warning text-dark ms-2 no-print"
-            style={{ fontSize: '0.55rem', opacity: 0.7 }}
+            style={{ fontSize: '0.65rem', opacity: 0.75 }}
           >
-            виключ. з авторозп.
+            без авторозп.
           </span>
         )}
         {statusLabel && (
-          <span className="badge bg-warning text-dark ms-2 no-print" style={{ fontSize: '0.6rem' }}>
+          <span
+            className="badge bg-warning text-dark ms-2 no-print"
+            style={{ fontSize: '0.65rem' }}
+          >
             {statusLabel}
           </span>
         )}
