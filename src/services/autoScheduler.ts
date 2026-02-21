@@ -568,11 +568,20 @@ export const recalculateScheduleFrom = async (
   // Delete unlocked entries
   await db.schedule.bulkDelete(datesToRegen);
 
+  // Build a fresh schedule copy without the deleted entries so autoFillSchedule
+  // sees those dates as empty and actually assigns users to them.
+  // Without this, the stale in-memory schedule would make autoFillSchedule think
+  // the deleted slots are already filled (slotsToFill = 0) and skip them entirely.
+  const freshSchedule = { ...schedule };
+  for (const date of datesToRegen) {
+    delete freshSchedule[date];
+  }
+
   // Regenerate
   const updates = await autoFillSchedule(
     datesToRegen,
     users,
-    schedule,
+    freshSchedule,
     dayWeights,
     dutiesPerDay,
     options
