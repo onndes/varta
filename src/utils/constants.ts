@@ -90,6 +90,9 @@ export const DEFAULT_DUTIES_PER_DAY = 1;
 /** Мінімальний відпочинок між нарядами (днів) */
 export const DEFAULT_MIN_REST_DAYS = 1;
 
+/** Максимум рядків на сторінці таблиці чергувань (друк) */
+export const DEFAULT_PRINT_MAX_ROWS = 12;
+
 /** Опції авто-розкладу за замовчуванням */
 export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   avoidConsecutiveDays: true,

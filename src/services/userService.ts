@@ -178,10 +178,15 @@ export const getUserAvailabilityStatus = (
 ): 'AVAILABLE' | 'UNAVAILABLE' | 'STATUS_BUSY' | 'PRE_STATUS_DAY' | 'REST_DAY' | 'DAY_BLOCKED' => {
   if (!user.isActive) return 'UNAVAILABLE';
 
-  // Заблокований день тижня
+  // Заблокований день тижня (з урахуванням періоду)
   if (user.blockedDays && user.blockedDays.length > 0) {
     const dayIdx = toIsoDayIdx(new Date(dateStr).getDay());
-    if (user.blockedDays.includes(dayIdx)) return 'DAY_BLOCKED';
+    if (user.blockedDays.includes(dayIdx)) {
+      // Якщо вказано період — перевірити чи дата потрапляє в нього
+      const from = user.blockedDaysFrom || MIN_DATE;
+      const to = user.blockedDaysTo || MAX_DATE;
+      if (dateStr >= from && dateStr <= to) return 'DAY_BLOCKED';
+    }
   }
 
   if (user.status === 'ACTIVE') return 'AVAILABLE';

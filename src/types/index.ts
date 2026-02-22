@@ -19,6 +19,10 @@ export interface Signatories {
   scheduleTitle?: string;
   scheduleSubtitle?: string;
   scheduleLine3?: string;
+  // Підписант для довідки по складу (окремий від графіка)
+  reportCreatorPos?: string;
+  reportCreatorRank?: string;
+  reportCreatorName?: string;
 }
 
 // Теперь value имеет конкретные возможные типы вместо any
@@ -41,6 +45,8 @@ export interface User {
   restBeforeStatus?: boolean;
   restAfterStatus?: boolean;
   blockedDays?: number[]; // Array of day indices (1=Mon, 7=Sun)
+  blockedDaysFrom?: string; // Початок періоду блокування (ISO date)
+  blockedDaysTo?: string; // Кінець періоду блокування (ISO date)
   blockedDaysComment?: string; // Коментар до заблокованих днів
   owedDays?: Record<number, number>;
   isExtra?: boolean; // Special participant (trainee, driver) - manual assignment only

@@ -34,12 +34,14 @@ const App = () => {
     dutiesPerDay,
     autoScheduleOptions,
     maxDebt,
+    printMaxRows,
     loadSettings,
     saveDayWeights,
     saveSignatories,
     saveDutiesPerDay,
     saveAutoScheduleOptions,
     saveMaxDebt,
+    savePrintMaxRows,
     updateCascadeTrigger,
     clearCascadeTrigger,
   } = useSettings();
@@ -149,6 +151,7 @@ const App = () => {
               autoScheduleOptions={autoScheduleOptions}
               dutiesPerDay={dutiesPerDay}
               printMode={printMode}
+              printMaxRows={printMaxRows}
             />
           )}
           {activeTab === 'users' && (
@@ -171,17 +174,30 @@ const App = () => {
               dutiesPerDay={dutiesPerDay}
               autoScheduleOptions={autoScheduleOptions}
               maxDebt={maxDebt}
+              printMaxRows={printMaxRows}
               onSave={saveDayWeights}
               onSaveSignatories={saveSignatories}
               onSaveDutiesPerDay={saveDutiesPerDay}
               onSaveAutoScheduleOptions={saveAutoScheduleOptions}
               onSaveMaxDebt={saveMaxDebt}
+              onSavePrintMaxRows={savePrintMaxRows}
               logAction={logAction}
             />
           )}
           {activeTab === 'logs' && <AuditLogView />}
           {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
         </div>
+
+        {/* Футер додатку */}
+        <footer
+          className="text-center text-muted py-3 mt-4 border-top no-print"
+          style={{ fontSize: '0.75rem', opacity: 0.5 }}
+        >
+          ВАРТА v1.0 · Vladyslav V.V. ·{' '}
+          <a href="mailto:vladvyljotnikov@gmail.com" className="text-muted">
+            vladvyljotnikov@gmail.com
+          </a>
+        </footer>
       </div>
     </div>
   );

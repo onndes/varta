@@ -12,11 +12,13 @@ interface SettingsViewProps {
   dutiesPerDay: number;
   autoScheduleOptions: AutoScheduleOptions;
   maxDebt: number;
+  printMaxRows: number;
   onSave: (w: DayWeights) => Promise<void>;
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
   onSaveMaxDebt: (value: number) => Promise<void>;
+  onSavePrintMaxRows: (value: number) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
 }
 
@@ -28,11 +30,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   dutiesPerDay,
   autoScheduleOptions,
   maxDebt,
+  printMaxRows,
   onSave,
   onSaveSignatories,
   onSaveDutiesPerDay,
   onSaveAutoScheduleOptions,
   onSaveMaxDebt,
+  onSavePrintMaxRows,
   logAction,
 }) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
@@ -41,6 +45,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [perDay, setPerDay] = useState<number>(dutiesPerDay);
   const [autoOpts, setAutoOpts] = useState<AutoScheduleOptions>(autoScheduleOptions);
   const [debt, setDebt] = useState<number>(maxDebt);
+  const [maxRows, setMaxRows] = useState<number>(printMaxRows);
 
   // DB maintenance modal
   const [showDbModal, setShowDbModal] = useState(false);
@@ -66,6 +71,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     setDebt(maxDebt);
   }, [maxDebt]);
+
+  useEffect(() => {
+    setMaxRows(printMaxRows);
+  }, [printMaxRows]);
 
   // ─── Auto-save effects (debounced) ──────────────────────
   const mountedRef = useRef(false);
@@ -109,6 +118,16 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     }, 600);
     return () => clearTimeout(t);
   }, [debt]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (maxRows === printMaxRows) return;
+    const t = setTimeout(() => {
+      onSavePrintMaxRows(maxRows);
+      logAction('SETTINGS', `Рядків на сторінці (друк): ${maxRows}`);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [maxRows]);
 
   useEffect(() => {
     if (!mountedRef.current) return;
@@ -310,12 +329,71 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             />
             <label className="form-check-label" htmlFor="considerLoad">
               <strong>Враховувати навантаження</strong>
+              {!autoOpts.considerLoad && (
+                <span className="text-danger small fw-bold ms-2">
+                  (вимкнення ламає справедливість розподілу!)
+                </span>
+              )}
               <div className="text-muted small">
                 Спочатку по кількості чергувань на день тижня (драбинка), потім по загальній
                 кількості, потім по вазі + карма. Вимкніть лише для тестування.
               </div>
             </label>
           </div>
+
+          {/* Агресивне балансування (вкладене під considerLoad) */}
+          {autoOpts.considerLoad && (
+            <div className="ms-4 mb-3 p-3 bg-light rounded">
+              <div className="form-check form-switch mb-2">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="aggressiveBalance"
+                  checked={autoOpts.aggressiveLoadBalancing}
+                  onChange={(e) =>
+                    setAutoOpts({ ...autoOpts, aggressiveLoadBalancing: e.target.checked })
+                  }
+                />
+                <label className="form-check-label" htmlFor="aggressiveBalance">
+                  <strong>Агресивне балансування</strong>
+                  {autoOpts.aggressiveLoadBalancing && (
+                    <span className="text-danger small fw-bold ms-2">
+                      (може ігнорувати інші пріоритети!)
+                    </span>
+                  )}
+                  <div className="text-muted small">
+                    Примусово вирівнює навантаження, ігноруючи стандартні пріоритети, якщо різниця
+                    більша за поріг.
+                  </div>
+                </label>
+              </div>
+              {autoOpts.aggressiveLoadBalancing && (
+                <div className="ms-4 mt-2">
+                  <label className="form-label fw-bold small">Поріг різниці</label>
+                  <div className="d-flex align-items-center gap-3">
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0.05"
+                      max="1.0"
+                      className="form-control form-control-sm"
+                      style={{ width: '80px' }}
+                      value={autoOpts.aggressiveLoadBalancingThreshold}
+                      onChange={(e) =>
+                        setAutoOpts({
+                          ...autoOpts,
+                          aggressiveLoadBalancingThreshold: parseFloat(e.target.value) || 0.2,
+                        })
+                      }
+                    />
+                    <span className="text-muted small">
+                      Менше значення = жорсткіше вирівнювання (0.2 за замовчуванням)
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="form-check form-switch mb-3">
             <input
@@ -418,7 +496,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="card-body">
           <div className="row">
             <div className="col-md-4">
-              <label className="form-label fw-bold">Максимальний борг</label>
+              <label className="form-label fw-bold">
+                Максимальний борг
+                {debt > 10 && (
+                  <span className="text-danger small fw-bold ms-2">(занадто високе значення!)</span>
+                )}
+              </label>
               <input
                 type="number"
                 step="0.5"
@@ -570,6 +653,85 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               placeholder="Наприклад: в/ч А1234 на період з ... по ..."
             />
             <small className="text-muted">Додатковий рядок під підзаголовком (необов'язково)</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Report Creator (Довідку склав) */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-file-signature me-2"></i>ДОВІДКУ СКЛАВ (Довідка по складу)
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-info py-2 small mb-3">
+            Підпис внизу довідки по особовому складу. Якщо не заповнено — друкуються порожні лінії
+            для ручного заповнення.
+          </div>
+          <div className="mb-2">
+            <label className="small text-muted">Посада</label>
+            <input
+              className="form-control form-control-sm"
+              value={sigs.reportCreatorPos || ''}
+              onChange={(e) => setSigs({ ...sigs, reportCreatorPos: e.target.value })}
+              placeholder="Наприклад: Старшина роти"
+            />
+          </div>
+          <div className="row g-2">
+            <div className="col-5">
+              <label className="small text-muted">Звання</label>
+              <select
+                className="form-select form-select-sm"
+                value={sigs.reportCreatorRank || ''}
+                onChange={(e) => setSigs({ ...sigs, reportCreatorRank: e.target.value })}
+              >
+                <option value="">-- Виберіть --</option>
+                {RANKS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-7">
+              <label className="small text-muted">Ім'я ПРІЗВИЩЕ</label>
+              <input
+                className="form-control form-control-sm"
+                value={sigs.reportCreatorName || ''}
+                onChange={(e) => setSigs({ ...sigs, reportCreatorName: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Print: Max Rows per Page */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-table me-2"></i>Таблиця чергувань (друк)
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="row">
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Максимум бійців на сторінці</label>
+              <input
+                type="number"
+                min="5"
+                max="25"
+                className="form-control"
+                value={maxRows}
+                onChange={(e) =>
+                  setMaxRows(Math.max(5, Math.min(25, parseInt(e.target.value) || 12)))
+                }
+              />
+              <div className="form-text">
+                Якщо бійців не більше ліміту — друкуються всі. Якщо більше — тільки ті, хто
+                призначений на цей тиждень (завжди одна сторінка).
+              </div>
+            </div>
           </div>
         </div>
       </div>

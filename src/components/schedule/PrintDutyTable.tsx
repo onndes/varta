@@ -2,10 +2,7 @@ import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import { formatRank, splitFormattedName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
-import { RANK_WEIGHTS, DAY_NAMES_FULL } from '../../utils/constants';
-
-/** Максимум бійців на одній сторінці таблиці */
-const MAX_ROWS_PER_PAGE = 12;
+import { RANK_WEIGHTS, DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS } from '../../utils/constants';
 
 /** Час заступання (відображається у кожній комірці) */
 const DUTY_TIME = '08.00';
@@ -14,20 +11,11 @@ interface PrintDutyTableProps {
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
   users: User[];
-  /** Показувати затвердження/підписи (false для overflow-сторінок) */
-  showSignatures?: boolean;
+  /** Ліміт рядків, що вміщуються на одну сторінку */
+  maxRowsPerPage?: number;
 }
 
 // ── Допоміжні ─────────────────────────────────────────────────────────
-
-/** Розбити масив на частини по N елементів */
-const chunkArray = <T,>(arr: T[], size: number): T[][] => {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
-};
 
 /** Сортувати бійців за вагою звання (вище звання — першим) */
 const sortByRank = (list: User[]): User[] =>
@@ -45,16 +33,15 @@ const collectScheduledIds = (
   return ids;
 };
 
-// ── Одна сторінка таблиці ─────────────────────────────────────────────
+// ── Таблиця ───────────────────────────────────────────────────────────
 
 interface TablePageProps {
   users: User[];
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
-  startIndex: number;
 }
 
-const DutyTablePage: React.FC<TablePageProps> = ({ users, weekDates, schedule, startIndex }) => {
+const DutyTable: React.FC<TablePageProps> = ({ users, weekDates, schedule }) => {
   return (
     <table className="print-duty-table">
       <thead>
@@ -86,7 +73,7 @@ const DutyTablePage: React.FC<TablePageProps> = ({ users, weekDates, schedule, s
 
           return (
             <tr key={user.id}>
-              <td className="col-num">{startIndex + idx + 1}.</td>
+              <td className="col-num">{idx + 1}.</td>
               <td className="col-rank">{formatRank(user.rank)}</td>
               <td className="col-name">{fullName}</td>
               {weekDates.map((date) => {
@@ -110,51 +97,35 @@ const DutyTablePage: React.FC<TablePageProps> = ({ users, weekDates, schedule, s
 // ── Головний компонент ────────────────────────────────────────────────
 
 /**
- * Друк: таблиця чергувань (як офіційний документ ЗСУ).
+ * Друк: таблиця чергувань (одна сторінка).
  *
- * Якщо бійців > MAX_ROWS_PER_PAGE:
- * - перша сторінка = тільки ті, хто в графіку цього тижня
- * - решта — на окремих сторінках без затверджень
+ * - Якщо бійців ≤ ліміту — показує всіх;
+ * - Якщо бійців > ліміту — показує лише тих, хто в графіку цього тижня.
  */
-const PrintDutyTable: React.FC<PrintDutyTableProps> = ({ weekDates, schedule, users }) => {
+const PrintDutyTable: React.FC<PrintDutyTableProps> = ({
+  weekDates,
+  schedule,
+  users,
+  maxRowsPerPage = DEFAULT_PRINT_MAX_ROWS,
+}) => {
   const activeUsers = sortByRank(users.filter((u) => u.isActive));
-  const scheduledIds = collectScheduledIds(weekDates, schedule);
 
-  // Якщо всі поміщаються — одна таблиця
-  if (activeUsers.length <= MAX_ROWS_PER_PAGE) {
+  // Якщо всі поміщаються — показуємо всіх
+  if (activeUsers.length <= maxRowsPerPage) {
     return (
       <div className="print-only print-duty-table-wrapper">
-        <DutyTablePage
-          users={activeUsers}
-          weekDates={weekDates}
-          schedule={schedule}
-          startIndex={0}
-        />
+        <DutyTable users={activeUsers} weekDates={weekDates} schedule={schedule} />
       </div>
     );
   }
 
-  // Розділити: перша сторінка = ті хто в графіку, решта — overflow
+  // Забагато бійців — показуємо лише тих, хто призначений на цей тиждень
+  const scheduledIds = collectScheduledIds(weekDates, schedule);
   const scheduled = sortByRank(activeUsers.filter((u) => scheduledIds.has(u.id!)));
-  const remaining = sortByRank(activeUsers.filter((u) => !scheduledIds.has(u.id!)));
-  const overflowPages = chunkArray(remaining, MAX_ROWS_PER_PAGE);
 
   return (
     <div className="print-only print-duty-table-wrapper">
-      {/* Перша сторінка: бійці з графіку */}
-      <DutyTablePage users={scheduled} weekDates={weekDates} schedule={schedule} startIndex={0} />
-
-      {/* Overflow: решта бійців на окремих сторінках (без підписів) */}
-      {overflowPages.map((chunk, pageIdx) => (
-        <div key={pageIdx} className="print-overflow-page">
-          <DutyTablePage
-            users={chunk}
-            weekDates={weekDates}
-            schedule={schedule}
-            startIndex={scheduled.length + pageIdx * MAX_ROWS_PER_PAGE}
-          />
-        </div>
-      ))}
+      <DutyTable users={scheduled} weekDates={weekDates} schedule={schedule} />
     </div>
   );
 };

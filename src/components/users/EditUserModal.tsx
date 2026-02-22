@@ -6,13 +6,12 @@ import Modal from '../Modal';
 interface EditUserModalProps {
   user: User;
   onChange: (user: User) => void;
-  onSave: () => void;
   onClose: () => void;
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, onClose }) => {
+const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onClose }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const dateFromRef = useRef<HTMLInputElement | null>(null);
   const dateToRef = useRef<HTMLInputElement | null>(null);
@@ -22,7 +21,19 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
     const newBlocked = blockedDays.includes(dayIdx)
       ? blockedDays.filter((d) => d !== dayIdx)
       : [...blockedDays, dayIdx].sort();
-    onChange({ ...user, blockedDays: newBlocked });
+
+    // Якщо всі дні знято — скинути період і коментар
+    if (newBlocked.length === 0) {
+      onChange({
+        ...user,
+        blockedDays: [],
+        blockedDaysFrom: undefined,
+        blockedDaysTo: undefined,
+        blockedDaysComment: undefined,
+      });
+    } else {
+      onChange({ ...user, blockedDays: newBlocked });
+    }
   };
 
   return (
@@ -244,15 +255,45 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
             })}
           </div>
           {blockedDays.length > 0 && (
-            <div className="mt-2">
-              <input
-                className="form-control form-control-sm"
-                value={user.blockedDaysComment || ''}
-                onChange={(e) => onChange({ ...user, blockedDaysComment: e.target.value })}
-                placeholder="Причина блокування (необов'язково)"
-                maxLength={100}
-              />
-            </div>
+            <>
+              {/* Період блокування */}
+              <div className="row mt-2 g-2">
+                <div className="col-6">
+                  <label className="small text-muted">Діє з</label>
+                  <input
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={user.blockedDaysFrom || ''}
+                    onChange={(e) =>
+                      onChange({ ...user, blockedDaysFrom: e.target.value || undefined })
+                    }
+                  />
+                </div>
+                <div className="col-6">
+                  <label className="small text-muted">Діє до</label>
+                  <input
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={user.blockedDaysTo || ''}
+                    onChange={(e) =>
+                      onChange({ ...user, blockedDaysTo: e.target.value || undefined })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="small text-muted mt-1">Якщо не вказано — блокування діє постійно</div>
+
+              {/* Коментар */}
+              <div className="mt-2">
+                <input
+                  className="form-control form-control-sm"
+                  value={user.blockedDaysComment || ''}
+                  onChange={(e) => onChange({ ...user, blockedDaysComment: e.target.value })}
+                  placeholder="Причина блокування (необов'язково)"
+                  maxLength={100}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -299,11 +340,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onSave, o
           </div>
         </div>
       )}
-
-      <button className="btn btn-primary w-100" onClick={onSave}>
-        <i className="fas fa-save me-2"></i>
-        ЗБЕРЕГТИ
-      </button>
     </Modal>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { useUsers } from '../hooks';
 import AddUserForm from './users/AddUserForm';
@@ -30,8 +30,63 @@ const UsersView: React.FC<UsersViewProps> = ({
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
+  const editingUserRef = useRef<User | null>(null);
 
   const { showConfirm } = useDialog();
+
+  // ─── Auto-save: зберігати зміни бійця автоматично (debounce 600ms) ───
+  const saveUser = useCallback(
+    async (user: User) => {
+      if (!user.id) return;
+      await updateUser(user.id, {
+        name: user.name,
+        rank: user.rank,
+        status: user.status,
+        statusFrom: user.statusFrom,
+        statusTo: user.statusTo,
+        isActive: user.isActive,
+        excludeFromAuto: user.excludeFromAuto,
+        note: user.note,
+        restBeforeStatus: user.restBeforeStatus,
+        restAfterStatus: user.restAfterStatus,
+        blockedDays: user.blockedDays,
+        blockedDaysFrom: user.blockedDaysFrom,
+        blockedDaysTo: user.blockedDaysTo,
+        blockedDaysComment: user.blockedDaysComment,
+        statusComment: user.status === 'OTHER' ? user.statusComment : undefined,
+      });
+
+      if (user.status !== 'ACTIVE' && user.statusFrom) {
+        await updateCascadeTrigger(user.statusFrom);
+      } else {
+        await updateCascadeTrigger(new Date().toISOString().split('T')[0]);
+      }
+
+      await refreshData();
+    },
+    [updateUser, updateCascadeTrigger, refreshData]
+  );
+
+  useEffect(() => {
+    // Пропустити перший рендер (відкриття модалки)
+    if (!editingUser?.id) {
+      editingUserRef.current = editingUser;
+      return;
+    }
+    if (!editingUserRef.current?.id) {
+      editingUserRef.current = editingUser;
+      return;
+    }
+    // Пропустити якщо нічого не змінилось
+    if (JSON.stringify(editingUser) === JSON.stringify(editingUserRef.current)) return;
+    editingUserRef.current = editingUser;
+
+    const t = setTimeout(() => {
+      saveUser(editingUser);
+      logAction('EDIT', `Редаговано: ${editingUser.name}`);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [editingUser]);
 
   const handleAdd = async (name: string, rank: string, note: string) => {
     // Set dateAddedToAuto to the day AFTER the last existing schedule entry.
@@ -64,34 +119,6 @@ const UsersView: React.FC<UsersViewProps> = ({
       dateAddedToAuto,
     });
     await logAction('ADD', `Додано: ${name}`);
-    await refreshData();
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingUser?.id) return;
-
-    await updateUser(editingUser.id, {
-      rank: editingUser.rank,
-      status: editingUser.status,
-      statusFrom: editingUser.statusFrom,
-      statusTo: editingUser.statusTo,
-      isActive: editingUser.isActive,
-      excludeFromAuto: editingUser.excludeFromAuto,
-      note: editingUser.note,
-      restBeforeStatus: editingUser.restBeforeStatus,
-      restAfterStatus: editingUser.restAfterStatus,
-      blockedDays: editingUser.blockedDays,
-      statusComment: editingUser.status === 'OTHER' ? editingUser.statusComment : undefined,
-    });
-
-    if (editingUser.status !== 'ACTIVE' && editingUser.statusFrom) {
-      await updateCascadeTrigger(editingUser.statusFrom);
-    } else {
-      await updateCascadeTrigger(new Date().toISOString().split('T')[0]);
-    }
-
-    await logAction('EDIT', `Редаговано: ${editingUser.name}`);
-    setEditingUser(null);
     await refreshData();
   };
 
@@ -209,7 +236,6 @@ const UsersView: React.FC<UsersViewProps> = ({
         <EditUserModal
           user={editingUser}
           onChange={setEditingUser}
-          onSave={handleSaveEdit}
           onClose={() => setEditingUser(null)}
         />
       )}

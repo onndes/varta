@@ -8,6 +8,7 @@ import {
   DEFAULT_DUTIES_PER_DAY,
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
   DEFAULT_MAX_DEBT,
+  DEFAULT_PRINT_MAX_ROWS,
 } from '../utils/constants';
 
 /**
@@ -64,6 +65,14 @@ export const getAutoScheduleOptions = async (): Promise<AutoScheduleOptions> => 
 
 export const saveAutoScheduleOptions = async (opts: AutoScheduleOptions): Promise<void> =>
   saveSetting('autoScheduleOptions', opts);
+
+// ── Print settings ────────────────────────────────────────────────────
+
+export const getPrintMaxRows = async (): Promise<number> =>
+  getJsonSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
+
+export const savePrintMaxRows = async (value: number): Promise<void> =>
+  saveSetting('printMaxRows', value);
 
 // ── Scalar settings ───────────────────────────────────────────────────
 
@@ -124,4 +133,5 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
   await saveSetting('autoScheduleOptions', DEFAULT_AUTO_SCHEDULE_OPTIONS);
   await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
+  await saveSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
 };

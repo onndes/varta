@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
 import * as settingsService from '../services/settingsService';
-import { DEFAULT_AUTO_SCHEDULE_OPTIONS, DEFAULT_MAX_DEBT } from '../utils/constants';
+import {
+  DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  DEFAULT_MAX_DEBT,
+  DEFAULT_PRINT_MAX_ROWS,
+} from '../utils/constants';
 
 /**
  * Custom hook for managing application settings
@@ -27,6 +31,7 @@ export const useSettings = () => {
     DEFAULT_AUTO_SCHEDULE_OPTIONS
   );
   const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
+  const [printMaxRows, setPrintMaxRows] = useState<number>(DEFAULT_PRINT_MAX_ROWS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,13 +41,14 @@ export const useSettings = () => {
       setLoading(true);
       setError(null);
 
-      const [weights, sigs, cascadeDate, perDay, autoOpts, debt] = await Promise.all([
+      const [weights, sigs, cascadeDate, perDay, autoOpts, debt, maxRows] = await Promise.all([
         settingsService.getDayWeights(),
         settingsService.getSignatories(),
         settingsService.getCascadeStartDate(),
         settingsService.getDutiesPerDay(),
         settingsService.getAutoScheduleOptions(),
         settingsService.getMaxDebt(),
+        settingsService.getPrintMaxRows(),
       ]);
 
       setDayWeights(weights);
@@ -51,6 +57,7 @@ export const useSettings = () => {
       setDutiesPerDay(perDay);
       setAutoScheduleOptions(autoOpts);
       setMaxDebt(debt);
+      setPrintMaxRows(maxRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -150,6 +157,17 @@ export const useSettings = () => {
     }
   }, []);
 
+  // Save print max rows
+  const savePrintMaxRows = useCallback(async (value: number) => {
+    try {
+      await settingsService.savePrintMaxRows(value);
+      setPrintMaxRows(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save print max rows');
+      throw err;
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     loadSettings();
@@ -162,12 +180,14 @@ export const useSettings = () => {
     dutiesPerDay,
     autoScheduleOptions,
     maxDebt,
+    printMaxRows,
     loading,
     error,
     loadSettings,
     saveDayWeights,
     saveSignatories,
     saveDutiesPerDay,
+    savePrintMaxRows,
     saveAutoScheduleOptions,
     saveMaxDebt,
     updateCascadeTrigger,

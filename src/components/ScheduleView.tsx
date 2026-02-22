@@ -49,6 +49,7 @@ interface ScheduleViewProps {
   autoScheduleOptions?: AutoScheduleOptions;
   dutiesPerDay: number;
   printMode: PrintMode;
+  printMaxRows: number;
 }
 
 interface SelectedCell {
@@ -77,6 +78,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   dutiesPerDay,
   printMode,
+  printMaxRows,
 }) => {
   // Direct service operations (no duplicate useSchedule hook)
   const calculateEffectiveLoad = useCallback(
@@ -731,12 +733,22 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
       {/* Друк: таблиця чергувань */}
       {printMode === 'duty-table' && (
-        <PrintDutyTable weekDates={weekDates} schedule={schedule} users={users} />
+        <PrintDutyTable
+          weekDates={weekDates}
+          schedule={schedule}
+          users={users}
+          maxRowsPerPage={printMaxRows}
+        />
       )}
 
       {/* Друк: довідка по складу */}
       {printMode === 'status-list' && (
-        <PrintStatusList users={users} schedule={schedule} weekDates={weekDates} />
+        <PrintStatusList
+          users={users}
+          schedule={schedule}
+          weekDates={weekDates}
+          signatories={signatories}
+        />
       )}
 
       {/* Друк: підписи (для календаря та таблиці чергувань) */}

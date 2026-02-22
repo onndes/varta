@@ -1,13 +1,14 @@
 import React from 'react';
-import type { User, ScheduleEntry } from '../../types';
+import type { User, ScheduleEntry, Signatories } from '../../types';
 import { formatRank, splitFormattedName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
-import { RANK_WEIGHTS, STATUSES } from '../../utils/constants';
+import { RANK_WEIGHTS, STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
 
 interface PrintStatusListProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
   weekDates: string[];
+  signatories: Signatories;
 }
 
 /** Інформація про статус/подію бійця */
@@ -30,6 +31,13 @@ const formatFullName = (name: string): string => {
   const { surname, firstName, middleName } = splitFormattedName(name);
   return [surname, firstName, middleName].filter(Boolean).join(' ');
 };
+
+/** Перетворити ISO-індекс дня (1=Пн..7=Нд) → JS-індекс (0=Нд..6=Сб) */
+const isoToJsDayIndex = (iso: number): number => (iso === 7 ? 0 : iso);
+
+/** Форматувати заблоковані дні у скорочений вигляд: «ПН, СР, ПТ» */
+const formatBlockedDays = (days: number[]): string =>
+  days.map((d) => DAY_SHORT_NAMES[isoToJsDayIndex(d)] || `${d}`).join(', ');
 
 /** Зібрати замін/обмінів з розкладу */
 const collectSwaps = (
@@ -67,15 +75,73 @@ const collectSwaps = (
   return rows;
 };
 
+/** Зібрати бійців із заблокованими днями (навіть якщо статус ACTIVE) */
+const collectBlockedRows = (users: User[]): StatusRow[] =>
+  users
+    .filter((u) => u.isActive && u.blockedDays && u.blockedDays.length > 0)
+    .sort((a, b) => (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0))
+    .map((user) => ({
+      user,
+      reason: `Блок: ${formatBlockedDays(user.blockedDays!)}`,
+      from: formatDate(user.blockedDaysFrom),
+      to: formatDate(user.blockedDaysTo),
+      comment: [user.note, user.blockedDaysComment].filter(Boolean).join('. '),
+    }));
+
+// ── Футер з підписом ──────────────────────────────────────────────────
+
+/** Підпис «Довідку склав:» — аналогічно до PrintFooter */
+const ReportCreatorFooter: React.FC<{ signatories: Signatories }> = ({ signatories }) => {
+  const rankLower = (r: string) => (r ? r.charAt(0).toLowerCase() + r.slice(1) : '');
+  const hasFilled =
+    signatories.reportCreatorPos || signatories.reportCreatorRank || signatories.reportCreatorName;
+
+  return (
+    <div className="print-status-footer">
+      <div className="status-footer-label">Довідку склав:</div>
+      {hasFilled ? (
+        <>
+          {signatories.reportCreatorPos && (
+            <div className="creator-pos">{signatories.reportCreatorPos}</div>
+          )}
+          <div className="creator-filled-row">
+            {signatories.reportCreatorRank ? (
+              <span>{rankLower(signatories.reportCreatorRank)}&nbsp;&nbsp;</span>
+            ) : null}
+            <span style={{ width: '80px', display: 'inline-block' }}></span>
+            {signatories.reportCreatorName ? (
+              <span>&nbsp;&nbsp;{signatories.reportCreatorName}</span>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="creator-line-empty"></div>
+          <div className="creator-row">
+            <div className="creator-line-empty"></div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 // ── Компонент ─────────────────────────────────────────────────────────
 
 /**
  * Друк: довідка по особовому складу.
  *
- * Показує бійців з не-активними статусами (відпустка, лікування тощо)
- * та інформацію про заміни/обміни на поточний тиждень.
+ * Показує:
+ * - Бійців з не-активними статусами (відпустка, лікування тощо)
+ * - Бійців із заблокованими днями (з причиною)
+ * - Інформацію про заміни/обміни на поточний тиждень
  */
-const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, weekDates }) => {
+const PrintStatusList: React.FC<PrintStatusListProps> = ({
+  users,
+  schedule,
+  weekDates,
+  signatories,
+}) => {
   const usersMap = new Map(users.map((u) => [u.id!, u]));
 
   // Бійці з не-активними статусами
@@ -87,13 +153,16 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, week
       reason: STATUSES[user.status] || user.status,
       from: formatDate(user.statusFrom),
       to: formatDate(user.statusTo),
-      comment: user.statusComment || '',
+      comment: [user.note, user.statusComment].filter(Boolean).join('. '),
     }));
+
+  // Бійці із заблокованими днями
+  const blockedRows = collectBlockedRows(users);
 
   // Заміни/обміни за тиждень
   const swapRows = collectSwaps(weekDates, schedule, usersMap);
 
-  const allRows = [...statusRows, ...swapRows];
+  const allRows = [...statusRows, ...blockedRows, ...swapRows];
 
   const todayFormatted = new Date().toLocaleDateString('uk-UA', {
     day: '2-digit',
@@ -103,6 +172,7 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, week
 
   const activeCount = users.filter((u) => u.status === 'ACTIVE' && u.isActive).length;
   const excludedCount = users.filter((u) => !u.isActive).length;
+  const blockedCount = blockedRows.length;
 
   return (
     <div className="print-only print-status-list-wrapper">
@@ -153,6 +223,11 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, week
             Відсутні: <strong>{statusRows.length}</strong>
           </p>
         )}
+        {blockedCount > 0 && (
+          <p>
+            Із заблокованими днями: <strong>{blockedCount}</strong>
+          </p>
+        )}
         {excludedCount > 0 && (
           <p>
             Виключений зі списків: <strong>{excludedCount}</strong>
@@ -160,17 +235,8 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({ users, schedule, week
         )}
       </div>
 
-      {/* Підпис — «Довідку склав:» */}
-      <div className="print-status-footer">
-        <div className="status-footer-label">Довідку склав:</div>
-        <div className="status-footer-line"></div>
-        <div className="status-footer-row">
-          <span className="status-footer-hint">(посада)</span>
-          <span className="status-footer-hint">(звання)</span>
-          <span className="status-footer-hint">(підпис)</span>
-          <span className="status-footer-hint">(ініціали, прізвище)</span>
-        </div>
-      </div>
+      {/* Підпис — «Довідку склав:» (два рядки, як у графіку) */}
+      <ReportCreatorFooter signatories={signatories} />
     </div>
   );
 };

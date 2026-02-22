@@ -64,23 +64,42 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
       </td>
       <td>
         {u.blockedDays && u.blockedDays.length > 0 ? (
-          <div className="d-flex gap-1 justify-content-center flex-wrap">
-            {u.blockedDays
-              .sort((a, b) => a - b)
-              .map((d) => {
-                // Convert 1=Mon..7=Sun to JS day index: 1→1, 2→2,...,6→6, 7→0
-                const jsIdx = d === 7 ? 0 : d;
-                return (
-                  <span
-                    key={d}
-                    className="badge bg-danger bg-opacity-75"
-                    style={{ fontSize: '0.6rem' }}
-                  >
-                    {DAY_SHORT_NAMES[jsIdx] || d}
-                  </span>
-                );
-              })}
-          </div>
+          <>
+            <div className="d-flex gap-1 justify-content-center flex-wrap">
+              {u.blockedDays
+                .sort((a, b) => a - b)
+                .map((d) => {
+                  // Convert 1=Mon..7=Sun to JS day index: 1→1, 2→2,...,6→6, 7→0
+                  const jsIdx = d === 7 ? 0 : d;
+                  return (
+                    <span
+                      key={d}
+                      className="badge bg-danger bg-opacity-75"
+                      style={{ fontSize: '0.6rem' }}
+                    >
+                      {DAY_SHORT_NAMES[jsIdx] || d}
+                    </span>
+                  );
+                })}
+            </div>
+            {(u.blockedDaysFrom || u.blockedDaysTo) && (
+              <div className="text-muted text-center" style={{ fontSize: '0.6rem' }}>
+                {u.blockedDaysFrom
+                  ? new Date(u.blockedDaysFrom).toLocaleDateString('uk-UA', {
+                      day: '2-digit',
+                      month: '2-digit',
+                    })
+                  : '..'}
+                {' – '}
+                {u.blockedDaysTo
+                  ? new Date(u.blockedDaysTo).toLocaleDateString('uk-UA', {
+                      day: '2-digit',
+                      month: '2-digit',
+                    })
+                  : '..'}
+              </div>
+            )}
+          </>
         ) : (
           <span className="text-muted">—</span>
         )}
