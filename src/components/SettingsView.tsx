@@ -185,7 +185,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
         <div className="card-body">
           <div className="alert alert-info py-2 small">
-            Вага дня визначає, скільки балів отримує боєць за чергування в цей день тижня. Більша
+            Вага дня визначає, скільки балів отримує особа за чергування в цей день тижня. Більша
             вага = важчий день. (1.0 = звичайний, 2.0 = дуже важкий).
           </div>
           <div className="row g-3">
@@ -231,9 +231,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 value={perDay}
                 onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
               />
-              <div className="form-text">
-                Скільки бійців одночасно несуть чергування в одну добу.
-              </div>
+              <div className="form-text">Скільки осіб одночасно несуть чергування в одну добу.</div>
             </div>
           </div>
         </div>
@@ -248,7 +246,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
         <div className="card-body">
           <div className="alert alert-info py-2 small">
-            Ці параметри визначають, як алгоритм обирає бійців при автоматичному заповненні графіка.
+            Ці параметри визначають, як алгоритм обирає осіб при автоматичному заповненні графіка.
           </div>
 
           <div className="form-check form-switch mb-3">
@@ -262,7 +260,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="form-check-label" htmlFor="avoidConsecutive">
               <strong>Не ставити два дні поспіль</strong>
               <div className="text-muted small">
-                Боєць, який черговував учора, не буде призначений на сьогодні (день відпочинку після
+                Особа, яка чергувала вчора, не буде призначена на сьогодні (день відпочинку після
                 чергування).
               </div>
             </label>
@@ -313,7 +311,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="form-check-label" htmlFor="respectOwed">
               <strong>Враховувати борги (owedDays)</strong>
               <div className="text-muted small">
-                Бійці з боргом за конкретний день тижня мають пріоритет при призначенні саме на цей
+                Особи з боргом за конкретний день тижня мають пріоритет при призначенні саме на цей
                 день.
               </div>
             </label>
@@ -409,7 +407,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               }
             />
             <label className="form-check-label" htmlFor="limitOnePerWeek">
-              <strong>Якщо доступно 7+ бійців — не більше 1 чергування на тиждень</strong>
+              <strong>Якщо доступно 7+ осіб — не більше 1 чергування на тиждень</strong>
               <div className="text-muted small">
                 Коли на тиждень вистачає людей, система спочатку ставить тих, хто ще не чергував у
                 цьому тижні. Якщо інакше не закривається графік — автоматично робить відкат.
@@ -431,7 +429,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               }
             />
             <label className="form-check-label" htmlFor="allowDebtExtra">
-              <strong>Дозволити бійцям з боргом частіше чергувати в тижні</strong>
+              <strong>Дозволити особам з боргом частіше чергувати в тижні</strong>
               <div className="text-muted small">
                 Потрібно для швидшого погашення карми після зняття з наряду за рапортом.
               </div>
@@ -440,9 +438,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
           {autoOpts.allowDebtUsersExtraWeeklyAssignments && (
             <div className="ms-4 mb-3 p-3 bg-light rounded">
-              <label className="form-label fw-bold">
-                Ліміт для бійців з боргом (разів/тиждень)
-              </label>
+              <label className="form-label fw-bold">Ліміт для осіб з боргом (разів/тиждень)</label>
               <div className="d-flex align-items-center gap-3">
                 <input
                   type="number"
@@ -479,7 +475,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="form-check-label" htmlFor="fasterDebtRepayment">
               <strong>Пріоритет швидшого погашення карми</strong>
               <div className="text-muted small">
-                За рівних умов система обирає бійця/день, де борг погашається швидше.
+                За рівних умов система обирає особу/день, де борг погашається швидше.
               </div>
             </label>
           </div>
@@ -512,7 +508,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 onChange={(e) => setDebt(parseFloat(e.target.value) || 4)}
               />
               <div className="form-text">
-                Максимальний від'ємний борг бійця. Після досягнення цього ліміту борг не
+                Максимальний від'ємний борг особи. Після досягнення цього ліміту борг не
                 збільшується. За замовчуванням: 4.0
               </div>
             </div>
@@ -716,7 +712,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="card-body">
           <div className="row">
             <div className="col-md-4">
-              <label className="form-label fw-bold">Максимум бійців на сторінці</label>
+              <label className="form-label fw-bold">Максимум осіб на сторінці</label>
               <input
                 type="number"
                 min="5"
@@ -728,7 +724,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 }
               />
               <div className="form-text">
-                Якщо бійців не більше ліміту — друкуються всі. Якщо більше — тільки ті, хто
+                Якщо осіб не більше ліміту — друкуються всі. Якщо більше — тільки ті, хто
                 призначений на цей тиждень (завжди одна сторінка).
               </div>
             </div>
@@ -788,7 +784,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="alert alert-info py-2 small mb-3">
               <strong>Статистика бази:</strong>
               <ul className="mb-0 mt-2">
-                <li>Бійців: {dbStats.counts.users}</li>
+                <li>Осіб: {dbStats.counts.users}</li>
                 <li>Графіків: {dbStats.counts.schedule}</li>
                 <li>Логів: {dbStats.counts.auditLog}</li>
                 <li>Приблизний розмір: ~{dbStats.estimatedSizeKB.total.toFixed(0)} КБ</li>

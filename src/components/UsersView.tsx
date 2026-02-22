@@ -157,7 +157,7 @@ const UsersView: React.FC<UsersViewProps> = ({
           <table className="table table-hover align-middle mb-0 table-align-center">
             <thead className="table-light small">
               <tr>
-                <th className="text-start">Боєць</th>
+                <th className="text-start">Особа</th>
                 <th style={{ width: '32%' }}>Статус</th>
                 <th style={{ width: '120px' }}>Блокування</th>
                 <th style={{ width: '76px' }}>Карма</th>
@@ -170,7 +170,7 @@ const UsersView: React.FC<UsersViewProps> = ({
               {users.filter((u) => u.isActive).length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center text-muted py-4">
-                    <i className="fas fa-users me-2"></i>Список порожній — додайте бійців за
+                    <i className="fas fa-users me-2"></i>Список порожній — додайте особу за
                     допомогою форми зліва
                   </td>
                 </tr>
@@ -204,7 +204,7 @@ const UsersView: React.FC<UsersViewProps> = ({
             <table className="table table-hover align-middle mb-0 table-align-center">
               <thead className="table-light small">
                 <tr>
-                  <th className="text-start">Боєць</th>
+                  <th className="text-start">Особа</th>
                   <th style={{ width: '32%' }}>Статус</th>
                   <th style={{ width: '120px' }}>Блокування</th>
                   <th style={{ width: '76px' }}>Карма</th>

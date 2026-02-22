@@ -408,7 +408,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
     if (activeUsers.length < 2) {
       await showAlert(
-        '⚠️ НЕДОСТАТНЬО БІЙЦІВ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних бійці.\n\nЗараз доступно: ' +
+        '⚠️ НЕДОСТАТНЬО ОСІБ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних особи.\n\nЗараз доступно: ' +
           activeUsers.length
       );
       return false;

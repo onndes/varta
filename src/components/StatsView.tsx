@@ -132,161 +132,168 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           </div>
         </div>
       </div>
-      <div className="table-responsive">
-        <table className="table table-hover align-middle mb-0 table-align-center">
-          <thead className="table-light small">
-            <tr>
-              <th rowSpan={2}>Боєць</th>
-              <th rowSpan={2} style={{ minWidth: '72px' }}>
-                Чергувань
-                <br />
-                <small className="fw-normal">всього</small>
-              </th>
-              <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
-                В черзі
-              </th>
-              <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
-                Доступних
-                <br />
-                <small className="fw-normal">для чергування</small>
-              </th>
-              <th colSpan={7} className="text-center border-start">
-                По днях (у черзі)
-              </th>
-              <th rowSpan={2} className="text-center border-start" style={{ minWidth: '90px' }}>
-                Навантаження
-                <br />
-                (бали)
-              </th>
-              <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
-                Карма
-              </th>
-              <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
-                Рейтинг
-              </th>
-              <th rowSpan={2} className="text-center border-start" style={{ minWidth: '80px' }}>
-                Частота
-                <br />
-                <small className="fw-normal">(нар/день)</small>
-              </th>
-              <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
-                З дати
-                <i
-                  className="fas fa-circle-info ms-1 text-muted"
-                  title="Базова дата участі в авточерзі. Після повернення з відпустки/відрядження/лікарняного облік не скидається: порівняння враховує доступність у періоді."
-                />
-                <br />
-                <small className="fw-normal">(учет)</small>
-              </th>
-            </tr>
-            <tr>
-              <th className="text-center border-start" style={{ width: '40px' }}>
-                Пн
-              </th>
-              <th className="text-center" style={{ width: '40px' }}>
-                Вт
-              </th>
-              <th className="text-center" style={{ width: '40px' }}>
-                Ср
-              </th>
-              <th className="text-center" style={{ width: '40px' }}>
-                Чт
-              </th>
-              <th className="text-center" style={{ width: '40px' }}>
-                Пт
-              </th>
-              <th className="text-center" style={{ width: '40px' }}>
-                Сб
-              </th>
-              <th className="text-center" style={{ width: '40px' }}>
-                Нд
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.map((u) => {
-              // Day counts: Mon=1, Tue=2...Sun=0 -> display as separate columns
-              const daysOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
+      {stats.length === 0 ? (
+        <div className="text-center text-muted py-5">
+          <i className="fas fa-users fa-2x mb-3 d-block"></i>
+          Немає осіб у складі
+        </div>
+      ) : (
+        <div className="table-responsive">
+          <table className="table table-hover align-middle mb-0 table-align-center">
+            <thead className="table-light small">
+              <tr>
+                <th rowSpan={2}>Особа</th>
+                <th rowSpan={2} style={{ minWidth: '72px' }}>
+                  Чергувань
+                  <br />
+                  <small className="fw-normal">всього</small>
+                </th>
+                <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
+                  В черзі
+                </th>
+                <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
+                  Доступних
+                  <br />
+                  <small className="fw-normal">для чергування</small>
+                </th>
+                <th colSpan={7} className="text-center border-start">
+                  По днях (у черзі)
+                </th>
+                <th rowSpan={2} className="text-center border-start" style={{ minWidth: '90px' }}>
+                  Навантаження
+                  <br />
+                  (бали)
+                </th>
+                <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
+                  Карма
+                </th>
+                <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
+                  Рейтинг
+                </th>
+                <th rowSpan={2} className="text-center border-start" style={{ minWidth: '80px' }}>
+                  Частота
+                  <br />
+                  <small className="fw-normal">(нар/день)</small>
+                </th>
+                <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
+                  З дати
+                  <i
+                    className="fas fa-circle-info ms-1 text-muted"
+                    title="Базова дата участі в авточерзі. Після повернення з відпустки/відрядження/лікарняного облік не скидається: порівняння враховує доступність у періоді."
+                  />
+                  <br />
+                  <small className="fw-normal">(учет)</small>
+                </th>
+              </tr>
+              <tr>
+                <th className="text-center border-start" style={{ width: '40px' }}>
+                  Пн
+                </th>
+                <th className="text-center" style={{ width: '40px' }}>
+                  Вт
+                </th>
+                <th className="text-center" style={{ width: '40px' }}>
+                  Ср
+                </th>
+                <th className="text-center" style={{ width: '40px' }}>
+                  Чт
+                </th>
+                <th className="text-center" style={{ width: '40px' }}>
+                  Пт
+                </th>
+                <th className="text-center" style={{ width: '40px' }}>
+                  Сб
+                </th>
+                <th className="text-center" style={{ width: '40px' }}>
+                  Нд
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((u) => {
+                // Day counts: Mon=1, Tue=2...Sun=0 -> display as separate columns
+                const daysOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
 
-              return (
-                <tr key={u.id} className={!u.isActive ? 'user-row-inactive' : ''}>
-                  <td className="text-start">
-                    <button
-                      type="button"
-                      className="btn btn-link p-0 fw-bold text-decoration-none"
-                      onClick={() => setSelectedUser(u)}
-                    >
-                      {u.name}
-                    </button>
-                    <div className="small text-muted">{formatRank(u.rank)}</div>
-                    {u.availability !== 'AVAILABLE' && (
-                      <div className="small text-warning">
-                        <i className="fas fa-lock me-1"></i>Тимчасово недоступний
-                      </div>
-                    )}
-                  </td>
-                  <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
-                  <td className="text-center fw-bold">{u.totalComparableDuties}</td>
-                  <td className="text-center">{u.availableDaysForDuty}</td>
-                  {daysOrder.map((dayIdx, i) => (
-                    <td
-                      key={dayIdx}
-                      className={`text-center small${i === 0 ? ' border-start' : ''}`}
-                    >
-                      {u.dayCountComparable[dayIdx] || 0}
-                    </td>
-                  ))}
-                  <td className="text-center border-start">{u.comparableLoad.toFixed(1)}</td>
-                  <td
-                    className={
-                      u.balance < 0
-                        ? 'text-danger fw-bold'
-                        : u.balance > 0
-                          ? 'text-success fw-bold'
-                          : ''
-                    }
-                  >
-                    {u.balance > 0 ? `+${u.balance}` : u.balance}
-                  </td>
-                  <td className="text-center fw-bold bg-light">
-                    {u.effectiveComparable.toFixed(1)}
-                  </td>
-                  <td
-                    className="text-center border-start fw-bold"
-                    title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
-                  >
-                    {u.availableDaysForDuty > 0 ? (
-                      <span
-                        className={
-                          u.dutyRate > 0.15
-                            ? 'text-danger'
-                            : u.dutyRate > 0.08
-                              ? 'text-warning'
-                              : 'text-success'
-                        }
+                return (
+                  <tr key={u.id} className={!u.isActive ? 'user-row-inactive' : ''}>
+                    <td className="text-start">
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 fw-bold text-decoration-none"
+                        onClick={() => setSelectedUser(u)}
                       >
-                        {u.dutyRate.toFixed(3)}
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td className="text-center border-start small">
-                    <div className="text-muted">
-                      {new Date(u.trackingFrom).toLocaleDateString('uk-UA', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: '2-digit',
-                      })}
-                    </div>
-                    <div className="fw-bold">{u.totalComparableDuties}</div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                        {u.name}
+                      </button>
+                      <div className="small text-muted">{formatRank(u.rank)}</div>
+                      {u.availability !== 'AVAILABLE' && (
+                        <div className="small text-warning">
+                          <i className="fas fa-lock me-1"></i>Тимчасово недоступний
+                        </div>
+                      )}
+                    </td>
+                    <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
+                    <td className="text-center fw-bold">{u.totalComparableDuties}</td>
+                    <td className="text-center">{u.availableDaysForDuty}</td>
+                    {daysOrder.map((dayIdx, i) => (
+                      <td
+                        key={dayIdx}
+                        className={`text-center small${i === 0 ? ' border-start' : ''}`}
+                      >
+                        {u.dayCountComparable[dayIdx] || 0}
+                      </td>
+                    ))}
+                    <td className="text-center border-start">{u.comparableLoad.toFixed(1)}</td>
+                    <td
+                      className={
+                        u.balance < 0
+                          ? 'text-danger fw-bold'
+                          : u.balance > 0
+                            ? 'text-success fw-bold'
+                            : ''
+                      }
+                    >
+                      {u.balance > 0 ? `+${u.balance}` : u.balance}
+                    </td>
+                    <td className="text-center fw-bold bg-light">
+                      {u.effectiveComparable.toFixed(1)}
+                    </td>
+                    <td
+                      className="text-center border-start fw-bold"
+                      title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
+                    >
+                      {u.availableDaysForDuty > 0 ? (
+                        <span
+                          className={
+                            u.dutyRate > 0.15
+                              ? 'text-danger'
+                              : u.dutyRate > 0.08
+                                ? 'text-warning'
+                                : 'text-success'
+                          }
+                        >
+                          {u.dutyRate.toFixed(3)}
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="text-center border-start small">
+                      <div className="text-muted">
+                        {new Date(u.trackingFrom).toLocaleDateString('uk-UA', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit',
+                        })}
+                      </div>
+                      <div className="fw-bold">{u.totalComparableDuties}</div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="p-3 text-muted small bg-light">
         <div className="row">
           <div className="col-md-6">
@@ -298,7 +305,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                 <strong>В черзі</strong>: Скільки нарядів враховується саме для поточної авточерги.
               </li>
               <li>
-                <strong>Доступних днів</strong>: Кількість днів, коли бійця можна було поставити на
+                <strong>Доступних днів</strong>: Кількість днів, коли особу можна було поставити на
                 чергування від дати включення в список (та початку графіка) до сьогодні, за мінусом
                 відпустки/відрядження/лікарняного.
               </li>
@@ -319,8 +326,8 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               </li>
               <li>
                 <strong>Частота (нар/день)</strong>: Кількість нарядів поділена на кількість
-                доступних днів. Чим менше значення, тим рідше боєць чергує відносно свого часу в
-                підрозділі. Використовується для порівняння честності розподілу між бійцями, які
+                доступних днів. Чим менше значення, тим рідше особа чергує відносно свого часу в
+                підрозділі. Використовується для порівняння честності розподілу між особами, які
                 дежурять різний період часу.
               </li>
               <li>

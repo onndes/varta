@@ -218,7 +218,7 @@ const ConfirmationView: React.FC<{
                 <strong>{newUser?.name}</strong> ({formatDate(pending.swapDate)})
               </span>
             </div>
-            <div className="small text-muted mt-2">Без штрафів для обох бійців</div>
+            <div className="small text-muted mt-2">Без штрафів для обох осіб</div>
           </>
         )}
 
@@ -442,7 +442,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
           {swapMode === 'replace' && (
             <>
-              <div className="small text-muted mb-2">Замінити на іншого бійця</div>
+              <div className="small text-muted mb-2">Замінити на іншу особу</div>
               <div className="form-check mb-2">
                 <input
                   className="form-check-input"
@@ -462,7 +462,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 freeUsers,
                 (userId) =>
                   setPendingAction({ type: 'replace', userId, penalize: penalizeReplaced }),
-                'Немає доступних бійців для заміни'
+                'Немає доступних осіб для заміни'
               )}
             </>
           )}
@@ -470,12 +470,12 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
           {swapMode === 'swap' && (
             <>
               <div className="small text-muted mb-2">
-                Обмін місцями з бійцем цього тижня (без штрафів)
+                Обмін місцями з особою цього тижня (без штрафів)
               </div>
               {renderUserList(
                 swapUsers,
                 handleSwapUserClick,
-                'Немає бійців цього тижня для обміну',
+                'Немає осіб цього тижня для обміну',
                 '↔'
               )}
             </>
@@ -490,7 +490,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 <i className="fas fa-file-alt me-1"></i>За рапортом (Карма МІНУС)
               </button>
               <div className="small text-muted text-center">
-                Боєць буде &quot;винен&quot; системі.
+                Особа буде &quot;винна&quot; системі.
               </div>
               <button
                 className="btn btn-outline-secondary"
@@ -507,8 +507,8 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
     // Empty slot — assign
     return (
       <>
-        <div className="small text-muted mb-2">Призначити бійця на цей день</div>
-        {renderUserList(freeUsers, (userId) => onAssign(userId, false), 'Немає доступних бійців')}
+        <div className="small text-muted mb-2">Призначити особу на цей день</div>
+        {renderUserList(freeUsers, (userId) => onAssign(userId, false), 'Немає доступних осіб')}
       </>
     );
   };

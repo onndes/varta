@@ -83,7 +83,7 @@ const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = ({ onSwitch }) => {
     if (ws.id === 'default') return;
     if (
       !(await showConfirm(
-        `Видалити базу "${ws.name}"?\n\nВсі дані (бійці, графіки, логи) цієї бази будуть втрачені назавжди!`
+        `Видалити базу "${ws.name}"?\n\nВсі дані (особи, графіки, логи) цієї бази будуть втрачені назавжди!`
       ))
     )
       return;

@@ -198,7 +198,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onClose }
               Присутній в підрозділі
             </label>
             <div className="small text-muted mt-1">
-              Якщо вимкнено — боєць відсутній (показується сірим, тільки в окремій вкладці).
+              Якщо вимкнено — особа відсутня (показується сірим, тільки в окремій вкладці).
             </div>
           </div>
 
