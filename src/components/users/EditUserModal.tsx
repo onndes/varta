@@ -236,7 +236,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onClose }
             Блокування днів тижня
           </h6>
           <div className="small text-muted mb-2">
-            Виберіть дні, коли користувач НЕ може дежурити (виключено з автоматичного розподілення)
+            Виберіть дні, коли користувач НЕ може чергувати (виключено з автоматичного розподілення)
           </div>
           <div className="btn-group w-100" role="group">
             {WEEKDAYS.map((day, idx) => {
@@ -335,6 +335,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onClose }
                   onChange={(e) => onChange({ ...user, name: e.target.value })}
                   placeholder="Прізвище І.Б."
                 />
+              </div>
+              <div className="col-md-4">
+                <label className="small text-muted">Посада / Примітка</label>
+                <input
+                  className="form-control form-control-sm"
+                  value={user.note || ''}
+                  onChange={(e) => onChange({ ...user, note: e.target.value })}
+                  placeholder="Наприклад: водій, комендант"
+                />
+                <small className="text-muted">Звання відображається окремо</small>
               </div>
             </div>
           </div>
