@@ -151,15 +151,8 @@ export const useAutoScheduler = (
 
   // Get free users for a date
   const getFreeUsersForDate = useCallback(
-    (date: string, weekDates: string[]) => {
-      return autoScheduler.getFreeUsersForDate(
-        date,
-        users,
-        weekDates,
-        schedule,
-        dayWeights,
-        autoScheduleOptions
-      );
+    (date: string) => {
+      return autoScheduler.getFreeUsersForDate(date, users, schedule, dayWeights, autoScheduleOptions);
     },
     [users, schedule, dayWeights, autoScheduleOptions]
   );

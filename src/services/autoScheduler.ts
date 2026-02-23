@@ -588,7 +588,6 @@ export const saveAutoSchedule = async (
 export const getFreeUsersForDate = (
   dateStr: string,
   users: User[],
-  weekDates: string[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PrintMode } from './types';
 import { useDialog } from './components/useDialog';
+import { getActiveWorkspaceId } from './services/workspaceService';
 
 // Hooks
 import { useUsers, useSchedule, useSettings, useExport } from './hooks';
@@ -24,6 +25,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('schedule');
   const [showBackupAlert, setShowBackupAlert] = useState(false);
   const [printMode, setPrintMode] = useState<PrintMode>('calendar');
+  const [workspaceVersion, setWorkspaceVersion] = useState(() => getActiveWorkspaceId());
 
   // Use custom hooks
   const { users, loading: usersLoading, loadUsers } = useUsers();
@@ -58,6 +60,12 @@ const App = () => {
   // Combined refresh function for child components
   const refreshData = async () => {
     await Promise.all([loadUsers(), loadSchedule(), loadSettings()]);
+  };
+
+  const handleWorkspaceSwitch = async () => {
+    await refreshData();
+    // Перемонтовуємо вью, що кешують дані (наприклад, журнал)
+    setWorkspaceVersion(getActiveWorkspaceId());
   };
 
   // Check backup status when needed
@@ -130,7 +138,7 @@ const App = () => {
         onImport={handleImport}
         onExport={handleExport}
         onPrint={handlePrint}
-        onWorkspaceSwitch={refreshData}
+        onWorkspaceSwitch={handleWorkspaceSwitch}
       />
 
       <div className="px-4">
@@ -184,7 +192,7 @@ const App = () => {
               logAction={logAction}
             />
           )}
-          {activeTab === 'logs' && <AuditLogView />}
+          {activeTab === 'logs' && <AuditLogView key={workspaceVersion} />}
           {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
         </div>
 
