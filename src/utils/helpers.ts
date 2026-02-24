@@ -1,8 +1,33 @@
 // src/utils/helpers.ts
-import { RANKS_SHORT } from './constants';
+import { RANKS_SHORT, RANK_WEIGHTS } from './constants';
+import type { User } from '../types';
 
 // Re-export date utils to maintain backward compatibility
 export { toLocalISO, getWeekNumber, getWeekYear, getMondayOfWeek } from './dateUtils';
+
+/** Порівняння двох користувачів за званням (від вищого) та ПІБ (а-я) */
+export const compareByRankAndName = (a: User, b: User): number => {
+  const rankDiff = (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0);
+  if (rankDiff !== 0) return rankDiff;
+  return a.name.localeCompare(b.name, 'uk');
+};
+
+/** Тип ключа сортування */
+export type SortKey = 'rank' | 'name';
+export type SortDir = 'asc' | 'desc';
+
+/** Сортування масиву користувачів за ключем і напрямком */
+export const sortUsersBy = (list: User[], key: SortKey, dir: SortDir): User[] => {
+  return [...list].sort((a, b) => {
+    let cmp: number;
+    if (key === 'rank') {
+      cmp = (RANK_WEIGHTS[a.rank] || 0) - (RANK_WEIGHTS[b.rank] || 0);
+    } else {
+      cmp = a.name.localeCompare(b.name, 'uk');
+    }
+    return dir === 'desc' ? -cmp : cmp;
+  });
+};
 
 /** Отримати скорочення звання ("Старший солдат" → "ст. сол.") */
 export const formatRank = (rank: string) => RANKS_SHORT[rank] || rank;

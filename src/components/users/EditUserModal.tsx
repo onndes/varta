@@ -7,11 +7,18 @@ interface EditUserModalProps {
   user: User;
   onChange: (user: User) => void;
   onClose: () => void;
+  /** Computed fallback date (earliest schedule date or today) when dateAddedToAuto is not set */
+  computedFairnessDate?: string;
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onClose }) => {
+const EditUserModal: React.FC<EditUserModalProps> = ({
+  user,
+  onChange,
+  onClose,
+  computedFairnessDate,
+}) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const dateFromRef = useRef<HTMLInputElement | null>(null);
   const dateToRef = useRef<HTMLInputElement | null>(null);
@@ -345,6 +352,32 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onChange, onClose }
                   placeholder="Наприклад: водій, комендант"
                 />
                 <small className="text-muted">Звання відображається окремо</small>
+              </div>
+              <div className="col-md-4 mt-2">
+                <label className="small text-muted">
+                  <i className="fas fa-calendar-plus me-1"></i>Дата включення в чергу
+                </label>
+                <input
+                  type="date"
+                  className="form-control form-control-sm"
+                  value={user.dateAddedToAuto || ''}
+                  onChange={(e) =>
+                    onChange({ ...user, dateAddedToAuto: e.target.value || undefined })
+                  }
+                />
+                <small className="text-muted">
+                  З цієї дати ведеться облік навантаження для авточерги.
+                  {!user.dateAddedToAuto && computedFairnessDate && (
+                    <>
+                      {' '}
+                      Зараз:{' '}
+                      <strong>
+                        {new Date(computedFairnessDate).toLocaleDateString('uk-UA')}
+                      </strong>{' '}
+                      (авто)
+                    </>
+                  )}
+                </small>
               </div>
             </div>
           </div>

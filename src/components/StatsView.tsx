@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
-import { formatRank } from '../utils/helpers';
+import {
+  formatRank,
+  compareByRankAndName,
+  sortUsersBy,
+  type SortKey,
+  type SortDir,
+} from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
 import { getUserFairnessFrom } from '../utils/fairness';
 import { getUserAvailabilityStatus } from '../services/userService';
@@ -17,6 +23,17 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'rank' ? 'desc' : 'asc');
+    }
+  };
   const todayStr = toLocalISO(new Date());
 
   const allStats = useMemo(() => {
@@ -52,8 +69,9 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         const comparableEntries = allUserEntries.filter((s) => s.date >= trackingFrom);
 
         // Скільки днів боєць був доступний для чергування (від trackingFrom до сьогодні)
+        // Якщо боєць неактивний або виключений з авторозподілу — 0
         let availableDaysForDuty = 0;
-        if (trackingFrom <= todayStr) {
+        if (trackingFrom <= todayStr && u.isActive && !u.excludeFromAuto) {
           const totalWindowDays =
             Math.floor(
               (new Date(todayStr).getTime() - new Date(trackingFrom).getTime()) / 86400000
@@ -95,15 +113,25 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           availability,
         };
       })
-      .sort((a, b) => a.effectiveComparable - b.effectiveComparable);
+      .sort((a, b) => {
+        const loadDiff = a.effectiveComparable - b.effectiveComparable;
+        if (loadDiff !== 0) return loadDiff;
+        return compareByRankAndName(a, b);
+      });
   }, [users, schedule, dayWeights, todayStr]);
 
   // Filter based on active status
-  const stats = allStats.filter((u) => {
+  const filteredStats = allStats.filter((u) => {
     if (u.isActive && !showActive) return false;
     if (!u.isActive && !showInactive) return false;
     return true;
   });
+
+  // Apply user-selected sort
+  const stats = useMemo(() => {
+    if (!sortKey) return filteredStats;
+    return sortUsersBy(filteredStats, sortKey, sortDir);
+  }, [filteredStats, sortKey, sortDir]);
 
   return (
     <div className="card shadow-sm border-0">
@@ -142,7 +170,25 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           <table className="table table-hover align-middle mb-0 table-align-center">
             <thead className="table-light small">
               <tr>
-                <th rowSpan={2}>Особа</th>
+                <th rowSpan={2} style={{ userSelect: 'none' }}>
+                  <span
+                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1`}
+                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                    onClick={() => toggleSort('name')}
+                    title="Сортувати за ПІБ"
+                  >
+                    ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </span>
+                  <span
+                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'}`}
+                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                    onClick={() => toggleSort('rank')}
+                    title="Сортувати за званням"
+                  >
+                    <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Звання
+                    {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </span>
+                </th>
                 <th rowSpan={2} style={{ minWidth: '72px' }}>
                   Чергувань
                   <br />

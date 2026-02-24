@@ -135,6 +135,7 @@ const App = () => {
 
       <Header
         needsExport={needsExport}
+        hasData={users.length > 0 || Object.keys(schedule).length > 0}
         onImport={handleImport}
         onExport={handleExport}
         onPrint={handlePrint}

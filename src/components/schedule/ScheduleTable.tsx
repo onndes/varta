@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import ScheduleTableRow from './ScheduleTableRow';
 import { toAssignedUserIds } from '../../utils/assignment';
+import { compareByRankAndName, sortUsersBy, type SortKey, type SortDir } from '../../utils/helpers';
 
 interface ScheduleTableProps {
   users: User[];
@@ -9,6 +10,7 @@ interface ScheduleTableProps {
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
   dutiesPerDay: number;
+  historyMode?: boolean;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
@@ -22,6 +24,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   schedule,
   todayStr,
   dutiesPerDay,
+  historyMode = false,
   onCellClick,
 }) => {
   const activeUsers = users.filter((u) => u.isActive);
@@ -74,17 +77,20 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                       const user = uid != null ? usersById[uid] : null;
                       if (uid != null && user) {
                         // Assigned slot
+                        const isHistory = entry?.type === 'history' || entry?.type === 'import';
                         const cellClass =
                           'compact-cell' +
-                          (isPast
-                            ? ' past-locked'
-                            : ' assigned' + (entry?.isLocked ? ' locked' : ''));
+                          (isHistory
+                            ? ' history-entry'
+                            : isPast && !historyMode
+                              ? ' past-locked'
+                              : ' assigned' + (entry?.isLocked ? ' locked' : ''));
                         return (
                           <td
                             key={slotIdx}
                             className={cellClass}
                             onClick={() => {
-                              if (isPast) return;
+                              if (isPast && !historyMode) return;
                               onCellClick(date, entry, uid);
                             }}
                           >
@@ -101,11 +107,11 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                             className="compact-cell"
                             style={{ color: '#adb5bd' }}
                             onClick={() => {
-                              if (isPast) return;
+                              if (isPast && !historyMode) return;
                               onCellClick(date, null, undefined);
                             }}
                           >
-                            {!isPast && (
+                            {(!isPast || historyMode) && (
                               <span
                                 className="no-print"
                                 style={{ fontSize: '1rem', lineHeight: 1 }}
@@ -128,7 +134,22 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   }
 
   // ── Standard user-row view for small teams (≤ 20) ────────────────────
-  const displayUsers = activeUsers;
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'rank' ? 'desc' : 'asc');
+    }
+  };
+
+  const displayUsers = useMemo(() => {
+    if (sortKey) return sortUsersBy(activeUsers, sortKey, sortDir);
+    return [...activeUsers].sort(compareByRankAndName);
+  }, [activeUsers, sortKey, sortDir]);
 
   return (
     <div className="view-table">
@@ -137,8 +158,24 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
           <thead>
             <tr>
               <th style={{ width: '40px' }}>#</th>
-              <th className="col-user-screen" style={{ width: '250px' }}>
-                Особовий склад
+              <th className="col-user-screen" style={{ width: '250px', userSelect: 'none' }}>
+                <span
+                  className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1`}
+                  style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                  onClick={() => toggleSort('name')}
+                  title="Сортувати за ПІБ"
+                >
+                  ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                </span>
+                <span
+                  className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'}`}
+                  style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                  onClick={() => toggleSort('rank')}
+                  title="Сортувати за званням"
+                >
+                  <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Звання
+                  {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                </span>
               </th>
               <th className="col-user-print" style={{ width: '120px' }}>
                 Військове звання
@@ -184,6 +221,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   weekDates={weekDates}
                   schedule={schedule}
                   todayStr={todayStr}
+                  historyMode={historyMode}
                   onCellClick={onCellClick}
                 />
               ))

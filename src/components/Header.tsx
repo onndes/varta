@@ -5,6 +5,7 @@ import WorkspaceSelector from './WorkspaceSelector';
 
 interface HeaderProps {
   needsExport: boolean;
+  hasData: boolean;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onExport: () => void;
   onPrint: (mode: PrintMode) => void;
@@ -13,11 +14,19 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({
   needsExport,
+  hasData,
   onImport,
   onExport,
   onPrint,
   onWorkspaceSwitch,
 }) => {
+  const todayFormatted = new Date().toLocaleDateString('uk-UA', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
   return (
     <div className="header-simple d-flex justify-content-between align-items-center no-print">
       <div className="d-flex align-items-center">
@@ -36,6 +45,10 @@ const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
       <div className="d-flex align-items-center">
+        <span className="text-muted me-3" style={{ fontSize: '0.85rem' }}>
+          <i className="far fa-calendar-alt me-1"></i>
+          {todayFormatted}
+        </span>
         <div className="ms-3">
           <WorkspaceSelector onSwitch={onWorkspaceSwitch} />
         </div>
@@ -48,6 +61,8 @@ const Header: React.FC<HeaderProps> = ({
         <button
           className={`btn btn-sm ${needsExport ? 'btn-danger btn-export-dirty' : 'btn-outline-secondary'}`}
           onClick={onExport}
+          disabled={!hasData}
+          title={!hasData ? 'База порожня — нема що експортувати' : ''}
         >
           <i className="fas fa-download me-1"></i>Експорт
         </button>

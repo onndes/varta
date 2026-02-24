@@ -32,6 +32,7 @@ import PrintDutyTable from './schedule/PrintDutyTable';
 import PrintStatusList from './schedule/PrintStatusList';
 import AssignmentModal, { type SwapMode } from './schedule/AssignmentModal';
 import ConfirmAssignModal from './schedule/ConfirmAssignModal';
+import ImportScheduleModal from './schedule/ImportScheduleModal';
 import { isUserAvailable } from '../services/userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 import { getAssignedCount, isAssignedInEntry, toAssignedUserIds } from '../utils/assignment';
@@ -91,7 +92,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       date: string,
       userId: number,
       isManual = true,
-      options?: { maxPerDay?: number; replaceUserId?: number; penalizeReplaced?: boolean }
+      options?: {
+        maxPerDay?: number;
+        replaceUserId?: number;
+        penalizeReplaced?: boolean;
+        historyMode?: boolean;
+      }
     ) => {
       const existing = schedule[date];
       const existingIds = toAssignedUserIds(existing?.userId);
@@ -118,17 +124,24 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         }
       }
 
-      if (options?.maxPerDay && nextIds.length >= options.maxPerDay) {
+      if (options?.maxPerDay && !options?.historyMode && nextIds.length >= options.maxPerDay) {
         throw new Error('Досягнуто ліміт чергувань на день');
       }
 
       nextIds.push(userId);
 
       const isReplace = typeof replaceUserId === 'number';
+      const entryType = options?.historyMode
+        ? 'history'
+        : isManual
+          ? isReplace
+            ? 'replace'
+            : 'manual'
+          : 'auto';
       const entry: ScheduleEntry = {
         date,
         userId: nextIds.length === 1 ? nextIds[0] : nextIds,
-        type: isManual ? (isReplace ? 'replace' : 'manual') : 'auto',
+        type: entryType,
         isLocked: false,
       };
 
@@ -188,6 +201,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const [pendingAssignConfirm, setPendingAssignConfirm] = useState<PendingAssignConfirm | null>(
     null
   );
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [historyMode, setHistoryMode] = useState(false);
 
   const { showAlert, showConfirm } = useDialog();
 
@@ -561,34 +576,45 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   ) => {
     if (!selectedCell) return;
 
-    const transferFrom =
-      transferMode === 'move' ? getTransferSourceDate(userId, selectedCell.date) : undefined;
+    try {
+      const transferFrom =
+        transferMode === 'move' ? getTransferSourceDate(userId, selectedCell.date) : undefined;
 
-    if (transferFrom) {
-      await removeAssignment(transferFrom, 'work', userId);
-      await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
-      await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
+      if (transferFrom) {
+        await removeAssignment(transferFrom, 'work', userId);
+        await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
+        await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
+      }
+
+      await assignUser(selectedCell.date, userId, true, {
+        maxPerDay: dutiesPerDay,
+        replaceUserId: selectedCell.assignedUserId,
+        penalizeReplaced,
+        historyMode,
+      });
+      await updateCascadeTrigger(selectedCell.date);
+
+      const u = users.find((user) => user.id === userId);
+      const dayIdx = new Date(selectedCell.date).getDay();
+      const weight = dayWeights[dayIdx] || 1.0;
+      if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
+
+      setPendingAssignConfirm(null);
+      setSelectedCell(null);
+      await refreshData();
+    } catch (err) {
+      await showAlert(err instanceof Error ? err.message : 'Помилка призначення');
     }
-
-    await assignUser(selectedCell.date, userId, true, {
-      maxPerDay: dutiesPerDay,
-      replaceUserId: selectedCell.assignedUserId,
-      penalizeReplaced,
-    });
-    await updateCascadeTrigger(selectedCell.date);
-
-    const u = users.find((user) => user.id === userId);
-    const dayIdx = new Date(selectedCell.date).getDay();
-    const weight = dayWeights[dayIdx] || 1.0;
-    if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
-
-    setPendingAssignConfirm(null);
-    setSelectedCell(null);
-    await refreshData();
   };
 
   const handleAssign = async (userId: number | undefined, penalizeReplaced = false) => {
     if (!userId || !selectedCell) return;
+
+    // In history mode — assign directly, no confirmations
+    if (historyMode) {
+      await executeAssign(userId, 'none', false);
+      return;
+    }
 
     const isReplaceMode = Boolean(selectedCell.assignedUserId);
     const isRestDay = isOnRestDay(userId, selectedCell.date);
@@ -707,6 +733,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onAutoSchedule={runFullAutoSchedule}
         onCascadeRecalc={runCascadeRecalc}
         onClearWeek={runClearWeek}
+        onImportSchedule={() => setShowImportModal(true)}
+        historyMode={historyMode}
+        onToggleHistoryMode={() => setHistoryMode((v) => !v)}
       />
 
       {/* Друк: заголовок (для календаря та таблиці чергувань) */}
@@ -720,6 +749,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         schedule={schedule}
         todayStr={todayStr}
         dutiesPerDay={dutiesPerDay}
+        historyMode={historyMode}
         onCellClick={(date, entry, assignedUserId) => {
           setSelectedCell({ date, entry, assignedUserId });
           setSwapMode('replace');
@@ -773,6 +803,17 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         calculateEffectiveLoad={calculateEffectiveLoad}
         daysSinceLastDuty={daysSinceLastDuty}
         hasEntry={!!selectedCell?.entry}
+        historyMode={historyMode}
+      />
+
+      <ImportScheduleModal
+        show={showImportModal}
+        users={users}
+        onClose={() => setShowImportModal(false)}
+        onImported={async (result) => {
+          await logAction('IMPORT_SCHEDULE', `Імпортовано ${result.imported} днів старого графіка`);
+          await refreshData();
+        }}
       />
 
       <ConfirmAssignModal

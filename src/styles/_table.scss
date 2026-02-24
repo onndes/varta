@@ -85,6 +85,13 @@
     white-space: normal;
     cursor: not-allowed;
   }
+
+  &.history-entry {
+    background: repeating-linear-gradient(-45deg, #e0e7ff, #e0e7ff 4px, #eef1ff 4px, #eef1ff 8px);
+    color: #3730a3;
+    font-weight: 700;
+    border: 2px dashed #818cf8;
+  }
 }
 
 .view-table {

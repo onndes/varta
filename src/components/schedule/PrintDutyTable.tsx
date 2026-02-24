@@ -1,8 +1,8 @@
 import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
-import { formatRank, splitFormattedName } from '../../utils/helpers';
+import { formatRank, splitFormattedName, compareByRankAndName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
-import { RANK_WEIGHTS, DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS } from '../../utils/constants';
+import { DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS } from '../../utils/constants';
 
 /** Час заступання (відображається у кожній комірці) */
 const DUTY_TIME = '08.00';
@@ -17,9 +17,8 @@ interface PrintDutyTableProps {
 
 // ── Допоміжні ─────────────────────────────────────────────────────────
 
-/** Сортувати бійців за вагою звання (вище звання — першим) */
-const sortByRank = (list: User[]): User[] =>
-  [...list].sort((a, b) => (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0));
+/** Сортувати бійців за званням та ПІБ */
+const sortByRank = (list: User[]): User[] => [...list].sort(compareByRankAndName);
 
 /** Зібрати ID всіх бійців, призначених на тиждень */
 const collectScheduledIds = (

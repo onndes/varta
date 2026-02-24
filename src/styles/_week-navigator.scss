@@ -37,11 +37,6 @@
     color: white;
   }
 
-  &.past {
-    background-color: #e9ecef;
-    color: #adb5bd;
-  }
-
   &.selected {
     border: 2px solid #000;
     font-weight: bold;
@@ -51,6 +46,19 @@
     background-color: #e8f5e9;
     border-color: #28a745;
     color: #198754;
+  }
+
+  // Past weeks — muted styling (must be after .has-schedule for specificity)
+  &.past:not(.current):not(.selected) {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+    color: #adb5bd;
+  }
+
+  &.past.has-schedule:not(.current):not(.selected) {
+    background-color: #d4e7d4;
+    border-color: #a6b9a5;
+    color: #7b8d7b;
   }
 
   .week-tooltip {

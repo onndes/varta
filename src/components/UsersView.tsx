@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { useUsers } from '../hooks';
 import AddUserForm from './users/AddUserForm';
@@ -6,7 +6,7 @@ import UserRow from './users/UserRow';
 import EditUserModal from './users/EditUserModal';
 import UserStatsModal from './users/UserStatsModal';
 import { useDialog } from './useDialog';
-
+import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
 
 interface UsersViewProps {
@@ -31,8 +31,29 @@ const UsersView: React.FC<UsersViewProps> = ({
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
   const editingUserRef = useRef<User | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const { showConfirm } = useDialog();
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'rank' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedActiveUsers = useMemo(() => {
+    const active = users.filter((u) => u.isActive);
+    return sortKey ? sortUsersBy(active, sortKey, sortDir) : active;
+  }, [users, sortKey, sortDir]);
+
+  const sortedInactiveUsers = useMemo(() => {
+    const inactive = users.filter((u) => !u.isActive);
+    return sortKey ? sortUsersBy(inactive, sortKey, sortDir) : inactive;
+  }, [users, sortKey, sortDir]);
 
   // ─── Auto-save: зберігати зміни бійця автоматично (debounce 600ms) ───
   const saveUser = useCallback(
@@ -54,6 +75,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         blockedDaysTo: user.blockedDaysTo,
         blockedDaysComment: user.blockedDaysComment,
         statusComment: user.status === 'OTHER' ? user.statusComment : undefined,
+        dateAddedToAuto: user.dateAddedToAuto,
       });
 
       if (user.status !== 'ACTIVE' && user.statusFrom) {
@@ -86,7 +108,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       logAction('EDIT', `Редаговано: ${editingUser.name}`);
     }, 600);
     return () => clearTimeout(t);
-  }, [editingUser]);
+  }, [editingUser, saveUser, logAction]);
 
   const handleAdd = async (name: string, rank: string, note: string) => {
     // Set dateAddedToAuto to the day AFTER the last existing schedule entry.
@@ -157,7 +179,25 @@ const UsersView: React.FC<UsersViewProps> = ({
           <table className="table table-hover align-middle mb-0 table-align-center">
             <thead className="table-light small">
               <tr>
-                <th className="text-start">Особа</th>
+                <th className="text-start" style={{ userSelect: 'none' }}>
+                  <span
+                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1`}
+                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                    onClick={() => toggleSort('name')}
+                    title="Сортувати за ПІБ"
+                  >
+                    ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </span>
+                  <span
+                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'}`}
+                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                    onClick={() => toggleSort('rank')}
+                    title="Сортувати за званням"
+                  >
+                    <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Звання
+                    {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </span>
+                </th>
                 <th style={{ width: '32%' }}>Статус</th>
                 <th style={{ width: '120px' }}>Блокування</th>
                 <th style={{ width: '76px' }}>Карма</th>
@@ -167,7 +207,7 @@ const UsersView: React.FC<UsersViewProps> = ({
               </tr>
             </thead>
             <tbody>
-              {users.filter((u) => u.isActive).length === 0 ? (
+              {sortedActiveUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center text-muted py-4">
                     <i className="fas fa-users me-2"></i>Список порожній — додайте особу за
@@ -175,25 +215,23 @@ const UsersView: React.FC<UsersViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                users
-                  .filter((u) => u.isActive)
-                  .map((u) => (
-                    <UserRow
-                      key={u.id}
-                      user={u}
-                      onEdit={setEditingUser}
-                      onDelete={handleDelete}
-                      onViewStats={setViewStatsUser}
-                      onResetDebt={handleResetDebt}
-                    />
-                  ))
+                sortedActiveUsers.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    onEdit={setEditingUser}
+                    onDelete={handleDelete}
+                    onViewStats={setViewStatsUser}
+                    onResetDebt={handleResetDebt}
+                  />
+                ))
               )}
             </tbody>
           </table>
         </div>
 
         {/* Inactive users (separate section) */}
-        {users.filter((u) => !u.isActive).length > 0 && (
+        {sortedInactiveUsers.length > 0 && (
           <div className="card shadow-sm border-0">
             <div className="card-header bg-light">
               <h6 className="mb-0 fw-bold text-muted">
@@ -204,7 +242,23 @@ const UsersView: React.FC<UsersViewProps> = ({
             <table className="table table-hover align-middle mb-0 table-align-center">
               <thead className="table-light small">
                 <tr>
-                  <th className="text-start">Особа</th>
+                  <th className="text-start" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <span onClick={() => toggleSort('name')} title="Сортувати за ПІБ">
+                      Особа{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </span>
+                    <span
+                      className="ms-2"
+                      onClick={() => toggleSort('rank')}
+                      title="Сортувати за званням"
+                      style={{
+                        fontSize: '0.75rem',
+                        color: sortKey === 'rank' ? '#0d6efd' : '#6c757d',
+                      }}
+                    >
+                      <i className="fas fa-medal"></i>
+                      {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </span>
+                  </th>
                   <th style={{ width: '32%' }}>Статус</th>
                   <th style={{ width: '120px' }}>Блокування</th>
                   <th style={{ width: '76px' }}>Карма</th>
@@ -214,18 +268,16 @@ const UsersView: React.FC<UsersViewProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {users
-                  .filter((u) => !u.isActive)
-                  .map((u) => (
-                    <UserRow
-                      key={u.id}
-                      user={u}
-                      onEdit={setEditingUser}
-                      onDelete={handleDelete}
-                      onViewStats={setViewStatsUser}
-                      onResetDebt={handleResetDebt}
-                    />
-                  ))}
+                {sortedInactiveUsers.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    onEdit={setEditingUser}
+                    onDelete={handleDelete}
+                    onViewStats={setViewStatsUser}
+                    onResetDebt={handleResetDebt}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
@@ -237,6 +289,10 @@ const UsersView: React.FC<UsersViewProps> = ({
           user={editingUser}
           onChange={setEditingUser}
           onClose={() => setEditingUser(null)}
+          computedFairnessDate={(() => {
+            const dates = Object.keys(schedule).sort();
+            return dates[0] || toLocalISO(new Date());
+          })()}
         />
       )}
 

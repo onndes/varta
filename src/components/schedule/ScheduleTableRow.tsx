@@ -11,6 +11,7 @@ interface ScheduleTableRowProps {
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
+  historyMode?: boolean;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
@@ -23,6 +24,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   weekDates,
   schedule,
   todayStr,
+  historyMode = false,
   onCellClick,
 }) => {
   // Status label logic: show only if relevant to current time
@@ -108,12 +110,23 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         let printContent = '';
 
         if (isAssigned) {
-          cellClass += isPast ? ' past-locked' : ' assigned' + (entry.isLocked ? ' locked' : '');
+          if (entry.type === 'history' || entry.type === 'import') {
+            cellClass += ' history-entry';
+          } else {
+            cellClass +=
+              isPast && !historyMode
+                ? ' past-locked'
+                : ' assigned' + (entry.isLocked ? ' locked' : '');
+          }
 
-          // Show icon for type: lock, replace, swap, manual, auto
+          // Show icon for type: lock, replace, swap, manual, auto, history
           let icon = '';
           if (entry.isLocked) {
             icon = ' bi bi-lock-fill';
+          } else if (entry.type === 'import') {
+            icon = ' bi bi-box-arrow-in-down';
+          } else if (entry.type === 'history') {
+            icon = ' bi bi-clock-history';
           } else if (entry.type === 'replace') {
             icon = ' bi bi-arrow-repeat';
           } else if (entry.type === 'swap') {
@@ -152,7 +165,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             key={date}
             className={cellClass}
             onClick={() => {
-              if (isPast) return;
+              if (isPast && !historyMode) return;
               onCellClick(date, isAssigned ? entry : null, isAssigned ? user.id : undefined);
             }}
           >

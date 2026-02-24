@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { User } from '../types';
 import * as userService from '../services/userService';
 import * as auditService from '../services/auditService';
-import { RANK_WEIGHTS } from '../utils/constants';
+import { compareByRankAndName } from '../utils/helpers';
 
 /**
  * Custom hook for managing users
@@ -23,14 +23,12 @@ export const useUsers = () => {
 
       const allUsers = await userService.getAllUsers();
 
-      // Sort users by active status, rank, and name
+      // Sort users by active status, then rank+name
       allUsers.sort((a, b) => {
         if (a.isActive !== b.isActive) {
           return (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0);
         }
-        const rankDiff = (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0);
-        if (rankDiff !== 0) return rankDiff;
-        return a.name.localeCompare(b.name);
+        return compareByRankAndName(a, b);
       });
 
       setUsers(allUsers);

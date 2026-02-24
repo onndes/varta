@@ -1,8 +1,8 @@
 import React from 'react';
 import type { User, ScheduleEntry, Signatories } from '../../types';
-import { formatRank, splitFormattedName } from '../../utils/helpers';
+import { formatRank, splitFormattedName, compareByRankAndName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
-import { RANK_WEIGHTS, STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
+import { STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
 
 interface PrintStatusListProps {
   users: User[];
@@ -79,7 +79,7 @@ const collectSwaps = (
 const collectBlockedRows = (users: User[]): StatusRow[] =>
   users
     .filter((u) => u.isActive && u.blockedDays && u.blockedDays.length > 0)
-    .sort((a, b) => (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0))
+    .sort(compareByRankAndName)
     .map((user) => ({
       user,
       reason: `Блок: ${formatBlockedDays(user.blockedDays!)}`,
@@ -147,7 +147,7 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({
   // Бійці з не-активними статусами
   const statusRows: StatusRow[] = users
     .filter((u) => u.status !== 'ACTIVE')
-    .sort((a, b) => (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0))
+    .sort(compareByRankAndName)
     .map((user) => ({
       user,
       reason: STATUSES[user.status] || user.status,

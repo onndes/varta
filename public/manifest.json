@@ -9,8 +9,19 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "shield.png",
-      "sizes": "192x192",
+      "src": "shield-x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "shield-x256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "shield-x512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }

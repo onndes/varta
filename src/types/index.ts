@@ -57,7 +57,7 @@ export interface User {
 export interface ScheduleEntry {
   date: string;
   userId: number | number[] | null; // Can be single ID or array for multiple duties per day
-  type: 'manual' | 'auto' | 'critical' | 'replace' | 'swap';
+  type: 'manual' | 'auto' | 'critical' | 'replace' | 'swap' | 'history' | 'import';
   isLocked?: boolean;
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, toLocalISO } from '../../utils/dateUtils';
 
 interface ScheduleControlsProps {
   weekDates: string[];
@@ -16,6 +16,9 @@ interface ScheduleControlsProps {
   onAutoSchedule: () => void;
   onCascadeRecalc: () => void;
   onClearWeek: () => void;
+  onImportSchedule: () => void;
+  historyMode: boolean;
+  onToggleHistoryMode: () => void;
 }
 
 /**
@@ -37,9 +40,14 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onAutoSchedule,
   onCascadeRecalc,
   onClearWeek,
+  onImportSchedule,
+  historyMode,
+  onToggleHistoryMode,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
+  const todayStr = toLocalISO(new Date());
+  const isFutureWeek = weekDates[0] > todayStr;
 
   return (
     <div className="card border-0 shadow-sm p-3 mb-3 no-print">
@@ -78,6 +86,25 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
       </div>
 
       <div className="d-flex justify-content-end gap-2 flex-wrap">
+        {!isFutureWeek && (
+          <button
+            className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
+            onClick={onToggleHistoryMode}
+            title="Розблокувати минулі дні для ручного заповнення старого графіка"
+          >
+            <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-2`}></i>
+            {historyMode ? 'Редагування історії ✅' : 'Редагування історії'}
+          </button>
+        )}
+        {!isFutureWeek && (
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            onClick={onImportSchedule}
+            title="Імпорт старого графіка (CSV/текст)"
+          >
+            <i className="fas fa-file-import me-2"></i>Імпорт графіка
+          </button>
+        )}
         {criticalConflictsCount > 0 && (
           <button className="btn btn-sm btn-danger shadow" onClick={onFixConflicts}>
             <i className="fas fa-exclamation-triangle me-2"></i>

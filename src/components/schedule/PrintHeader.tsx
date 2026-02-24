@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Signatories } from '../../types';
-import shieldIcon from '../../assets/shield.png';
+import shieldIcon from '../../assets/shield-x512.png';
 
 interface PrintHeaderProps {
   signatories: Signatories;

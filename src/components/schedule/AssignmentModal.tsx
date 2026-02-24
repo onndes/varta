@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import Modal from '../Modal';
 import { formatDate } from '../../utils/dateUtils';
+import { formatRank, compareByRankAndName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ interface AssignmentModalProps {
   calculateEffectiveLoad: (user: User) => number;
   daysSinceLastDuty: (userId: number, date: string) => number;
   hasEntry: boolean;
+  historyMode?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,7 +113,9 @@ const UserListItem: React.FC<{
     >
       <div>
         <span className="fw-bold">{user.name}</span>
-        <span className="text-muted ms-1 small">({daysSinceLabel})</span>
+        <span className="text-muted ms-1 small">
+          ({formatRank(user.rank)}, {daysSinceLabel})
+        </span>
 
         {owes > 0 && <span className="badge bg-danger ms-2">борг: {owes}</span>}
         {isRest && (
@@ -280,12 +284,14 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   calculateEffectiveLoad,
   daysSinceLastDuty,
   hasEntry,
+  historyMode = false,
 }) => {
   const assignedUser = users.find((u) => u.id === assignedUserId);
   const [penalizeReplaced, setPenalizeReplaced] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   // For swap: when user has multiple week dates, pick which one
   const [swapPickUserId, setSwapPickUserId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Build a map: userId → dates assigned this week (excluding target date)
   const swapUserDatesMap = useMemo(() => {
@@ -299,6 +305,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   const handleClose = () => {
     setPendingAction(null);
     setSwapPickUserId(null);
+    setSearchQuery('');
     onClose();
   };
 
@@ -337,25 +344,49 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
     action: (userId: number) => void,
     emptyMessage: string,
     actionLabel?: string
-  ) => (
-    <div className="list-group" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-      {userList.length === 0 && <div className="text-muted text-center py-3">{emptyMessage}</div>}
-      {userList.map((u) => (
-        <UserListItem
-          key={u.id}
-          user={u}
-          date={date}
-          isRest={isOnRestDay(u.id!, date)}
-          hasNextDayShift={hasShiftNextDay(u.id!, date, schedule)}
-          hadSundayDuty={hadPrevWeekSundayDuty(u.id!, weekDates, schedule)}
-          effectiveLoad={calculateEffectiveLoad(u)}
-          daysSince={daysSinceLastDuty(u.id!, date)}
-          onAction={action}
-          actionLabel={actionLabel}
+  ) => {
+    const query = searchQuery.toLowerCase().trim();
+    const sorted = [...userList].sort(compareByRankAndName);
+    const filtered = query
+      ? sorted.filter(
+          (u) =>
+            u.name.toLowerCase().includes(query) || (u.rank && u.rank.toLowerCase().includes(query))
+        )
+      : sorted;
+
+    return (
+      <>
+        <input
+          type="text"
+          className="form-control form-control-sm mb-2"
+          placeholder="🔍 Пошук за ПІБ або званням..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
-      ))}
-    </div>
-  );
+        <div className="list-group" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+          {filtered.length === 0 && (
+            <div className="text-muted text-center py-3">
+              {query ? 'Нічого не знайдено' : emptyMessage}
+            </div>
+          )}
+          {filtered.map((u) => (
+            <UserListItem
+              key={u.id}
+              user={u}
+              date={date}
+              isRest={isOnRestDay(u.id!, date)}
+              hasNextDayShift={hasShiftNextDay(u.id!, date, schedule)}
+              hadSundayDuty={hadPrevWeekSundayDuty(u.id!, weekDates, schedule)}
+              effectiveLoad={calculateEffectiveLoad(u)}
+              daysSince={daysSinceLastDuty(u.id!, date)}
+              onAction={action}
+              actionLabel={actionLabel}
+            />
+          ))}
+        </div>
+      </>
+    );
+  };
 
   // ─── Swap date picker for users with multiple weekly duties ─────────────
   const renderSwapDatePicker = () => {
@@ -414,6 +445,23 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
     // Has an existing assignment
     if (hasEntry) {
+      // History mode — simplified UI: just assign or remove, no karma/swap
+      if (historyMode) {
+        return (
+          <div>
+            <div className="alert alert-secondary py-2 mb-3">
+              <i className="fas fa-clock-history me-2"></i>
+              <strong>{assignedUser?.name}</strong>
+            </div>
+            <button className="btn btn-outline-danger w-100 mb-3" onClick={() => onRemove('work')}>
+              <i className="fas fa-user-minus me-1"></i>Зняти з наряду
+            </button>
+            <div className="small text-muted mb-2">Або замінити на іншу особу:</div>
+            {renderUserList(freeUsers, (userId) => onAssign(userId, false), 'Немає доступних осіб')}
+          </div>
+        );
+      }
+
       return (
         <div>
           <div className="alert alert-secondary py-2 mb-3">
