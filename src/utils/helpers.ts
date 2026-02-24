@@ -17,7 +17,7 @@ export type SortKey = 'rank' | 'name';
 export type SortDir = 'asc' | 'desc';
 
 /** Сортування масиву користувачів за ключем і напрямком */
-export const sortUsersBy = (list: User[], key: SortKey, dir: SortDir): User[] => {
+export const sortUsersBy = <T extends User>(list: T[], key: SortKey, dir: SortDir): T[] => {
   return [...list].sort((a, b) => {
     let cmp: number;
     if (key === 'rank') {

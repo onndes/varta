@@ -181,7 +181,7 @@ const UsersView: React.FC<UsersViewProps> = ({
               <tr>
                 <th className="text-start" style={{ userSelect: 'none' }}>
                   <span
-                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1`}
+                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
                     style={{ cursor: 'pointer', fontSize: '0.7rem' }}
                     onClick={() => toggleSort('name')}
                     title="Сортувати за ПІБ"
@@ -189,7 +189,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                     ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                   </span>
                   <span
-                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'}`}
+                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
                     style={{ cursor: 'pointer', fontSize: '0.7rem' }}
                     onClick={() => toggleSort('rank')}
                     title="Сортувати за званням"

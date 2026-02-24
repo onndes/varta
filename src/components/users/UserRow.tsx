@@ -23,8 +23,8 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         <span className="fw-bold">{u.name}</span>
         <div className="small text-muted">{u.note}</div>
       </td>
-      <td>
-        <div className="d-flex align-items-center gap-2 flex-wrap">
+      <td className="text-center">
+        <div className="d-flex align-items-center justify-content-center gap-2 flex-wrap">
           <span
             className={`badge ${u.isActive ? (u.status === 'ACTIVE' ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'}`}
           >

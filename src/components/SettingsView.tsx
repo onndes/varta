@@ -87,6 +87,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       logAction('SETTINGS', 'Вага днів змінено');
     }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weights]);
 
   useEffect(() => {
@@ -97,6 +98,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       logAction('SETTINGS', `Чергових на добу: ${perDay}`);
     }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perDay]);
 
   useEffect(() => {
@@ -107,6 +109,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       logAction('SETTINGS', 'Параметри алгоритму змінено');
     }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpts]);
 
   useEffect(() => {
@@ -117,6 +120,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       logAction('SETTINGS', `Макс. борг: ${debt}`);
     }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debt]);
 
   useEffect(() => {
@@ -127,6 +131,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       logAction('SETTINGS', `Рядків на сторінці (друк): ${maxRows}`);
     }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxRows]);
 
   useEffect(() => {
@@ -137,6 +142,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       logAction('SETTINGS', 'Підписи/заголовок змінено');
     }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sigs]);
 
   // Mark mounted LAST so the above effects skip on initial render

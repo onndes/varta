@@ -65,7 +65,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         const fallbackFrom = earliestScheduleDate <= todayStr ? earliestScheduleDate : todayStr;
         const trackingFrom = rawFairnessFrom || fallbackFrom;
 
-        // Наряди, які враховуються в облікковому періоді
+        // Наряди, які враховуються в обліковому періоді
         const comparableEntries = allUserEntries.filter((s) => s.date >= trackingFrom);
 
         // Скільки днів боєць був доступний для чергування (від trackingFrom до сьогодні)
@@ -170,9 +170,9 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           <table className="table table-hover align-middle mb-0 table-align-center">
             <thead className="table-light small">
               <tr>
-                <th rowSpan={2} style={{ userSelect: 'none' }}>
+                <th rowSpan={2} style={{ userSelect: 'none' }} className="text-start">
                   <span
-                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1`}
+                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
                     style={{ cursor: 'pointer', fontSize: '0.7rem' }}
                     onClick={() => toggleSort('name')}
                     title="Сортувати за ПІБ"
@@ -180,7 +180,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                     ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                   </span>
                   <span
-                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'}`}
+                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
                     style={{ cursor: 'pointer', fontSize: '0.7rem' }}
                     onClick={() => toggleSort('rank')}
                     title="Сортувати за званням"
@@ -265,7 +265,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
                     <td className="text-start">
                       <button
                         type="button"
-                        className="btn btn-link p-0 fw-bold text-decoration-none"
+                        className="btn btn-link p-0 fw-bold text-decoration-none text-start"
                         onClick={() => setSelectedUser(u)}
                       >
                         {u.name}
@@ -373,8 +373,8 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
               <li>
                 <strong>Частота (нар/день)</strong>: Кількість нарядів поділена на кількість
                 доступних днів. Чим менше значення, тим рідше особа чергує відносно свого часу в
-                підрозділі. Використовується для порівняння честності розподілу між особами, які
-                дежурять різний період часу.
+                підрозділі. Використовується для порівняння чесності розподілу між особами, які
+                чергують різний період часу.
               </li>
               <li>
                 <strong>З дати</strong>: Дата, з якої система веде порівняння для авточерги. Це не

@@ -30,6 +30,24 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   const activeUsers = users.filter((u) => u.isActive);
   const usersById = Object.fromEntries(activeUsers.map((u) => [u.id!, u]));
 
+  // Hooks must be called unconditionally before any early return
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'rank' ? 'desc' : 'asc');
+    }
+  };
+
+  const displayUsers = useMemo(() => {
+    if (sortKey) return sortUsersBy(activeUsers, sortKey, sortDir);
+    return [...activeUsers].sort(compareByRankAndName);
+  }, [activeUsers, sortKey, sortDir]);
+
   // ── Day-centric compact view for large teams (> 20) ──────────────────
   if (activeUsers.length > 20) {
     const slotsPerDay = Math.max(dutiesPerDay, 1);
@@ -134,23 +152,6 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   }
 
   // ── Standard user-row view for small teams (≤ 20) ────────────────────
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir(key === 'rank' ? 'desc' : 'asc');
-    }
-  };
-
-  const displayUsers = useMemo(() => {
-    if (sortKey) return sortUsersBy(activeUsers, sortKey, sortDir);
-    return [...activeUsers].sort(compareByRankAndName);
-  }, [activeUsers, sortKey, sortDir]);
-
   return (
     <div className="view-table">
       <div className="card shadow-sm border-0">
@@ -160,7 +161,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
               <th style={{ width: '40px' }}>#</th>
               <th className="col-user-screen" style={{ width: '250px', userSelect: 'none' }}>
                 <span
-                  className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1`}
+                  className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
                   style={{ cursor: 'pointer', fontSize: '0.7rem' }}
                   onClick={() => toggleSort('name')}
                   title="Сортувати за ПІБ"
@@ -168,7 +169,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </span>
                 <span
-                  className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'}`}
+                  className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
                   style={{ cursor: 'pointer', fontSize: '0.7rem' }}
                   onClick={() => toggleSort('rank')}
                   title="Сортувати за званням"
