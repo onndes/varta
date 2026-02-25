@@ -9,3 +9,4 @@ export { useSchedule } from './useSchedule';
 export { useSettings } from './useSettings';
 export { useAutoScheduler } from './useAutoScheduler';
 export { useExport } from './useExport';
+export { useScheduleHistory } from './useScheduleHistory';

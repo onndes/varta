@@ -20,6 +20,7 @@ import {
 } from '../services/scheduleService';
 import * as userService from '../services/userService';
 import { useAutoScheduler } from '../hooks';
+import { useScheduleHistory } from '../hooks/useScheduleHistory';
 import * as autoSchedulerService from '../services/autoScheduler';
 import * as auditService from '../services/auditService';
 import WeekNavigator from './schedule/WeekNavigator';
@@ -189,6 +190,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     autoScheduleOptions
   );
 
+  const {
+    pushHistory,
+    undo: undoHistory,
+    redo: redoHistory,
+    canUndo,
+    canRedo,
+    undoLabel,
+    redoLabel,
+  } = useScheduleHistory();
+
   const [currentMonday, setCurrentMonday] = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -278,6 +289,28 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       return newDate;
     });
   }, []);
+
+  // Keep a ref to the latest schedule so keyboard undo/redo always uses fresh data
+  const scheduleRef = React.useRef(schedule);
+  useEffect(() => {
+    scheduleRef.current = schedule;
+  }, [schedule]);
+
+  // Keyboard: Ctrl+Z / Ctrl+Y for undo/redo (always uses latest schedule via ref)
+  useEffect(() => {
+    const handleUndoRedo = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        void undoHistory(scheduleRef.current).then(() => refreshData());
+      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        void redoHistory(scheduleRef.current).then(() => refreshData());
+      }
+    };
+    window.addEventListener('keydown', handleUndoRedo);
+    return () => window.removeEventListener('keydown', handleUndoRedo);
+  }, [undoHistory, redoHistory, refreshData]);
 
   // Keyboard navigation: ArrowLeft / ArrowRight to switch weeks
   useEffect(() => {
@@ -398,25 +431,31 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     if (!cascadeStartDate) return false;
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
 
-    // Check if there are unlocked entries that could be improved
-    return Object.entries(schedule).some(([date, entry]) => {
-      if (date < start || entry.type === 'manual') return false;
+    // Require at least 2 entries that could meaningfully benefit from rebalancing.
+    // This avoids showing the button when only a single week is scheduled.
+    let improvableCount = 0;
+    for (const [date, entry] of Object.entries(schedule)) {
+      if (date < start || entry.type === 'manual') continue;
 
       const assignedIds = toAssignedUserIds(entry.userId);
-      if (assignedIds.length === 0) return false;
+      if (assignedIds.length === 0) continue;
 
-      // Get available candidates excluding already assigned on the same date
       const freeUsers = getFreeUsers(date).filter((u) => !assignedIds.includes(u.id!));
-      if (freeUsers.length === 0) return false;
+      if (freeUsers.length === 0) continue;
 
-      // Check each assigned slot; if any can be improved, suggest cascade
-      return assignedIds.some((assignedId) => {
+      const hasImprovement = assignedIds.some((assignedId) => {
         const currentUser = users.find((u) => u.id === assignedId);
         if (!currentUser) return true;
         const currentLoad = calculateEffectiveLoad(currentUser);
         return freeUsers.some((u) => calculateEffectiveLoad(u) < currentLoad - 0.5);
       });
-    });
+
+      if (hasImprovement) {
+        improvableCount++;
+        if (improvableCount >= 2) return true;
+      }
+    }
+    return false;
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
   const hasEnoughActiveUsers = useCallback(async (): Promise<boolean> => {
@@ -437,6 +476,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
     if (datesToFill.length === 0) return;
 
+    pushHistory(schedule, 'Заповнення прогалин');
     await fillGaps(datesToFill);
     await logAction('AUTO_FILL', `Заповнено ${datesToFill.length} днів`);
     await refreshData();
@@ -453,6 +493,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       : `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?`;
 
     if (!(await showConfirm(message))) return;
+
+    pushHistory(schedule, 'Виправлення конфліктів');
 
     // Remove only conflicting assignees, keep valid assignees on same date
     for (const date of scheduleIssues.conflicts) {
@@ -500,7 +542,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     ) {
       return;
     }
-
+    pushHistory(schedule, 'Генерація тижня');
     await generateWeekSchedule(validTargets);
     await logAction(
       'AUTO_SCHEDULE',
@@ -524,6 +566,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       return;
     }
 
+    pushHistory(schedule, 'Очищення тижня');
     await bulkDelete(datesToClear);
     await updateCascadeTrigger(weekDates[0]);
     await logAction('CLEAR_WEEK', `Очищено тиждень ${weekDates[0]} - ${weekDates[6]}`);
@@ -538,9 +581,24 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     if (!(await showConfirm(`Перерахувати АВТОМАТИЧНІ призначення з ${formatDate(start)}?`)))
       return;
 
+    pushHistory(schedule, 'Оптимізація');
     await recalculateFrom(start);
     await clearCascadeTrigger(); // Clear trigger after successful recalc
     await logAction('CASCADE', `Перерахунок з ${start}`);
+    await refreshData();
+  };
+
+  const runDismissCascade = async () => {
+    await clearCascadeTrigger();
+  };
+
+  const runUndo = async () => {
+    await undoHistory(schedule);
+    await refreshData();
+  };
+
+  const runRedo = async () => {
+    await redoHistory(schedule);
     await refreshData();
   };
 
@@ -577,6 +635,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     if (!selectedCell) return;
 
     try {
+      pushHistory(schedule, 'Призначення');
+
       const transferFrom =
         transferMode === 'move' ? getTransferSourceDate(userId, selectedCell.date) : undefined;
 
@@ -648,6 +708,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
     if (!swapDate) return;
 
+    pushHistory(schedule, 'Обмін');
+
     // Remove both users from their respective dates
     await removeAssignment(targetDate, 'work', currentUserId);
     await removeAssignment(swapDate, 'work', swapUserId);
@@ -693,6 +755,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     const dayIdx = new Date(date).getDay();
     const weight = dayWeights[dayIdx] || 1.0;
 
+    pushHistory(schedule, 'Зняття');
     await removeAssignment(date, reason, selectedCell.assignedUserId);
     await updateCascadeTrigger(date);
 
@@ -732,10 +795,17 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onFixConflicts={runFixConflicts}
         onAutoSchedule={runFullAutoSchedule}
         onCascadeRecalc={runCascadeRecalc}
+        onDismissCascade={runDismissCascade}
         onClearWeek={runClearWeek}
         onImportSchedule={() => setShowImportModal(true)}
         historyMode={historyMode}
         onToggleHistoryMode={() => setHistoryMode((v) => !v)}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        undoLabel={undoLabel}
+        redoLabel={redoLabel}
+        onUndo={runUndo}
+        onRedo={runRedo}
       />
 
       {/* Друк: заголовок (для календаря та таблиці чергувань) */}

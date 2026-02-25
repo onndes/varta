@@ -15,10 +15,17 @@ interface ScheduleControlsProps {
   onFixConflicts: () => void;
   onAutoSchedule: () => void;
   onCascadeRecalc: () => void;
+  onDismissCascade: () => void;
   onClearWeek: () => void;
   onImportSchedule: () => void;
   historyMode: boolean;
   onToggleHistoryMode: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  undoLabel?: string;
+  redoLabel?: string;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
 /**
@@ -39,10 +46,17 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onFixConflicts,
   onAutoSchedule,
   onCascadeRecalc,
+  onDismissCascade,
   onClearWeek,
   onImportSchedule,
   historyMode,
   onToggleHistoryMode,
+  canUndo,
+  canRedo,
+  undoLabel,
+  redoLabel,
+  onUndo,
+  onRedo,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
@@ -85,7 +99,27 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
         <div />
       </div>
 
-      <div className="d-flex justify-content-end gap-2 flex-wrap">
+      <div className="d-flex align-items-center gap-2 flex-wrap">
+        {/* Undo / Redo */}
+        <div className="d-flex gap-1 me-auto">
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title={canUndo ? `Скасувати: ${undoLabel}` : 'Немає дій для скасування'}
+          >
+            <i className="fas fa-undo"></i>
+          </button>
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title={canRedo ? `Повторити: ${redoLabel}` : 'Немає дій для повторення'}
+          >
+            <i className="fas fa-redo"></i>
+          </button>
+        </div>
+
         {!isFutureWeek && (
           <button
             className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
@@ -118,10 +152,19 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           </button>
         )}
         {cascadeStartDate && shouldShowCascade && (
-          <button className="btn btn-sm btn-outline-info" onClick={onCascadeRecalc}>
-            <i className="fas fa-sync-alt me-2"></i>
-            Оптимізувати (з {formatDate(cascadeStartDate!)})
-          </button>
+          <>
+            <button className="btn btn-sm btn-outline-info" onClick={onCascadeRecalc}>
+              <i className="fas fa-sync-alt me-2"></i>
+              Оптимізувати (з {formatDate(cascadeStartDate!)})
+            </button>
+            <button
+              className="btn btn-sm btn-outline-success"
+              onClick={onDismissCascade}
+              title="Все гаразд, не змінювати автоматичні призначення"
+            >
+              <i className="fas fa-check me-2"></i>Залишити як є
+            </button>
+          </>
         )}
         <button
           className="btn btn-sm btn-outline-danger"
