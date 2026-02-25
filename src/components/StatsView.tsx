@@ -80,9 +80,12 @@ const StatsView: React.FC<StatsViewProps> = ({
         // Якщо є явна дата обліку (dateAddedToAuto) — фільтруємо строго за нею.
         // Якщо ні — додатково включаємо історичні/імпортовані записи (навіть якщо до fallback).
         const hasExplicitTracking = !!rawFairnessFrom;
-        const comparableEntries = allUserEntries.filter(
-          (s) => s.date >= trackingFrom || (!hasExplicitTracking && isHistoryType(s))
-        );
+        const comparableEntries = allUserEntries.filter((s) => {
+          if (s.date >= trackingFrom) return true;
+          if (!ignoreHistoryInLogic && isHistoryType(s)) return true;
+          if (!hasExplicitTracking && isHistoryType(s)) return true;
+          return false;
+        });
 
         // Скільки днів боєць був доступний для чергування (від trackingFrom до сьогодні)
         // Якщо боєць неактивний або виключений з авторозподілу — 0

@@ -226,6 +226,22 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             ))}
           </div>
+
+          <div className="mt-3 d-flex align-items-center gap-2">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={async () => {
+                await onSave(weights);
+                await logAction('SETTINGS', 'Ваги днів перезбережено, навантаження перераховано');
+                await showAlert(
+                  'Навантаження (бали) перераховано.\n\nУсі бали в статистиці та генерації тепер використовують нові ваги.'
+                );
+              }}
+            >
+              <i className="fas fa-calculator me-1"></i>Перерахувати навантаження
+            </button>
+            <span className="text-muted small">Зберігає ваги та оновлює бали в статистиці</span>
+          </div>
         </div>
       </div>
 

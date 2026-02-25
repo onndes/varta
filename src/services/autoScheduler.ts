@@ -6,7 +6,7 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getUserFairnessFrom } from '../utils/fairness';
 import { isUserAvailable, repayOwedDay } from './userService';
 import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
-import { toAssignedUserIds, isManualType, getLogicSchedule } from '../utils/assignment';
+import { toAssignedUserIds, isManualType, getLogicSchedule, isHistoryType } from '../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
 // ─── \u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438 ──────────────────────────────────────────────────────
@@ -44,6 +44,24 @@ const getScheduleStart = (
 ): string => {
   const dates = Object.keys(schedule).sort();
   return dates[0] || fallbackDate;
+};
+
+/** Найраніша історична/імпортована дата для кожного бійця */
+const buildEarliestHistoryMap = (
+  schedule: Record<string, ScheduleEntry>
+): Map<number, string> => {
+  const map = new Map<number, string>();
+  for (const entry of Object.values(schedule)) {
+    if (!isHistoryType(entry)) continue;
+    const ids = toAssignedUserIds(entry.userId);
+    for (const id of ids) {
+      const prev = map.get(id);
+      if (!prev || entry.date < prev) {
+        map.set(id, entry.date);
+      }
+    }
+  }
+  return map;
 };
 
 /** \u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0434\u0430\u0442\u0430 (YYYY-MM-DD) */
@@ -214,9 +232,15 @@ const floatEq = (a: number, b: number): boolean => Math.abs(a - b) < FLOAT_EPSIL
 const getUserCompareFrom = (
   user: User,
   dateStr: string,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  earliestHistoryByUser?: Map<number, string>
 ): string => {
-  return getUserFairnessFrom(user, dateStr) || getScheduleStart(schedule, dateStr);
+  let from = getUserFairnessFrom(user, dateStr) || getScheduleStart(schedule, dateStr);
+  if (user.id && earliestHistoryByUser) {
+    const historyFrom = earliestHistoryByUser.get(user.id);
+    if (historyFrom && historyFrom < from) from = historyFrom;
+  }
+  return from;
 };
 
 // \u2500\u2500\u2500 \u0423\u043d\u0456\u0432\u0435\u0440\u0441\u0430\u043b\u044c\u043d\u0438\u0439 \u043a\u043e\u043c\u043f\u0430\u0440\u0430\u0442\u043e\u0440 \u043f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442\u0456\u0432 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -248,6 +272,7 @@ const buildUserComparator = (
   // For load/fairness calcs use fairnessSchedule (history entries filtered out);
   // for existence/constraint checks the caller uses the full schedule directly.
   const fs = fairnessSchedule || schedule;
+  const earliestHistoryByUser = buildEarliestHistoryMap(fs);
   const dayIdx = new Date(dateStr).getDay();
   const weight = dayWeights[dayIdx] || 1.0;
   const compareTo = getPrevDateStr(dateStr);
@@ -255,8 +280,8 @@ const buildUserComparator = (
   return (a: User, b: User): number => {
     if (!a.id || !b.id) return 0;
 
-    const fromA = getUserCompareFrom(a, dateStr, fs);
-    const fromB = getUserCompareFrom(b, dateStr, fs);
+    const fromA = getUserCompareFrom(a, dateStr, fs, earliestHistoryByUser);
+    const fromB = getUserCompareFrom(b, dateStr, fs, earliestHistoryByUser);
     const offsetA = tempLoadOffset?.[a.id] ?? 0;
     const offsetB = tempLoadOffset?.[b.id] ?? 0;
 
@@ -533,8 +558,9 @@ export const autoFillSchedule = async (
     const latestDate = targetDates[targetDates.length - 1];
 
     const fairnessTempSched = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+    const earliestHistoryByUser = buildEarliestHistoryMap(fairnessTempSched);
     const getLoadRate = (u: User): number => {
-      const from = getUserCompareFrom(u, latestDate, fairnessTempSched);
+      const from = getUserCompareFrom(u, latestDate, fairnessTempSched, earliestHistoryByUser);
       const load = calculateUserLoad(u.id!, fairnessTempSched, dayWeights, from) + (u.debt || 0);
       const avail = Math.max(1, countAvailableDaysInWindow(u, from, latestDate));
       return load / avail;
