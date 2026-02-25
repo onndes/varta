@@ -28,6 +28,7 @@ export interface ExportData {
   maxDebt?: number;
   dutiesPerDay?: number;
   printMaxRows?: number;
+  ignoreHistoryInLogic?: boolean;
 }
 
 export interface MultiWorkspaceExportData {
@@ -68,6 +69,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     maxDebtRec,
     dutiesPerDayRec,
     printMaxRowsRec,
+    ignoreHistoryRec,
   ] = await Promise.all([
     targetDb.users.toArray(),
     targetDb.schedule.toArray(),
@@ -78,6 +80,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('maxDebt'),
     targetDb.appState.get('dutiesPerDay'),
     targetDb.appState.get('printMaxRows'),
+    targetDb.appState.get('ignoreHistoryInLogic'),
   ]);
   return {
     version: CURRENT_BACKUP_VERSION,
@@ -91,6 +94,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     maxDebt: maxDebtRec ? (maxDebtRec.value as number) : undefined,
     dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
     printMaxRows: printMaxRowsRec ? (printMaxRowsRec.value as number) : undefined,
+    ignoreHistoryInLogic: ignoreHistoryRec ? (ignoreHistoryRec.value as boolean) : undefined,
   };
 };
 
@@ -131,6 +135,11 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
         await targetDb.appState.put({ key: 'dutiesPerDay', value: data.dutiesPerDay });
       if (data.printMaxRows != null)
         await targetDb.appState.put({ key: 'printMaxRows', value: data.printMaxRows });
+      if (data.ignoreHistoryInLogic != null)
+        await targetDb.appState.put({
+          key: 'ignoreHistoryInLogic',
+          value: data.ignoreHistoryInLogic,
+        });
 
       // Прапорці
       await targetDb.appState.put({ key: 'needsExport', value: false });

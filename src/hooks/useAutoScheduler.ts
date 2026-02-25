@@ -16,7 +16,8 @@ export const useAutoScheduler = (
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   dutiesPerDay: number,
-  autoScheduleOptions: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS
+  autoScheduleOptions: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  ignoreHistoryInLogic = false
 ) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +42,8 @@ export const useAutoScheduler = (
           schedule,
           dayWeights,
           dutiesPerDay,
-          autoScheduleOptions
+          autoScheduleOptions,
+          ignoreHistoryInLogic
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -54,7 +56,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions]
+    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
   );
 
   // Fix conflicts
@@ -92,7 +94,8 @@ export const useAutoScheduler = (
           schedule,
           dayWeights,
           dutiesPerDay,
-          autoScheduleOptions
+          autoScheduleOptions,
+          ignoreHistoryInLogic
         );
 
         if (onComplete) onComplete();
@@ -103,7 +106,7 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions]
+    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
   );
 
   // Generate full week schedule
@@ -133,7 +136,8 @@ export const useAutoScheduler = (
           schedule,
           dayWeights,
           dutiesPerDay,
-          autoScheduleOptions
+          autoScheduleOptions,
+          ignoreHistoryInLogic
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -146,15 +150,22 @@ export const useAutoScheduler = (
         setIsProcessing(false);
       }
     },
-    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions]
+    [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
   );
 
   // Get free users for a date
   const getFreeUsersForDate = useCallback(
     (date: string) => {
-      return autoScheduler.getFreeUsersForDate(date, users, schedule, dayWeights, autoScheduleOptions);
+      return autoScheduler.getFreeUsersForDate(
+        date,
+        users,
+        schedule,
+        dayWeights,
+        autoScheduleOptions,
+        ignoreHistoryInLogic
+      );
     },
-    [users, schedule, dayWeights, autoScheduleOptions]
+    [users, schedule, dayWeights, autoScheduleOptions, ignoreHistoryInLogic]
   );
 
   // Get optimal assignment for a date
@@ -165,10 +176,11 @@ export const useAutoScheduler = (
         users,
         schedule,
         dayWeights,
-        autoScheduleOptions
+        autoScheduleOptions,
+        ignoreHistoryInLogic
       );
     },
-    [users, schedule, dayWeights, autoScheduleOptions]
+    [users, schedule, dayWeights, autoScheduleOptions, ignoreHistoryInLogic]
   );
 
   return {

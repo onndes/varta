@@ -21,8 +21,35 @@ export const getAssignedCount = (entry: ScheduleEntry | null | undefined): numbe
   return toAssignedUserIds(entry.userId).length;
 };
 
-/** Чи є тип запису «ручним» (manual, replace, swap — не авто) */
+/** Чи є тип запису «ручним» (manual, replace, swap, history, import — не авто) */
 export const isManualType = (entry: ScheduleEntry | null | undefined): boolean => {
   if (!entry) return false;
-  return entry.type === 'manual' || entry.type === 'replace' || entry.type === 'swap';
+  return (
+    entry.type === 'manual' ||
+    entry.type === 'replace' ||
+    entry.type === 'swap' ||
+    entry.type === 'history' ||
+    entry.type === 'import'
+  );
+};
+
+/** Чи є запис історичним / імпортованим */
+export const isHistoryType = (entry: ScheduleEntry | null | undefined): boolean => {
+  if (!entry) return false;
+  return entry.type === 'history' || entry.type === 'import';
+};
+
+/** Фільтрувати розклад для логіки (прибрати історію/імпорт якщо ignoreHistory) */
+export const getLogicSchedule = (
+  schedule: Record<string, ScheduleEntry>,
+  ignoreHistory: boolean
+): Record<string, ScheduleEntry> => {
+  if (!ignoreHistory) return schedule;
+  const filtered: Record<string, ScheduleEntry> = {};
+  for (const [date, entry] of Object.entries(schedule)) {
+    if (!isHistoryType(entry)) {
+      filtered[date] = entry;
+    }
+  }
+  return filtered;
 };

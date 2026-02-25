@@ -86,6 +86,14 @@ export const getDutiesPerDay = async (): Promise<number> =>
 export const saveDutiesPerDay = async (count: number): Promise<void> =>
   saveSetting('dutiesPerDay', count);
 
+// ── Ignore history in logic ───────────────────────────────────────
+
+export const getIgnoreHistoryInLogic = async (): Promise<boolean> =>
+  getJsonSetting('ignoreHistoryInLogic', false);
+
+export const saveIgnoreHistoryInLogic = async (value: boolean): Promise<void> =>
+  saveSetting('ignoreHistoryInLogic', value);
+
 /**
  * Get cascade start date
  */
@@ -134,4 +142,5 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('autoScheduleOptions', DEFAULT_AUTO_SCHEDULE_OPTIONS);
   await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
   await saveSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
+  await saveSetting('ignoreHistoryInLogic', false);
 };

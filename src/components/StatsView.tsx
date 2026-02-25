@@ -11,15 +11,21 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getUserFairnessFrom } from '../utils/fairness';
 import { getUserAvailabilityStatus } from '../services/userService';
 import UserStatsModal from './users/UserStatsModal';
-import { isAssignedInEntry } from '../utils/assignment';
+import { isAssignedInEntry, getLogicSchedule, isHistoryType } from '../utils/assignment';
 
 interface StatsViewProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
   dayWeights: DayWeights;
+  ignoreHistoryInLogic: boolean;
 }
 
-const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) => {
+const StatsView: React.FC<StatsViewProps> = ({
+  users,
+  schedule,
+  dayWeights,
+  ignoreHistoryInLogic,
+}) => {
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -37,8 +43,13 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
   const todayStr = toLocalISO(new Date());
 
   const allStats = useMemo(() => {
-    const scheduleDates = Object.keys(schedule).sort();
-    const earliestScheduleDate = scheduleDates[0] || todayStr;
+    const logicSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
+    // Earliest non-history schedule date for fallback tracking
+    const nonHistoryDates = Object.entries(logicSched)
+      .filter(([, e]) => !isHistoryType(e))
+      .map(([d]) => d)
+      .sort();
+    const earliestScheduleDate = nonHistoryDates[0] || todayStr;
     const overlapDays = (
       from: string,
       to: string,
@@ -56,7 +67,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
 
     return users
       .map((u) => {
-        const allUserEntries = Object.values(schedule).filter((s) => isAssignedInEntry(s, u.id!));
+        const allUserEntries = Object.values(logicSched).filter((s) => isAssignedInEntry(s, u.id!));
 
         // Дата, з якої ведеться облік для цього бійця:
         // - dateAddedToAuto (якщо задана) — дата включення в авточергу
@@ -65,8 +76,13 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         const fallbackFrom = earliestScheduleDate <= todayStr ? earliestScheduleDate : todayStr;
         const trackingFrom = rawFairnessFrom || fallbackFrom;
 
-        // Наряди, які враховуються в обліковому періоді
-        const comparableEntries = allUserEntries.filter((s) => s.date >= trackingFrom);
+        // Наряди, які враховуються в обліковому періоді:
+        // Якщо є явна дата обліку (dateAddedToAuto) — фільтруємо строго за нею.
+        // Якщо ні — додатково включаємо історичні/імпортовані записи (навіть якщо до fallback).
+        const hasExplicitTracking = !!rawFairnessFrom;
+        const comparableEntries = allUserEntries.filter(
+          (s) => s.date >= trackingFrom || (!hasExplicitTracking && isHistoryType(s))
+        );
 
         // Скільки днів боєць був доступний для чергування (від trackingFrom до сьогодні)
         // Якщо боєць неактивний або виключений з авторозподілу — 0
@@ -118,7 +134,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
         if (loadDiff !== 0) return loadDiff;
         return compareByRankAndName(a, b);
       });
-  }, [users, schedule, dayWeights, todayStr]);
+  }, [users, schedule, dayWeights, todayStr, ignoreHistoryInLogic]);
 
   // Filter based on active status
   const filteredStats = allStats.filter((u) => {
@@ -390,6 +406,7 @@ const StatsView: React.FC<StatsViewProps> = ({ users, schedule, dayWeights }) =>
           users={users}
           schedule={schedule}
           dayWeights={dayWeights}
+          ignoreHistoryInLogic={ignoreHistoryInLogic}
           onClose={() => setSelectedUser(null)}
         />
       )}

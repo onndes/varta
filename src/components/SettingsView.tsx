@@ -13,12 +13,14 @@ interface SettingsViewProps {
   autoScheduleOptions: AutoScheduleOptions;
   maxDebt: number;
   printMaxRows: number;
+  ignoreHistoryInLogic: boolean;
   onSave: (w: DayWeights) => Promise<void>;
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
   onSaveMaxDebt: (value: number) => Promise<void>;
   onSavePrintMaxRows: (value: number) => Promise<void>;
+  onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
 }
 
@@ -31,12 +33,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   autoScheduleOptions,
   maxDebt,
   printMaxRows,
+  ignoreHistoryInLogic,
   onSave,
   onSaveSignatories,
   onSaveDutiesPerDay,
   onSaveAutoScheduleOptions,
   onSaveMaxDebt,
   onSavePrintMaxRows,
+  onSaveIgnoreHistoryInLogic,
   logAction,
 }) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
@@ -192,7 +196,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="card-body">
           <div className="alert alert-info py-2 small">
             Вага дня визначає, скільки балів отримує особа за чергування в цей день тижня. Більша
-            вага = важчий день. Діапазон від 0.1 до 5.0, крок 0.1.
+            вага = важчий день. Діапазон від 0.1 до 5.0, крок 0.05.
             <br />
             <span className="text-muted">
               Наприклад: 1.0 — звичайний будень, 1.5 — п'ятниця/неділя, 2.0 — субота, 0.5 — легкий
@@ -208,13 +212,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   </label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="0.05"
                     min="0.1"
                     max="5.0"
                     className="form-control text-center fw-bold form-control-sm mx-auto"
                     style={{ width: '70px' }}
                     value={weights[day]}
-                    onChange={(e) => setWeights({ ...weights, [day]: parseFloat(e.target.value) })}
+                    onChange={(e) => {
+                      setWeights({ ...weights, [day]: parseFloat(e.target.value) });
+                    }}
                   />
                 </div>
               </div>
@@ -523,6 +529,39 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 збільшується. За замовчуванням: 4.0
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* History in Logic */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-history me-2"></i>Режим історії
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="form-check form-switch">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="ignoreHistoryInLogic"
+              checked={ignoreHistoryInLogic}
+              onChange={async (e) => {
+                await onSaveIgnoreHistoryInLogic(e.target.checked);
+                await logAction(
+                  'SETTINGS',
+                  e.target.checked ? 'Історія виключена з логіки' : 'Історія включена в логіку'
+                );
+              }}
+            />
+            <label className="form-check-label" htmlFor="ignoreHistoryInLogic">
+              <strong>Ігнорувати історію в логіці генерації та статистиці</strong>
+              <div className="text-muted small">
+                За замовчуванням дежурства, додані в режимі історії, враховуються при генерації
+                наступних тижнів і відображаються в статистиці. Увімкніть, щоб виключити їх.
+              </div>
+            </label>
           </div>
         </div>
       </div>

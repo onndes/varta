@@ -36,7 +36,12 @@ import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import ImportScheduleModal from './schedule/ImportScheduleModal';
 import { isUserAvailable } from '../services/userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
-import { getAssignedCount, isAssignedInEntry, toAssignedUserIds } from '../utils/assignment';
+import {
+  getAssignedCount,
+  isAssignedInEntry,
+  toAssignedUserIds,
+  getLogicSchedule,
+} from '../utils/assignment';
 
 interface ScheduleViewProps {
   users: User[];
@@ -52,6 +57,7 @@ interface ScheduleViewProps {
   dutiesPerDay: number;
   printMode: PrintMode;
   printMaxRows: number;
+  ignoreHistoryInLogic: boolean;
 }
 
 interface SelectedCell {
@@ -81,11 +87,18 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   dutiesPerDay,
   printMode,
   printMaxRows,
+  ignoreHistoryInLogic,
 }) => {
+  // Schedule filtered for logic calculations (excludes history entries if setting is on)
+  const logicSchedule = useMemo(
+    () => getLogicSchedule(schedule, ignoreHistoryInLogic),
+    [schedule, ignoreHistoryInLogic]
+  );
+
   // Direct service operations (no duplicate useSchedule hook)
   const calculateEffectiveLoad = useCallback(
-    (user: User) => calcEffectiveLoad(user, schedule, dayWeights),
-    [schedule, dayWeights]
+    (user: User) => calcEffectiveLoad(user, logicSchedule, dayWeights),
+    [logicSchedule, dayWeights]
   );
 
   const assignUser = useCallback(
@@ -187,7 +200,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     schedule,
     dayWeights,
     dutiesPerDay,
-    autoScheduleOptions
+    autoScheduleOptions,
+    ignoreHistoryInLogic
   );
 
   const {

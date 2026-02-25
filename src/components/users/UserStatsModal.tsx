@@ -13,6 +13,7 @@ import { getUserAvailabilityStatus, isUserAvailable } from '../../services/userS
 import * as auditService from '../../services/auditService';
 import Modal from '../Modal';
 import { isAssignedInEntry } from '../../utils/assignment';
+import { getLogicSchedule } from '../../utils/assignment';
 import AbsenceSection from './AbsenceSection';
 import TimelineSection from './TimelineSection';
 
@@ -21,6 +22,7 @@ interface UserStatsModalProps {
   users?: User[];
   schedule: Record<string, ScheduleEntry>;
   dayWeights: DayWeights;
+  ignoreHistoryInLogic?: boolean;
   onClose: () => void;
 }
 
@@ -29,15 +31,21 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
   users = [],
   schedule,
   dayWeights,
+  ignoreHistoryInLogic = false,
   onClose,
 }) => {
   const [auditEvents, setAuditEvents] = useState<TimelineEvent[]>([]);
   const todayStr = useMemo(() => toLocalISO(new Date()), []);
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const currentMonth = useMemo(() => new Date().getMonth(), []);
+  const logicSchedule = useMemo(
+    () => getLogicSchedule(schedule, ignoreHistoryInLogic),
+    [schedule, ignoreHistoryInLogic]
+  );
+
   const userSchedule = useMemo(
-    () => Object.values(schedule).filter((s) => isAssignedInEntry(s, user.id!)),
-    [schedule, user.id]
+    () => Object.values(logicSchedule).filter((s) => isAssignedInEntry(s, user.id!)),
+    [logicSchedule, user.id]
   );
   const totalAssignments = userSchedule.length;
 

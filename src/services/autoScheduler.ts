@@ -6,7 +6,7 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getUserFairnessFrom } from '../utils/fairness';
 import { isUserAvailable, repayOwedDay } from './userService';
 import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
-import { toAssignedUserIds, isManualType } from '../utils/assignment';
+import { toAssignedUserIds, isManualType, getLogicSchedule } from '../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
 // ─── \u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438 ──────────────────────────────────────────────────────
@@ -242,8 +242,12 @@ const buildUserComparator = (
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   options: AutoScheduleOptions,
-  tempLoadOffset?: Record<number, number>
+  tempLoadOffset?: Record<number, number>,
+  fairnessSchedule?: Record<string, ScheduleEntry>
 ): ((a: User, b: User) => number) => {
+  // For load/fairness calcs use fairnessSchedule (history entries filtered out);
+  // for existence/constraint checks the caller uses the full schedule directly.
+  const fs = fairnessSchedule || schedule;
   const dayIdx = new Date(dateStr).getDay();
   const weight = dayWeights[dayIdx] || 1.0;
   const compareTo = getPrevDateStr(dateStr);
@@ -251,16 +255,16 @@ const buildUserComparator = (
   return (a: User, b: User): number => {
     if (!a.id || !b.id) return 0;
 
-    const fromA = getUserCompareFrom(a, dateStr, schedule);
-    const fromB = getUserCompareFrom(b, dateStr, schedule);
+    const fromA = getUserCompareFrom(a, dateStr, fs);
+    const fromB = getUserCompareFrom(b, dateStr, fs);
     const offsetA = tempLoadOffset?.[a.id] ?? 0;
     const offsetB = tempLoadOffset?.[b.id] ?? 0;
 
     // \u041f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442 0: \u0410\u0433\u0440\u0435\u0441\u0438\u0432\u043d\u0435 \u0431\u0430\u043b\u0430\u043d\u0441\u0443\u0432\u0430\u043d\u043d\u044f (override)
     if (options.considerLoad && options.aggressiveLoadBalancing) {
       const threshold = Math.max(0, options.aggressiveLoadBalancingThreshold ?? 0.2);
-      const loadA = calculateUserLoad(a.id, schedule, dayWeights, fromA) + offsetA + (a.debt || 0);
-      const loadB = calculateUserLoad(b.id, schedule, dayWeights, fromB) + offsetB + (b.debt || 0);
+      const loadA = calculateUserLoad(a.id, fs, dayWeights, fromA) + offsetA + (a.debt || 0);
+      const loadB = calculateUserLoad(b.id, fs, dayWeights, fromB) + offsetB + (b.debt || 0);
       const forced = getAggressiveBalanceDecision(loadA, loadB, threshold);
       if (forced !== 0) return forced;
     }
@@ -281,8 +285,8 @@ const buildUserComparator = (
 
     if (options.considerLoad) {
       // \u041f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442 3: \u0420\u0456\u0432\u043d\u043e\u043c\u0456\u0440\u043d\u0438\u0439 \u0440\u043e\u0437\u043f\u043e\u0434\u0456\u043b \u043f\u043e \u0434\u043d\u044f\u0445 \u0442\u0438\u0436\u043d\u044f (\u043d\u043e\u0440\u043c\u0430\u043b\u0456\u0437\u043e\u0432\u0430\u043d\u043e \u0434\u043e \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e\u0441\u0442\u0456)
-      const dowA = countUserDaysOfWeek(a.id, schedule, fromA)[dayIdx] || 0;
-      const dowB = countUserDaysOfWeek(b.id, schedule, fromB)[dayIdx] || 0;
+      const dowA = countUserDaysOfWeek(a.id, fs, fromA)[dayIdx] || 0;
+      const dowB = countUserDaysOfWeek(b.id, fs, fromB)[dayIdx] || 0;
       const dowAvailA = Math.max(1, countAvailableDaysInWindow(a, fromA, compareTo, dayIdx));
       const dowAvailB = Math.max(1, countAvailableDaysInWindow(b, fromB, compareTo, dayIdx));
       const dowRateA = dowA / dowAvailA;
@@ -291,18 +295,18 @@ const buildUserComparator = (
 
       // \u041f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442 4: \u041c\u0435\u043d\u0448\u0435 \u043d\u0430\u0440\u044f\u0434\u0456\u0432 \u0432 \u043f\u043e\u0442\u043e\u0447\u043d\u043e\u043c\u0443 \u0442\u0438\u0436\u043d\u0456
       const week = getWeekWindow(dateStr);
-      const weekA = countUserAssignmentsInRange(a.id, schedule, week.from, week.to);
-      const weekB = countUserAssignmentsInRange(b.id, schedule, week.from, week.to);
+      const weekA = countUserAssignmentsInRange(a.id, fs, week.from, week.to);
+      const weekB = countUserAssignmentsInRange(b.id, fs, week.from, week.to);
       if (weekA !== weekB) return weekA - weekB;
 
       // \u041f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442 5: \u0425\u0442\u043e \u0434\u043e\u0432\u0448\u0435 \u0447\u0435\u043a\u0430\u0454 \u0437 \u043e\u0441\u0442\u0430\u043d\u043d\u044c\u043e\u0433\u043e \u043d\u0430\u0440\u044f\u0434\u0443
-      const waitA = daysSinceLastAssignment(a.id, schedule, dateStr);
-      const waitB = daysSinceLastAssignment(b.id, schedule, dateStr);
+      const waitA = daysSinceLastAssignment(a.id, fs, dateStr);
+      const waitB = daysSinceLastAssignment(b.id, fs, dateStr);
       if (waitA !== waitB) return waitB - waitA;
 
       // \u041f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442 6: \u0417\u0430\u0433\u0430\u043b\u044c\u043d\u0430 \u043a\u0456\u043b\u044c\u043a\u0456\u0441\u0442\u044c \u043d\u0430\u0440\u044f\u0434\u0456\u0432 (\u043d\u043e\u0440\u043c\u0430\u043b\u0456\u0437\u043e\u0432\u0430\u043d\u043e)
-      const totalA = countUserAssignments(a.id, schedule, fromA) + offsetA;
-      const totalB = countUserAssignments(b.id, schedule, fromB) + offsetB;
+      const totalA = countUserAssignments(a.id, fs, fromA) + offsetA;
+      const totalB = countUserAssignments(b.id, fs, fromB) + offsetB;
       const availA = Math.max(1, countAvailableDaysInWindow(a, fromA, compareTo));
       const availB = Math.max(1, countAvailableDaysInWindow(b, fromB, compareTo));
       const totalRateA = totalA / availA;
@@ -310,8 +314,8 @@ const buildUserComparator = (
       if (!floatEq(totalRateA, totalRateB)) return totalRateA - totalRateB;
 
       // \u041f\u0440\u0456\u043e\u0440\u0438\u0442\u0435\u0442 7: \u0417\u0432\u0430\u0436\u0435\u043d\u0435 \u043d\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f + \u043a\u0430\u0440\u043c\u0430
-      const loadA = calculateUserLoad(a.id, schedule, dayWeights, fromA) + offsetA + (a.debt || 0);
-      const loadB = calculateUserLoad(b.id, schedule, dayWeights, fromB) + offsetB + (b.debt || 0);
+      const loadA = calculateUserLoad(a.id, fs, dayWeights, fromA) + offsetA + (a.debt || 0);
+      const loadB = calculateUserLoad(b.id, fs, dayWeights, fromB) + offsetB + (b.debt || 0);
       const loadDiff = loadA / availA - loadB / availB;
       if (!floatEq(loadDiff, 0)) return loadDiff;
     }
@@ -423,7 +427,8 @@ export const autoFillSchedule = async (
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   dutiesPerDay = 1,
-  options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS
+  options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  ignoreHistoryInLogic = false
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
   const tempSchedule = { ...schedule };
@@ -460,7 +465,16 @@ export const autoFillSchedule = async (
     );
 
     // Спільний компаратор (з тимчасовим offset навантаження)
-    const compare = buildUserComparator(dateStr, tempSchedule, dayWeights, options, tempLoadOffset);
+    // For fairness calcs, exclude history entries when ignoreHistoryInLogic is on
+    const fairnessSched = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+    const compare = buildUserComparator(
+      dateStr,
+      tempSchedule,
+      dayWeights,
+      options,
+      tempLoadOffset,
+      fairnessSched
+    );
     pool.sort(compare);
 
     // Фільтри: дні відпочинку, несумісність та ліміт на тиждень
@@ -518,9 +532,10 @@ export const autoFillSchedule = async (
     const autoPool = users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);
     const latestDate = targetDates[targetDates.length - 1];
 
+    const fairnessTempSched = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
     const getLoadRate = (u: User): number => {
-      const from = getUserCompareFrom(u, latestDate, tempSchedule);
-      const load = calculateUserLoad(u.id!, tempSchedule, dayWeights, from) + (u.debt || 0);
+      const from = getUserCompareFrom(u, latestDate, fairnessTempSched);
+      const load = calculateUserLoad(u.id!, fairnessTempSched, dayWeights, from) + (u.debt || 0);
       const avail = Math.max(1, countAvailableDaysInWindow(u, from, latestDate));
       return load / avail;
     };
@@ -651,9 +666,11 @@ export const getFreeUsersForDate = (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
-  options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS
+  options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  ignoreHistoryInLogic = false
 ): User[] => {
   const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
+  const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
 
   // Доступні бійці (не призначені, не Extra, не excludeFromAuto)
   let candidatePool = users.filter(
@@ -671,7 +688,9 @@ export const getFreeUsersForDate = (
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
-  return candidatePool.sort(buildUserComparator(dateStr, schedule, dayWeights, options));
+  return candidatePool.sort(
+    buildUserComparator(dateStr, schedule, dayWeights, options, undefined, fairnessSched)
+  );
 };
 
 /**
@@ -683,7 +702,8 @@ export const recalculateScheduleFrom = async (
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   dutiesPerDay = 1,
-  options?: AutoScheduleOptions
+  options?: AutoScheduleOptions,
+  ignoreHistoryInLogic = false
 ): Promise<void> => {
   const todayStr = toLocalISO(new Date());
   const start = startDate < todayStr ? todayStr : startDate;
@@ -726,7 +746,8 @@ export const recalculateScheduleFrom = async (
     freshSchedule,
     dayWeights,
     dutiesPerDay,
-    options
+    options,
+    ignoreHistoryInLogic
   );
   await saveAutoSchedule(updates, dayWeights);
 };
@@ -739,10 +760,12 @@ export const calculateOptimalAssignment = (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
-  options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS
+  options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
+  ignoreHistoryInLogic = false
 ): User | null => {
   let available = users.filter((u) => u.isActive && isUserAvailable(u, dateStr, schedule));
   if (available.length === 0) return null;
+  const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
@@ -751,6 +774,8 @@ export const calculateOptimalAssignment = (
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
-  available.sort(buildUserComparator(dateStr, schedule, dayWeights, options));
+  available.sort(
+    buildUserComparator(dateStr, schedule, dayWeights, options, undefined, fairnessSched)
+  );
   return available[0];
 };

@@ -37,6 +37,7 @@ const App = () => {
     autoScheduleOptions,
     maxDebt,
     printMaxRows,
+    ignoreHistoryInLogic,
     loadSettings,
     saveDayWeights,
     saveSignatories,
@@ -44,6 +45,7 @@ const App = () => {
     saveAutoScheduleOptions,
     saveMaxDebt,
     savePrintMaxRows,
+    saveIgnoreHistoryInLogic,
     updateCascadeTrigger,
     clearCascadeTrigger,
   } = useSettings();
@@ -161,6 +163,7 @@ const App = () => {
               dutiesPerDay={dutiesPerDay}
               printMode={printMode}
               printMaxRows={printMaxRows}
+              ignoreHistoryInLogic={ignoreHistoryInLogic}
             />
           )}
           {activeTab === 'users' && (
@@ -174,7 +177,12 @@ const App = () => {
             />
           )}
           {activeTab === 'stats' && (
-            <StatsView users={users} schedule={schedule} dayWeights={dayWeights} />
+            <StatsView
+              users={users}
+              schedule={schedule}
+              dayWeights={dayWeights}
+              ignoreHistoryInLogic={ignoreHistoryInLogic}
+            />
           )}
           {activeTab === 'settings' && (
             <SettingsView
@@ -184,12 +192,14 @@ const App = () => {
               autoScheduleOptions={autoScheduleOptions}
               maxDebt={maxDebt}
               printMaxRows={printMaxRows}
+              ignoreHistoryInLogic={ignoreHistoryInLogic}
               onSave={saveDayWeights}
               onSaveSignatories={saveSignatories}
               onSaveDutiesPerDay={saveDutiesPerDay}
               onSaveAutoScheduleOptions={saveAutoScheduleOptions}
               onSaveMaxDebt={saveMaxDebt}
               onSavePrintMaxRows={savePrintMaxRows}
+              onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
               logAction={logAction}
             />
           )}

@@ -32,6 +32,7 @@ export const useSettings = () => {
   );
   const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
   const [printMaxRows, setPrintMaxRows] = useState<number>(DEFAULT_PRINT_MAX_ROWS);
+  const [ignoreHistoryInLogic, setIgnoreHistoryInLogic] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,15 +42,17 @@ export const useSettings = () => {
       setLoading(true);
       setError(null);
 
-      const [weights, sigs, cascadeDate, perDay, autoOpts, debt, maxRows] = await Promise.all([
-        settingsService.getDayWeights(),
-        settingsService.getSignatories(),
-        settingsService.getCascadeStartDate(),
-        settingsService.getDutiesPerDay(),
-        settingsService.getAutoScheduleOptions(),
-        settingsService.getMaxDebt(),
-        settingsService.getPrintMaxRows(),
-      ]);
+      const [weights, sigs, cascadeDate, perDay, autoOpts, debt, maxRows, ignoreHistory] =
+        await Promise.all([
+          settingsService.getDayWeights(),
+          settingsService.getSignatories(),
+          settingsService.getCascadeStartDate(),
+          settingsService.getDutiesPerDay(),
+          settingsService.getAutoScheduleOptions(),
+          settingsService.getMaxDebt(),
+          settingsService.getPrintMaxRows(),
+          settingsService.getIgnoreHistoryInLogic(),
+        ]);
 
       setDayWeights(weights);
       setSignatories(sigs);
@@ -58,6 +61,7 @@ export const useSettings = () => {
       setAutoScheduleOptions(autoOpts);
       setMaxDebt(debt);
       setPrintMaxRows(maxRows);
+      setIgnoreHistoryInLogic(ignoreHistory);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -168,6 +172,17 @@ export const useSettings = () => {
     }
   }, []);
 
+  // Save ignoreHistoryInLogic
+  const saveIgnoreHistoryInLogic = useCallback(async (value: boolean) => {
+    try {
+      await settingsService.saveIgnoreHistoryInLogic(value);
+      setIgnoreHistoryInLogic(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save ignore history setting');
+      throw err;
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     loadSettings();
@@ -181,6 +196,7 @@ export const useSettings = () => {
     autoScheduleOptions,
     maxDebt,
     printMaxRows,
+    ignoreHistoryInLogic,
     loading,
     error,
     loadSettings,
@@ -188,6 +204,7 @@ export const useSettings = () => {
     saveSignatories,
     saveDutiesPerDay,
     savePrintMaxRows,
+    saveIgnoreHistoryInLogic,
     saveAutoScheduleOptions,
     saveMaxDebt,
     updateCascadeTrigger,
