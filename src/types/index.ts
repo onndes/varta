@@ -35,12 +35,13 @@ export interface User {
   id?: number;
   name: string;
   rank: string;
-  status: 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'OTHER';
+  status: 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT' | 'OTHER';
   statusFrom?: string;
   statusTo?: string;
   isActive: boolean; // Full participation (if false - user is absent, shown gray in separate tab)
   excludeFromAuto?: boolean; // Exclude from automatic scheduling (manual assignment only)
   note?: string;
+  incompatibleWith?: number[]; // IDs of users who can't be on duty on consecutive days
   debt: number;
   restBeforeStatus?: boolean;
   restAfterStatus?: boolean;

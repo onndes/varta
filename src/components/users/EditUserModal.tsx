@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import type { User } from '../../types';
 import { RANKS, STATUSES } from '../../utils/constants';
+import { formatRank } from '../../utils/helpers';
 import Modal from '../Modal';
 
 interface EditUserModalProps {
@@ -9,6 +10,8 @@ interface EditUserModalProps {
   onClose: () => void;
   /** Computed fallback date (earliest schedule date or today) when dateAddedToAuto is not set */
   computedFairnessDate?: string;
+  /** All users (needed for incompatible pairs picker) */
+  allUsers?: User[];
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
@@ -18,11 +21,32 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onChange,
   onClose,
   computedFairnessDate,
+  allUsers = [],
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [incompatibleSearch, setIncompatibleSearch] = useState('');
   const dateFromRef = useRef<HTMLInputElement | null>(null);
   const dateToRef = useRef<HTMLInputElement | null>(null);
   const blockedDays = user.blockedDays || [];
+  const incompatibleIds = useMemo(() => user.incompatibleWith || [], [user.incompatibleWith]);
+
+  // Users available for the incompatible list (exclude self)
+  const otherUsers = useMemo(
+    () => allUsers.filter((u) => u.id !== user.id && u.isActive),
+    [allUsers, user.id]
+  );
+
+  const filteredOtherUsers = useMemo(() => {
+    if (!incompatibleSearch.trim()) return [];
+    const q = incompatibleSearch.toLowerCase();
+    return otherUsers
+      .filter(
+        (u) =>
+          !incompatibleIds.includes(u.id!) &&
+          (u.name.toLowerCase().includes(q) || formatRank(u.rank).toLowerCase().includes(q))
+      )
+      .slice(0, 8);
+  }, [otherUsers, incompatibleSearch, incompatibleIds]);
 
   const toggleDay = (dayIdx: number) => {
     const newBlocked = blockedDays.includes(dayIdx)
@@ -69,6 +93,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 placeholder="Причина / коментар"
                 maxLength={100}
               />
+            </div>
+          )}
+          {user.status === 'ABSENT' && (
+            <div className="mt-2">
+              <small className="text-info">
+                <i className="fas fa-info-circle me-1"></i>
+                Не впливає на карму / лічильник доступних днів.
+              </small>
             </div>
           )}
         </div>
@@ -301,6 +333,78 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 />
               </div>
             </>
+          )}
+        </div>
+      </div>
+
+      {/* Incompatible pairs (can't be on duty on consecutive days) */}
+      <div className="card mb-3">
+        <div className="card-body">
+          <h6 className="card-title">
+            <i className="fas fa-people-arrows me-2 text-warning"></i>
+            Несумісність чергувань поспіль
+          </h6>
+          <div className="small text-muted mb-2">
+            Особи, які не можуть чергувати поспіль (один день за іншим). Наприклад, люди з одного
+            відділення.
+          </div>
+
+          {/* Already selected incompatible users */}
+          {incompatibleIds.length > 0 && (
+            <div className="d-flex flex-wrap gap-1 mb-2">
+              {incompatibleIds.map((id) => {
+                const u = allUsers.find((x) => x.id === id);
+                if (!u) return null;
+                return (
+                  <span key={id} className="badge bg-warning text-dark d-flex align-items-center">
+                    {formatRank(u.rank)} {u.name}
+                    <button
+                      type="button"
+                      className="btn-close btn-close-sm ms-1"
+                      style={{ fontSize: '0.6rem' }}
+                      onClick={() =>
+                        onChange({
+                          ...user,
+                          incompatibleWith: incompatibleIds.filter((x) => x !== id),
+                        })
+                      }
+                    ></button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Search to add */}
+          <input
+            className="form-control form-control-sm"
+            placeholder="Пошук особи для додавання..."
+            value={incompatibleSearch}
+            onChange={(e) => setIncompatibleSearch(e.target.value)}
+          />
+          {filteredOtherUsers.length > 0 && (
+            <div
+              className="list-group list-group-flush mt-1"
+              style={{ maxHeight: '160px', overflowY: 'auto' }}
+            >
+              {filteredOtherUsers.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className="list-group-item list-group-item-action py-1 px-2 small"
+                  onClick={() => {
+                    onChange({
+                      ...user,
+                      incompatibleWith: [...incompatibleIds, u.id!],
+                    });
+                    setIncompatibleSearch('');
+                  }}
+                >
+                  <span className="text-muted me-1">{formatRank(u.rank)}</span>
+                  {u.name}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>

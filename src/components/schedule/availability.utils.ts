@@ -24,6 +24,12 @@ export const getUserAvailabilityStatus = (u: User, dateStr: string): UserAvailab
   if (u.blockedDays?.includes(dayIdx)) return 'DAY_BLOCKED';
 
   if (u.status === 'ACTIVE') return 'AVAILABLE';
+  if (u.status === 'ABSENT') {
+    const from = u.statusFrom || '0000-01-01';
+    const to = u.statusTo || '9999-12-31';
+    if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
+    return 'AVAILABLE';
+  }
 
   if (u.statusFrom || u.statusTo) {
     const from = u.statusFrom || '0000-01-01';

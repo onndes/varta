@@ -2,13 +2,14 @@ import React, { useMemo, useState } from 'react';
 import type { User, ScheduleEntry, TimelineEvent } from '../../types';
 import { isAssignedInEntry } from '../../utils/assignment';
 
-type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'other' | 'request';
+type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'absent' | 'other' | 'request';
 type PeriodMode = 'all' | 'year' | 'month';
 
 const ABSENCE_LABELS: Record<AbsenceKey, string> = {
   vacation: 'Відпустка',
   trip: 'Відрядження',
   sick: 'Лікарняний',
+  absent: 'Відсутній',
   other: 'Інше',
   request: 'За власним бажанням',
 };
@@ -72,6 +73,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     vacation: true,
     trip: true,
     sick: true,
+    absent: true,
     other: true,
     request: true,
   });
@@ -114,6 +116,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
       vacation: 0,
       trip: 0,
       sick: 0,
+      absent: 0,
       other: 0,
       request: 0,
     };
@@ -128,6 +131,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
       if (user.status === 'VACATION') counts.vacation = days;
       if (user.status === 'TRIP') counts.trip = days;
       if (user.status === 'SICK') counts.sick = days;
+      if (user.status === 'ABSENT') counts.absent = days;
       if (user.status === 'OTHER') counts.other = days;
     }
 

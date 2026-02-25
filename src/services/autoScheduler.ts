@@ -168,7 +168,12 @@ const daysSinceLastAssignment = (
  */
 const isHardUnavailable = (user: User, dateStr: string): boolean => {
   if (!user.isActive) return true;
-  if (user.status === 'VACATION' || user.status === 'TRIP' || user.status === 'SICK') {
+  if (
+    user.status === 'VACATION' ||
+    user.status === 'TRIP' ||
+    user.status === 'SICK' ||
+    user.status === 'ABSENT'
+  ) {
     const from = user.statusFrom || MIN_DATE_SENTINEL;
     const to = user.statusTo || MAX_DATE_SENTINEL;
     if (dateStr >= from && dateStr <= to) return true;
@@ -337,10 +342,59 @@ const filterByRestDays = (
   }
   if (recentUserIds.size === 0) return pool;
   const filtered = pool.filter((u) => !recentUserIds.has(u.id!));
-  return filtered.length > 0 ? filtered : pool; // fallback: \u043a\u0440\u0430\u0449\u0435 \u043f\u043e\u0441\u0442\u0430\u0432\u0438\u0442\u0438, \u043d\u0456\u0436 \u043f\u0443\u0441\u0442\u0456\u0439 \u0434\u0435\u043d\u044c
+  return filtered.length > 0 ? filtered : pool;
 };
 
-/** \u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438 \u0437 \u043f\u0443\u043b\u0443 \u0442\u0438\u0445, \u0445\u0442\u043e \u0432\u0436\u0435 \u043f\u0435\u0440\u0435\u0432\u0438\u0449\u0438\u0432 \u043b\u0456\u043c\u0456\u0442 \u043d\u0430 \u0442\u0438\u0436\u043d\u0456 */
+/**
+ * Filter out users incompatible with those assigned on adjacent days.
+ * Bidirectional: if A has B in incompatibleWith, OR B has A — both block.
+ */
+const filterByIncompatiblePairs = (
+  pool: User[],
+  allUsers: User[],
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>
+): User[] => {
+  const prevDate = getPrevDateStr(dateStr);
+  const nextDate = new Date(dateStr);
+  nextDate.setDate(nextDate.getDate() + 1);
+  const nextDateStr = toLocalISO(nextDate);
+
+  const neighborIds = new Set<number>();
+  for (const d of [prevDate, nextDateStr]) {
+    const entry = schedule[d];
+    if (entry) {
+      toAssignedUserIds(entry.userId).forEach((id) => neighborIds.add(id));
+    }
+  }
+
+  if (neighborIds.size === 0) return pool;
+
+  const blockedIds = new Set<number>();
+  // Forward: neighbor has candidate in their incompatibleWith
+  for (const nId of neighborIds) {
+    const neighbor = allUsers.find((u) => u.id === nId);
+    if (neighbor?.incompatibleWith) {
+      neighbor.incompatibleWith.forEach((id) => blockedIds.add(id));
+    }
+  }
+  // Reverse: candidate has neighbor in their incompatibleWith
+  for (const candidate of pool) {
+    if (candidate.incompatibleWith) {
+      for (const nId of neighborIds) {
+        if (candidate.incompatibleWith.includes(nId)) {
+          blockedIds.add(candidate.id!);
+        }
+      }
+    }
+  }
+
+  if (blockedIds.size === 0) return pool;
+
+  const filtered = pool.filter((u) => !blockedIds.has(u.id!));
+  return filtered.length > 0 ? filtered : pool;
+};
+
 const filterByWeeklyCap = (
   pool: User[],
   allUsers: User[],
@@ -409,10 +463,11 @@ export const autoFillSchedule = async (
     const compare = buildUserComparator(dateStr, tempSchedule, dayWeights, options, tempLoadOffset);
     pool.sort(compare);
 
-    // Фільтри: дні відпочинку та ліміт на тиждень
+    // Фільтри: дні відпочинку, несумісність та ліміт на тиждень
     if (options.avoidConsecutiveDays) {
       pool = filterByRestDays(pool, dateStr, options.minRestDays || 1, tempSchedule);
     }
+    pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
     if (options.limitOneDutyPerWeekWhenSevenPlus) {
       pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options);
     }
@@ -516,6 +571,12 @@ export const autoFillSchedule = async (
           if (restViolation) continue;
         }
 
+        // Check incompatible pairs for underloaded user
+        {
+          const checkPool = filterByIncompatiblePairs([under.user], users, dateStr, tempSchedule);
+          if (checkPool.length === 0 || checkPool[0].id !== under.user.id) continue;
+        }
+
         // Check weekly cap for underloaded user
         if (options.limitOneDutyPerWeekWhenSevenPlus) {
           const week = getWeekWindow(dateStr);
@@ -607,6 +668,7 @@ export const getFreeUsersForDate = (
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
     candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule, options);
   }
+  candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
   return candidatePool.sort(buildUserComparator(dateStr, schedule, dayWeights, options));
@@ -686,6 +748,7 @@ export const calculateOptimalAssignment = (
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
     available = filterByWeeklyCap(available, users, dateStr, schedule, options);
   }
+  available = filterByIncompatiblePairs(available, users, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
   available.sort(buildUserComparator(dateStr, schedule, dayWeights, options));

@@ -76,6 +76,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         blockedDaysComment: user.blockedDaysComment,
         statusComment: user.status === 'OTHER' ? user.statusComment : undefined,
         dateAddedToAuto: user.dateAddedToAuto,
+        incompatibleWith: user.incompatibleWith,
       });
 
       if (user.status !== 'ACTIVE' && user.statusFrom) {
@@ -293,6 +294,7 @@ const UsersView: React.FC<UsersViewProps> = ({
             const dates = Object.keys(schedule).sort();
             return dates[0] || toLocalISO(new Date());
           })()}
+          allUsers={users}
         />
       )}
 

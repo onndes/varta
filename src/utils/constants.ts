@@ -53,6 +53,7 @@ export const STATUSES: Record<string, string> = {
   VACATION: 'Відпустка',
   TRIP: 'Відрядження',
   SICK: 'Лікування',
+  ABSENT: 'Відсутній (без впливу на карму)',
   OTHER: 'Інше',
 };
 
