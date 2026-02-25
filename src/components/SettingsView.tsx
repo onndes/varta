@@ -192,7 +192,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="card-body">
           <div className="alert alert-info py-2 small">
             Вага дня визначає, скільки балів отримує особа за чергування в цей день тижня. Більша
-            вага = важчий день. (1.0 = звичайний, 2.0 = дуже важкий).
+            вага = важчий день. Діапазон від 0.1 до 5.0, крок 0.1.
+            <br />
+            <span className="text-muted">
+              Наприклад: 1.0 — звичайний будень, 1.5 — п'ятниця/неділя, 2.0 — субота, 0.5 — легкий
+              день.
+            </span>
           </div>
           <div className="row g-3">
             {[1, 2, 3, 4, 5, 6, 0].map((day) => (
