@@ -50,7 +50,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       </li>
       <li className="nav-item ms-auto">
         <button
-          className={`nav-link ${activeTab === 'dev' ? 'active fw-bold text-danger' : 'text-muted'}`}
+          className={`nav-link ${activeTab === 'dev' ? 'active fw-bold text-danger' : 'text-muted opacity-0'}`}
           onClick={() => onTabChange('dev')}
         >
           DEV
