@@ -39,6 +39,7 @@ const Header: React.FC<HeaderProps> = ({
         <div>
           <div className="d-flex align-items-center">
             <h4 className="m-0 fw-bold text-dark">ВАРТА</h4>
+            <p className="m-0 fw-normal text-muted ms-2"> v1.0-beta</p>
             <InfoButton />
           </div>
           <small className="text-muted">Система розподілу чергувань</small>

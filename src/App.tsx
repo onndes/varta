@@ -215,7 +215,7 @@ const App = () => {
           className="text-center text-muted py-3 mt-4 border-top no-print"
           style={{ fontSize: '0.75rem', opacity: 0.5 }}
         >
-          ВАРТА v1.0 · Vladyslav V.V. ·{' '}
+          ВАРТА v1.0-beta · Vladyslav V.V. ·{' '}
           <a href="mailto:vladvyljotnikov@gmail.com" className="text-muted">
             vladvyljotnikov@gmail.com
           </a>

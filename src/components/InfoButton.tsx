@@ -269,7 +269,7 @@ const InfoButton: React.FC = () => {
             className="text-muted text-center mt-4 pt-3 border-top"
             style={{ fontSize: '0.8rem' }}
           >
-            <div>ВАРТА v1.0 · Офлайн-система розподілу чергувань · 2025–2026</div>
+            <div>ВАРТА v1.0-beta · Офлайн-система розподілу чергувань · 2025–2026</div>
             <div className="mt-1">
               Розробник: <strong>Vladyslav V.V.</strong> ·{' '}
               <a href="mailto:vladvyljotnikov@gmail.com" className="text-muted">
