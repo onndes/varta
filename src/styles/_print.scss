@@ -45,8 +45,26 @@
   }
 
   .no-print,
-  .header-simple {
+  .header-simple,
+  .app-sidebar,
+  .app-header,
+  .app-footer {
     display: none !important;
+  }
+
+  // Reset app-shell flex layout to block flow for print
+  .app-shell {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .app-main {
+    display: block !important;
+    overflow: visible !important;
+  }
+  .app-content {
+    overflow: visible !important;
+    padding: 0 !important;
   }
 
   .print-only,

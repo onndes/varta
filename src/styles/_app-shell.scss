@@ -1,0 +1,297 @@
+// ─── App Shell: Sidebar + Main Area ────────────────────────────────────────
+// Fixed-height 100vh layout with scrollable content area.
+// On mobile (<768px): sidebar becomes bottom tab bar.
+// On tablet (768–1024): sidebar collapses to icons only.
+// On desktop (>1024): full sidebar with labels.
+
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--app-bg);
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+.app-sidebar {
+  width: var(--app-sidebar-width, 200px);
+  min-width: var(--app-sidebar-width, 200px);
+  background: var(--app-sidebar-bg);
+  border-right: 1px solid var(--bs-border-color, #dee2e6);
+  display: flex;
+  flex-direction: column;
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease;
+  overflow: hidden;
+  z-index: 100;
+
+  .app-shell--collapsed & {
+    width: 54px;
+    min-width: 54px;
+  }
+}
+
+.app-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.75rem;
+  border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+  flex-shrink: 0;
+  min-height: 52px;
+  overflow: hidden;
+}
+
+.app-sidebar__brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--app-sidebar-active-color, #0d6efd);
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.app-sidebar__brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+
+  .app-shell--collapsed & {
+    display: none;
+  }
+}
+
+.app-sidebar__brand-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--bs-body-color);
+}
+
+.app-sidebar__brand-sub {
+  font-size: 0.65rem;
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.app-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.app-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bs-secondary-color, #6c757d);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  white-space: nowrap;
+  text-align: left;
+  width: 100%;
+
+  &:hover {
+    background: var(--app-sidebar-hover);
+    color: var(--bs-body-color);
+  }
+
+  &--active {
+    background: var(--app-sidebar-active-bg);
+    color: var(--app-sidebar-active-color);
+    font-weight: 600;
+  }
+}
+
+.app-sidebar__icon {
+  width: 18px;
+  text-align: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.app-sidebar__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .app-shell--collapsed & {
+    display: none;
+  }
+}
+
+.app-sidebar__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--bs-secondary-color, #6c757d);
+  padding: 0.5rem;
+  margin: 0 0.5rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--app-sidebar-hover);
+    color: var(--bs-body-color);
+  }
+}
+
+// ─── Main area ────────────────────────────────────────────────────────────────
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  background: var(--app-container-bg, #fff);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+  background: var(--app-header-bg);
+  flex-shrink: 0;
+  min-height: 52px;
+}
+
+.app-header__left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-header__center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem 1.25rem;
+  // Smooth inertia scrolling on touch devices
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-footer {
+  padding: 0.5rem 1.25rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--bs-secondary-color, #6c757d);
+  opacity: 0.6;
+  border-top: 1px solid var(--bs-border-color, #dee2e6);
+  flex-shrink: 0;
+}
+
+// ─── Responsive ───────────────────────────────────────────────────────────────
+// Mobile: sidebar becomes a bottom tab bar
+@media (max-width: 767.98px) {
+  .app-shell {
+    flex-direction: column-reverse;
+    height: 100dvh;
+  }
+
+  .app-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .app-sidebar__brand {
+    display: none;
+  }
+
+  .app-sidebar__collapse-btn {
+    display: none;
+  }
+
+  .app-sidebar__nav {
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    width: 100%;
+    overflow-y: hidden;
+  }
+
+  .app-sidebar__item {
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.45rem 0.5rem;
+    border-radius: 0;
+    font-size: 0.62rem;
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .app-sidebar__icon {
+    font-size: 1.05rem;
+  }
+
+  .app-sidebar__label {
+    display: block !important;
+    font-size: 0.6rem;
+  }
+
+  .app-content {
+    padding: 0.75rem;
+    overflow-y: auto;
+  }
+
+  .app-header {
+    padding: 0.4rem 0.75rem;
+    min-height: 46px;
+  }
+}
+
+// Tablet: icons only (same as collapsed)
+@media (min-width: 768px) and (max-width: 1024px) {
+  .app-sidebar {
+    width: 54px;
+    min-width: 54px;
+  }
+
+  .app-sidebar__label,
+  .app-sidebar__brand-text {
+    display: none;
+  }
+
+  .app-sidebar__collapse-btn {
+    display: none;
+  }
+}

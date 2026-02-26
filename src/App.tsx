@@ -8,7 +8,6 @@ import { useUsers, useSchedule, useSettings, useExport } from './hooks';
 
 // Components
 import Header from './components/Header';
-import Navigation from './components/Navigation';
 import BackupAlert from './components/BackupAlert';
 import ScheduleView from './components/ScheduleView';
 import UsersView from './components/UsersView';
@@ -26,6 +25,7 @@ const App = () => {
   const [showBackupAlert, setShowBackupAlert] = useState(false);
   const [printMode, setPrintMode] = useState<PrintMode>('calendar');
   const [workspaceVersion, setWorkspaceVersion] = useState(() => getActiveWorkspaceId());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Use custom hooks
   const { users, loading: usersLoading, loadUsers } = useUsers();
@@ -134,8 +134,18 @@ const App = () => {
     setTimeout(() => window.print(), activeTab === 'schedule' ? 100 : 250);
   };
 
+  const NAV_TABS = [
+    { id: 'schedule', icon: 'fa-calendar-alt', label: 'Графік' },
+    { id: 'users', icon: 'fa-users', label: 'Особовий склад' },
+    { id: 'stats', icon: 'fa-chart-bar', label: 'Статистика' },
+    { id: 'settings', icon: 'fa-cog', label: 'Налаштування' },
+    { id: 'logs', icon: 'fa-history', label: 'Журнал' },
+  ];
+
   return (
-    <div className={`main-container show-print-${printMode}`}>
+    <div
+      className={`app-shell ${sidebarCollapsed ? 'app-shell--collapsed' : ''} show-print-${printMode}`}
+    >
       {loading && (
         <div className="loading-overlay">
           <div className="spinner-border text-primary"></div>
@@ -148,21 +158,55 @@ const App = () => {
         onExport={handleExport}
       />
 
-      <Header
-        needsExport={needsExport}
-        hasData={users.length > 0 || Object.keys(schedule).length > 0}
-        onImport={handleImport}
-        onExport={handleExport}
-        onPrint={handlePrint}
-        onWorkspaceSwitch={handleWorkspaceSwitch}
-        theme={theme}
-        onSaveTheme={saveTheme}
-      />
+      {/* ─── Sidebar ────────────────────────────────────────────── */}
+      <aside className="app-sidebar no-print">
+        <div className="app-sidebar__brand">
+          <div className="app-sidebar__brand-icon">
+            <i className="fas fa-shield-alt"></i>
+          </div>
+          <div className="app-sidebar__brand-text">
+            <span className="app-sidebar__brand-name">ВАРТА</span>
+            <span className="app-sidebar__brand-sub">v1.0-beta</span>
+          </div>
+        </div>
 
-      <div className="px-4">
-        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+        <nav className="app-sidebar__nav">
+          {NAV_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              className={`app-sidebar__item ${activeTab === tab.id ? 'app-sidebar__item--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              title={tab.label}
+            >
+              <i className={`fas ${tab.icon} app-sidebar__icon`}></i>
+              <span className="app-sidebar__label">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
 
-        <div className="tab-content">
+        <button
+          className="app-sidebar__collapse-btn"
+          onClick={() => setSidebarCollapsed((v) => !v)}
+          title={sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
+        >
+          <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
+        </button>
+      </aside>
+
+      {/* ─── Main area ──────────────────────────────────────────── */}
+      <div className="app-main">
+        <Header
+          needsExport={needsExport}
+          hasData={users.length > 0 || Object.keys(schedule).length > 0}
+          onImport={handleImport}
+          onExport={handleExport}
+          onPrint={handlePrint}
+          onWorkspaceSwitch={handleWorkspaceSwitch}
+          theme={theme}
+          onSaveTheme={saveTheme}
+        />
+
+        <main className="app-content">
           {activeTab === 'schedule' && (
             <ScheduleView
               users={users}
@@ -223,13 +267,9 @@ const App = () => {
           )}
           {activeTab === 'logs' && <AuditLogView key={workspaceVersion} />}
           {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
-        </div>
+        </main>
 
-        {/* Футер додатку */}
-        <footer
-          className="text-center text-muted py-3 mt-4 border-top no-print"
-          style={{ fontSize: '0.75rem', opacity: 0.5 }}
-        >
+        <footer className="app-footer no-print">
           ВАРТА v1.0-beta · Vladyslav V.V. ·{' '}
           <a href="mailto:vladvyljotnikov@gmail.com" className="text-muted">
             vladvyljotnikov@gmail.com

@@ -1,17 +1,26 @@
 // 2. GLOBAL RESET
 html {
   min-height: 100%;
-  overflow-y: scroll; // Always show scrollbar to prevent page jitter on tab switch
 }
 
 body {
   margin: 0;
   padding: 0;
   background-color: var(--app-bg, #f8f9fa);
-  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.45;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  overflow-x: hidden;
+  overflow: hidden; // app-shell handles overflow
 }
 
 html.modal-open-fixed,
@@ -24,31 +33,10 @@ body.modal-open-fixed {
   width: 100%;
 }
 
-// 3. MAIN CONTAINER
-.main-container {
-  margin: 0 auto;
-  max-width: 1920px;
-  width: 100%;
-  background: var(--app-container-bg, white);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
-  position: relative;
-}
-
-.header-simple {
-  background-color: var(--app-header-bg, #fff);
-  border-bottom: 1px solid var(--app-header-border, #dee2e6);
-  padding: 20px 30px;
-  flex: 0 0 auto;
-  position: relative;
-  z-index: 101;
-}
-
-.px-4 {
-  flex: 1 0 auto;
-  padding-bottom: 50px;
+// Tabular numbers for data-heavy views
+.table td,
+.table th {
+  font-variant-numeric: tabular-nums;
 }
 
 // Input group focus - extend focus to button

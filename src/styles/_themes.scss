@@ -61,6 +61,13 @@
   --app-week-square-past-schedule-bg: #d4e7d4;
   --app-week-square-past-schedule-border: #a6b9a5;
   --app-week-square-past-schedule-color: #7b8d7b;
+
+  // Sidebar
+  --app-sidebar-width: 200px;
+  --app-sidebar-bg: #f1f3f5;
+  --app-sidebar-hover: rgba(0, 0, 0, 0.04);
+  --app-sidebar-active-bg: rgba(13, 110, 253, 0.1);
+  --app-sidebar-active-color: #0d6efd;
 }
 
 // ─── Dark Theme ───────────────────────────────────────────────────────────────
@@ -87,6 +94,12 @@ html[data-bs-theme='dark'] {
   --app-container-bg: #212529;
   --app-header-bg: #1e2226;
   --app-header-border: #3d4349;
+
+  // Sidebar
+  --app-sidebar-bg: #1a1d21;
+  --app-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --app-sidebar-active-bg: rgba(77, 171, 247, 0.14);
+  --app-sidebar-active-color: #60a5fa;
 
   // Table
   --app-table-header-bg: #272b30;
