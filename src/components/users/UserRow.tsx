@@ -2,6 +2,7 @@ import React from 'react';
 import type { User } from '../../types';
 import { STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
 import { formatRank } from '../../utils/helpers';
+import { toLocalISO } from '../../utils/dateUtils';
 
 interface UserRowProps {
   user: User;
@@ -13,6 +14,10 @@ interface UserRowProps {
 
 const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, onResetDebt }) => {
   const u = user;
+  const todayStr = toLocalISO(new Date());
+  const statusEnded = !!u.statusTo && u.statusTo < todayStr;
+  const displayStatus = statusEnded ? 'ACTIVE' : u.status;
+  const showStatusDates = !statusEnded;
 
   return (
     <tr className={!u.isActive ? 'user-row-inactive' : ''}>
@@ -26,9 +31,9 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
       <td className="text-center">
         <div className="d-flex align-items-center justify-content-center gap-2 flex-wrap">
           <span
-            className={`badge ${u.isActive ? (u.status === 'ACTIVE' ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'}`}
+            className={`badge ${u.isActive ? (displayStatus === 'ACTIVE' ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'}`}
           >
-            {u.isActive ? STATUSES[u.status] : 'НЕАКТИВНИЙ'}
+            {u.isActive ? STATUSES[displayStatus] : 'НЕАКТИВНИЙ'}
           </span>
           {u.excludeFromAuto && (
             <span
@@ -38,7 +43,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
               виключ. з авторозп.
             </span>
           )}
-          {(u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && (
+          {(u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && showStatusDates && (
             <small className="text-muted" style={{ fontSize: '0.75rem' }}>
               {u.statusFrom
                 ? new Date(u.statusFrom).toLocaleDateString('uk-UA', {
