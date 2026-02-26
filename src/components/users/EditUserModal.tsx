@@ -10,6 +10,8 @@ interface EditUserModalProps {
   onClose: () => void;
   /** Computed fallback date (earliest schedule date or today) when dateAddedToAuto is not set */
   computedFairnessDate?: string;
+  /** First duty date for this user (from schedule) */
+  firstDutyDate?: string;
   /** All users (needed for incompatible pairs picker) */
   allUsers?: User[];
 }
@@ -21,6 +23,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onChange,
   onClose,
   computedFairnessDate,
+  firstDutyDate,
   allUsers = [],
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -469,6 +472,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     onChange({ ...user, dateAddedToAuto: e.target.value || undefined })
                   }
                 />
+                {firstDutyDate && user.dateAddedToAuto !== firstDutyDate && (
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary btn-sm mt-2"
+                    onClick={() => onChange({ ...user, dateAddedToAuto: firstDutyDate })}
+                  >
+                    <i className="fas fa-calendar-check me-1"></i>
+                    З дати першого чергування
+                  </button>
+                )}
                 <small className="text-muted">
                   З цієї дати ведеться облік навантаження для авточерги.
                   {!user.dateAddedToAuto && computedFairnessDate && (

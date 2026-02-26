@@ -8,16 +8,20 @@ import {
   type SortDir,
 } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
-import { getUserFairnessFrom } from '../utils/fairness';
 import { getUserAvailabilityStatus } from '../services/userService';
 import UserStatsModal from './users/UserStatsModal';
-import { isAssignedInEntry, getLogicSchedule, isHistoryType } from '../utils/assignment';
+import { isAssignedInEntry, getLogicSchedule, isHistoryType, getFirstDutyDate } from '../utils/assignment';
+import { useDialog } from './useDialog';
+import * as userService from '../services/userService';
 
 interface StatsViewProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
   dayWeights: DayWeights;
   ignoreHistoryInLogic: boolean;
+  refreshData: () => Promise<void>;
+  logAction: (action: string, details: string) => Promise<void>;
+  updateCascadeTrigger: (date: string) => Promise<void>;
 }
 
 const StatsView: React.FC<StatsViewProps> = ({
@@ -25,12 +29,16 @@ const StatsView: React.FC<StatsViewProps> = ({
   schedule,
   dayWeights,
   ignoreHistoryInLogic,
+  refreshData,
+  logAction,
+  updateCascadeTrigger,
 }) => {
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const { showConfirm, showAlert } = useDialog();
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -41,6 +49,36 @@ const StatsView: React.FC<StatsViewProps> = ({
     }
   };
   const todayStr = toLocalISO(new Date());
+  const firstDutyByUser = useMemo(() => {
+    const map = new Map<number, string>();
+    users.forEach((u) => {
+      if (!u.id) return;
+      const firstDuty = getFirstDutyDate(schedule, u.id);
+      if (firstDuty) map.set(u.id, firstDuty);
+    });
+    return map;
+  }, [users, schedule]);
+
+  const applyFirstDutyDates = async () => {
+    if (!(await showConfirm('Проставити "З дати" як перше чергування для всіх?'))) return;
+    let changed = 0;
+    for (const u of users) {
+      if (!u.id) continue;
+      const firstDuty = firstDutyByUser.get(u.id);
+      if (!firstDuty) continue;
+      if (u.dateAddedToAuto === firstDuty) continue;
+      await userService.updateUser(u.id, { dateAddedToAuto: firstDuty });
+      changed += 1;
+    }
+    if (changed > 0) {
+      await updateCascadeTrigger(todayStr);
+      await logAction('BULK_EDIT', `З дати = перше чергування (${changed} ос.)`);
+      await refreshData();
+      await showAlert(`Готово: оновлено ${changed}`);
+    } else {
+      await showAlert('Немає змін');
+    }
+  };
 
   const allStats = useMemo(() => {
     const logicSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
@@ -72,7 +110,7 @@ const StatsView: React.FC<StatsViewProps> = ({
         // Дата, з якої ведеться облік для цього бійця:
         // - dateAddedToAuto (якщо задана) — дата включення в авточергу
         // - інакше — дата першого графіка у базі (або сьогодні)
-        const rawFairnessFrom = getUserFairnessFrom(u, todayStr);
+        const rawFairnessFrom = u.dateAddedToAuto;
         const fallbackFrom = earliestScheduleDate <= todayStr ? earliestScheduleDate : todayStr;
         const trackingFrom = rawFairnessFrom || fallbackFrom;
 
@@ -159,23 +197,33 @@ const StatsView: React.FC<StatsViewProps> = ({
           <h5 className="mb-0 fw-bold">
             <i className="fas fa-chart-line me-2 text-primary"></i>Статистика навантаження
           </h5>
-          <div className="btn-group btn-group-sm" role="group">
+          <div className="d-flex gap-2 align-items-center">
             <button
               type="button"
-              className={`btn ${showActive ? 'btn-primary' : 'btn-outline-secondary'}`}
-              onClick={() => setShowActive(!showActive)}
+              className="btn btn-outline-primary btn-sm"
+              onClick={applyFirstDutyDates}
             >
-              <i className="fas fa-user-check me-1"></i>
-              Активні
+              <i className="fas fa-calendar-check me-1"></i>
+              З дати першого чергування
             </button>
-            <button
-              type="button"
-              className={`btn ${showInactive ? 'btn-warning' : 'btn-outline-secondary'}`}
-              onClick={() => setShowInactive(!showInactive)}
-            >
-              <i className="fas fa-user-slash me-1"></i>
-              Неактивні
-            </button>
+            <div className="btn-group btn-group-sm" role="group">
+              <button
+                type="button"
+                className={`btn ${showActive ? 'btn-primary' : 'btn-outline-secondary'}`}
+                onClick={() => setShowActive(!showActive)}
+              >
+                <i className="fas fa-user-check me-1"></i>
+                Активні
+              </button>
+              <button
+                type="button"
+                className={`btn ${showInactive ? 'btn-warning' : 'btn-outline-secondary'}`}
+                onClick={() => setShowInactive(!showInactive)}
+              >
+                <i className="fas fa-user-slash me-1"></i>
+                Неактивні
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -217,9 +265,9 @@ const StatsView: React.FC<StatsViewProps> = ({
                   В черзі
                 </th>
                 <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
-                  Доступних
+                  Днів в графіку
                   <br />
-                  <small className="fw-normal">для чергування</small>
+                  <small className="fw-normal">в обліку</small>
                 </th>
                 <th colSpan={7} className="text-center border-start">
                   По днях (у черзі)
@@ -370,9 +418,9 @@ const StatsView: React.FC<StatsViewProps> = ({
                 <strong>В черзі</strong>: Скільки нарядів враховується саме для поточної авточерги.
               </li>
               <li>
-                <strong>Доступних днів</strong>: Кількість днів, коли особу можна було поставити на
-                чергування від дати включення в список (та початку графіка) до сьогодні, за мінусом
-                відпустки/відрядження/лікарняного.
+                <strong>Днів в графіку</strong>: Кількість календарних днів від дати включення в
+                облік до сьогодні (мінус відпустка/відрядження/лікарняний). Це період перебування
+                в обліку, а не кількість призначень.
               </li>
               <li>
                 <strong>Пн-Нд</strong>: Розподіл нарядів по дням тижня тільки в межах поточного
@@ -390,10 +438,10 @@ const StatsView: React.FC<StatsViewProps> = ({
                 <strong>Рейтинг</strong>: Навантаження + Карма. Чим менше, тим вища черга на наряд.
               </li>
               <li>
-                <strong>Частота (нар/день)</strong>: Кількість нарядів поділена на кількість
-                доступних днів. Чим менше значення, тим рідше особа чергує відносно свого часу в
-                підрозділі. Використовується для порівняння чесності розподілу між особами, які
-                чергують різний період часу.
+                <strong>Частота (нар/день)</strong>: Кількість нарядів поділена на кількість днів у
+                черзі. Чим менше значення, тим рідше особа чергує відносно свого часу в обліку.
+                Використовується для порівняння чесності розподілу між особами, які чергують різний
+                період часу.
               </li>
               <li>
                 <strong>З дати</strong>: Дата, з якої система веде порівняння для авточерги. Це не

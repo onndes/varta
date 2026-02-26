@@ -8,6 +8,7 @@ import UserStatsModal from './users/UserStatsModal';
 import { useDialog } from './useDialog';
 import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
+import { getFirstDutyDate } from '../utils/assignment';
 
 interface UsersViewProps {
   users: User[];
@@ -294,6 +295,9 @@ const UsersView: React.FC<UsersViewProps> = ({
             const dates = Object.keys(schedule).sort();
             return dates[0] || toLocalISO(new Date());
           })()}
+          firstDutyDate={
+            editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined
+          }
           allUsers={users}
         />
       )}

@@ -182,6 +182,9 @@ const App = () => {
               schedule={schedule}
               dayWeights={dayWeights}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
+              refreshData={refreshData}
+              logAction={logAction}
+              updateCascadeTrigger={updateCascadeTrigger}
             />
           )}
           {activeTab === 'settings' && (

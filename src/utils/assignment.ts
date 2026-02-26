@@ -53,3 +53,15 @@ export const getLogicSchedule = (
   }
   return filtered;
 };
+
+/** Найперша дата чергування для конкретного бійця (будь-який тип запису) */
+export const getFirstDutyDate = (
+  schedule: Record<string, ScheduleEntry>,
+  userId: number
+): string | undefined => {
+  const dates = Object.entries(schedule)
+    .filter(([, entry]) => isAssignedInEntry(entry, userId))
+    .map(([date]) => date)
+    .sort();
+  return dates[0];
+};
