@@ -1,27 +1,92 @@
+// ─── Two-column layout: WeekNavigator (left) + ScheduleControls (right) ─────
+.schedule-top-row {
+  display: grid;
+  grid-template-columns: 1fr; // stacked on small screens
+  gap: 0;
+  margin-bottom: 0;
+
+  @media (min-width: 980px) {
+    grid-template-columns: max-content 1fr;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 1rem;
+
+    // Remove child margins so the row itself controls spacing
+    > * {
+      margin-bottom: 0 !important;
+    }
+
+    // WeekNavigator stretches to fill full height
+    .week-nav-container {
+      margin-bottom: 0;
+      align-self: stretch;
+      justify-content: flex-start;
+    }
+
+    // ScheduleControls card sticks to the bottom of its cell
+    > .card {
+      align-self: end;
+    }
+  }
+}
+
 // Week Navigator
 .week-nav-container {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 4px;
   margin-bottom: 15px;
   padding: 10px;
-  background: #f8f9fa;
+  background: var(--app-week-nav-bg, #f8f9fa);
   border-radius: 8px;
+  align-items: center;
+}
+
+.week-nav-year-row {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.week-nav-months {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.week-nav-month-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.week-nav-month-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color, #6c757d);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  margin-bottom: 1px;
 }
 
 .week-square {
   width: 24px;
   height: 24px;
-  background-color: #fff;
-  border: 1px solid #dee2e6;
+  background-color: var(--app-week-square-bg, #fff);
+  border: 1px solid var(--app-week-square-border, #dee2e6);
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--app-week-square-color, #6c757d);
   position: relative;
 
   &:hover {
@@ -43,22 +108,22 @@
   }
 
   &.has-schedule:not(.current) {
-    background-color: #e8f5e9;
-    border-color: #28a745;
-    color: #198754;
+    background-color: var(--app-week-square-has-schedule-bg, #e8f5e9);
+    border-color: var(--app-week-square-has-schedule-border, #28a745);
+    color: var(--app-week-square-has-schedule-color, #198754);
   }
 
   // Past weeks — muted styling (must be after .has-schedule for specificity)
   &.past:not(.current):not(.selected) {
-    background-color: #e9ecef;
-    border-color: #ced4da;
-    color: #adb5bd;
+    background-color: var(--app-week-square-past-bg, #e9ecef);
+    border-color: var(--app-week-square-past-border, #ced4da);
+    color: var(--app-week-square-past-color, #adb5bd);
   }
 
   &.past.has-schedule:not(.current):not(.selected) {
-    background-color: #d4e7d4;
-    border-color: #a6b9a5;
-    color: #7b8d7b;
+    background-color: var(--app-week-square-past-schedule-bg, #d4e7d4);
+    border-color: var(--app-week-square-past-schedule-border, #a6b9a5);
+    color: var(--app-week-square-past-schedule-color, #7b8d7b);
   }
 
   .week-tooltip {

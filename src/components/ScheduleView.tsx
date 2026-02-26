@@ -788,39 +788,41 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   return (
     <div className="schedule-view-wrapper">
-      <WeekNavigator
-        currentDate={new Date()}
-        activeDate={new Date(weekDates[0])}
-        scheduledWeeksMap={scheduledWeeksMap}
-        onJumpToWeek={jumpToWeek}
-      />
+      <div className="schedule-top-row no-print">
+        <WeekNavigator
+          currentDate={new Date()}
+          activeDate={new Date(weekDates[0])}
+          scheduledWeeksMap={scheduledWeeksMap}
+          onJumpToWeek={jumpToWeek}
+        />
 
-      <ScheduleControls
-        weekDates={weekDates}
-        cascadeStartDate={cascadeStartDate}
-        shouldShowCascade={shouldShowCascadeRecalc}
-        conflictsCount={scheduleIssues.conflicts.length}
-        criticalConflictsCount={scheduleIssues.criticalConflicts.length}
-        onPrevWeek={() => shiftWeek(-1)}
-        onNextWeek={() => shiftWeek(1)}
-        onToday={goToToday}
-        onDatePick={handleDatePick}
-        onFillGaps={runFillGaps}
-        onFixConflicts={runFixConflicts}
-        onAutoSchedule={runFullAutoSchedule}
-        onCascadeRecalc={runCascadeRecalc}
-        onDismissCascade={runDismissCascade}
-        onClearWeek={runClearWeek}
-        onImportSchedule={() => setShowImportModal(true)}
-        historyMode={historyMode}
-        onToggleHistoryMode={() => setHistoryMode((v) => !v)}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        undoLabel={undoLabel}
-        redoLabel={redoLabel}
-        onUndo={runUndo}
-        onRedo={runRedo}
-      />
+        <ScheduleControls
+          weekDates={weekDates}
+          cascadeStartDate={cascadeStartDate}
+          shouldShowCascade={shouldShowCascadeRecalc}
+          conflictsCount={scheduleIssues.conflicts.length}
+          criticalConflictsCount={scheduleIssues.criticalConflicts.length}
+          onPrevWeek={() => shiftWeek(-1)}
+          onNextWeek={() => shiftWeek(1)}
+          onToday={goToToday}
+          onDatePick={handleDatePick}
+          onFillGaps={runFillGaps}
+          onFixConflicts={runFixConflicts}
+          onAutoSchedule={runFullAutoSchedule}
+          onCascadeRecalc={runCascadeRecalc}
+          onDismissCascade={runDismissCascade}
+          onClearWeek={runClearWeek}
+          onImportSchedule={() => setShowImportModal(true)}
+          historyMode={historyMode}
+          onToggleHistoryMode={() => setHistoryMode((v) => !v)}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          undoLabel={undoLabel}
+          redoLabel={redoLabel}
+          onUndo={runUndo}
+          onRedo={runRedo}
+        />
+      </div>
 
       {/* Друк: заголовок (для календаря та таблиці чергувань) */}
       {printMode !== 'status-list' && (

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { PrintMode } from '../types';
+import type { PrintMode, AppTheme } from '../types';
 import InfoButton from './InfoButton';
 import WorkspaceSelector from './WorkspaceSelector';
 
@@ -10,7 +10,14 @@ interface HeaderProps {
   onExport: () => void;
   onPrint: (mode: PrintMode) => void;
   onWorkspaceSwitch: () => Promise<void>;
+  theme: AppTheme;
+  onSaveTheme: (theme: AppTheme) => Promise<void>;
 }
+
+const THEMES: { id: AppTheme; label: string; icon: string }[] = [
+  { id: 'light', label: 'Світла', icon: 'fas fa-sun' },
+  { id: 'dark', label: 'Темна', icon: 'fas fa-moon' },
+];
 
 const Header: React.FC<HeaderProps> = ({
   needsExport,
@@ -19,6 +26,8 @@ const Header: React.FC<HeaderProps> = ({
   onExport,
   onPrint,
   onWorkspaceSwitch,
+  theme,
+  onSaveTheme,
 }) => {
   const todayFormatted = new Date().toLocaleDateString('uk-UA', {
     weekday: 'short',
@@ -97,6 +106,33 @@ const Header: React.FC<HeaderProps> = ({
                 <i className="fas fa-clipboard-list me-2"></i>Довідка по складу
               </button>
             </li>
+          </ul>
+        </div>
+
+        {/* Theme switcher */}
+        <div className="btn-group">
+          <button
+            className="btn btn-outline-secondary btn-sm dropdown-toggle"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            title="Тема оформлення"
+          >
+            <i className={THEMES.find((t) => t.id === theme)?.icon ?? 'fas fa-palette'}></i>
+          </button>
+          <ul className="dropdown-menu dropdown-menu-end">
+            {THEMES.map((t) => (
+              <li key={t.id}>
+                <button
+                  className={`dropdown-item d-flex align-items-center gap-2${
+                    theme === t.id ? ' active' : ''
+                  }`}
+                  onClick={() => onSaveTheme(t.id)}
+                >
+                  <i className={t.icon} style={{ width: 16 }}></i>
+                  {t.label}
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
       </div>

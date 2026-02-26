@@ -1,0 +1,310 @@
+// ─── Theme CSS Custom Properties ─────────────────────────────────────────────
+// Light (default): Bootstrap defaults apply — we just define fallback values.
+// Dark / Military: body class + data-bs-theme="dark" on <html> (Bootstrap 5.3).
+
+:root {
+  // Layout
+  --app-bg: #f8f9fa;
+  --app-container-bg: #ffffff;
+  --app-header-bg: #ffffff;
+  --app-header-border: #dee2e6;
+
+  // Table structure
+  --app-table-header-bg: #f8f9fa;
+  --app-table-weekend-bg: #e9ecef;
+  --app-table-border: #e0e0e0;
+
+  // Schedule cell states
+  --app-cell-hover: #e3f2fd;
+
+  --app-cell-assigned-bg: #e8f5e9;
+  --app-cell-assigned-color: #1b5e20;
+  --app-cell-assigned-border: #a5d6a7;
+
+  --app-cell-future-bg: #cff4fc;
+  --app-cell-future-color: #055160;
+  --app-cell-future-border: #9eeaf9;
+
+  --app-cell-conflict-bg: #f8d7da;
+  --app-cell-conflict-color: #842029;
+  --app-cell-conflict-border: #f5c2c7;
+
+  --app-cell-past-locked-bg: #f0f0f0;
+  --app-cell-past-locked-color: #999999;
+
+  --app-cell-locked-bg: #fff9e6;
+  --app-cell-locked-color: #7a5c00;
+  --app-cell-locked-border: #ffc107;
+
+  --app-cell-unavailable-bg: #f5f5f5;
+  --app-cell-unavailable-color: #888888;
+
+  --app-cell-history-bg1: #e0e7ff;
+  --app-cell-history-bg2: #eef1ff;
+  --app-cell-history-color: #3730a3;
+  --app-cell-history-border: #818cf8;
+
+  --app-user-inactive-bg: #f8f9fa;
+  --app-loading-bg: rgba(255, 255, 255, 0.9);
+
+  // Week navigator
+  --app-week-nav-bg: #f8f9fa;
+  --app-week-square-bg: #ffffff;
+  --app-week-square-border: #dee2e6;
+  --app-week-square-color: #6c757d;
+  --app-week-square-has-schedule-bg: #e8f5e9;
+  --app-week-square-has-schedule-border: #28a745;
+  --app-week-square-has-schedule-color: #198754;
+  --app-week-square-past-bg: #e9ecef;
+  --app-week-square-past-border: #ced4da;
+  --app-week-square-past-color: #adb5bd;
+  --app-week-square-past-schedule-bg: #d4e7d4;
+  --app-week-square-past-schedule-border: #a6b9a5;
+  --app-week-square-past-schedule-color: #7b8d7b;
+}
+
+// ─── Dark Theme ───────────────────────────────────────────────────────────────
+// Selector: html[data-bs-theme="dark"] is set synchronously in <head> script
+// so ALL vars below are active before the first paint — no FOUC.
+html[data-bs-theme='dark'] {
+  // Bootstrap core tokens
+  --bs-body-bg: #1a1d21;
+  --bs-body-color: #dee2e6;
+  --bs-secondary-color: #a0a8b0; // text-muted
+  --bs-border-color: #3d4349;
+  --bs-card-bg: #272b30;
+  --bs-card-border-color: #3d4349;
+  --bs-secondary-bg: #343a40;
+  --bs-tertiary-bg: #272b30;
+  --bs-emphasis-color: #f8f9fa;
+  --bs-dark: #dee2e6; // btn-dark / text-dark → light in dark mode
+  --bs-dark-rgb: 222, 226, 230;
+  --bs-link-color-rgb: 77, 171, 247;
+  --bs-link-hover-color-rgb: 146, 196, 251;
+
+  // Layout
+  --app-bg: #1a1d21;
+  --app-container-bg: #212529;
+  --app-header-bg: #1e2226;
+  --app-header-border: #3d4349;
+
+  // Table
+  --app-table-header-bg: #272b30;
+  --app-table-weekend-bg: #1e2226;
+  --app-table-border: #3d4349;
+
+  // Cells
+  --app-cell-hover: rgba(77, 171, 247, 0.12);
+
+  --app-cell-assigned-bg: #193320;
+  --app-cell-assigned-color: #86efac;
+  --app-cell-assigned-border: #4ade80;
+
+  --app-cell-future-bg: #15293d;
+  --app-cell-future-color: #7dd3fc;
+  --app-cell-future-border: #38bdf8;
+
+  --app-cell-conflict-bg: #3a1a1a;
+  --app-cell-conflict-color: #fca5a5;
+  --app-cell-conflict-border: #f87171;
+
+  --app-cell-past-locked-bg: #2a2d31;
+  --app-cell-past-locked-color: #7a8088; // raised from #5a5e62 for contrast
+
+  --app-cell-locked-bg: #2e2b18;
+  --app-cell-locked-color: #fde68a;
+  --app-cell-locked-border: #f59e0b;
+
+  --app-cell-unavailable-bg: #272b30;
+  --app-cell-unavailable-color: #8a9199; // raised for contrast
+
+  --app-cell-history-bg1: #1e233a;
+  --app-cell-history-bg2: #252b45;
+  --app-cell-history-color: #a5b4fc; // lighter indigo
+  --app-cell-history-border: #6366f1;
+
+  --app-user-inactive-bg: #272b30;
+  --app-loading-bg: rgba(33, 37, 41, 0.93);
+
+  // Week navigator
+  --app-week-nav-bg: #1e2226;
+  --app-week-square-bg: #272b30;
+  --app-week-square-border: #3d4349;
+  --app-week-square-color: #8a9199;
+  --app-week-square-has-schedule-bg: #193320;
+  --app-week-square-has-schedule-border: #4ade80;
+  --app-week-square-has-schedule-color: #86efac;
+  --app-week-square-past-bg: #23262a;
+  --app-week-square-past-border: #3d4349;
+  --app-week-square-past-color: #5a6068;
+  --app-week-square-past-schedule-bg: #1c2e20;
+  --app-week-square-past-schedule-border: #3a6040;
+  --app-week-square-past-schedule-color: #5a8060;
+
+  // ── Background utilities ──────────────────────────────────────────────────
+  .bg-white {
+    background-color: var(--bs-card-bg) !important;
+    color: var(--bs-body-color);
+  }
+  .bg-light {
+    background-color: var(--bs-secondary-bg) !important;
+    color: var(--bs-body-color);
+  }
+
+  // ── Text utilities ────────────────────────────────────────────────────────
+  .text-dark {
+    color: var(--bs-body-color) !important;
+  }
+  .text-muted {
+    color: var(--bs-secondary-color) !important;
+  }
+  .text-secondary {
+    color: var(--bs-secondary-color) !important;
+  }
+
+  // ── Borders ───────────────────────────────────────────────────────────────
+  .border,
+  .border-top,
+  .border-bottom,
+  .border-start,
+  .border-end {
+    border-color: var(--bs-border-color) !important;
+  }
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  .card {
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-border-color);
+  }
+  .card-header {
+    background-color: var(--bs-tertiary-bg) !important;
+    border-bottom: 1px solid var(--bs-border-color) !important;
+    color: var(--bs-body-color);
+  }
+  .card-footer {
+    background-color: var(--bs-tertiary-bg);
+    border-top: 1px solid var(--bs-border-color);
+  }
+
+  // ── Dropdowns ─────────────────────────────────────────────────────────────
+  .dropdown-menu {
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-border-color);
+  }
+  .dropdown-item {
+    color: var(--bs-body-color);
+  }
+  .dropdown-item:hover,
+  .dropdown-item:focus {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+  }
+  .dropdown-divider {
+    border-color: var(--bs-border-color);
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  .nav-tabs {
+    border-bottom-color: var(--bs-border-color);
+  }
+  .nav-tabs .nav-link {
+    color: var(--bs-secondary-color);
+  }
+  .nav-tabs .nav-link.active {
+    color: var(--bs-body-color);
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-border-color) var(--bs-border-color) var(--bs-card-bg);
+  }
+
+  // ── Tables ────────────────────────────────────────────────────────────────
+  // Bootstrap 5 hard-codes #f8f9fa in table-light; override to dark bg
+  .table-light {
+    --bs-table-bg: var(--app-table-header-bg);
+    --bs-table-color: var(--bs-body-color);
+    background-color: var(--app-table-header-bg);
+    color: var(--bs-body-color);
+  }
+  .table {
+    --bs-table-color: var(--bs-body-color);
+    --bs-table-border-color: var(--bs-border-color);
+  }
+  // Ensure thead/tbody separator line is visible
+  .table > thead {
+    border-bottom: 2px solid var(--bs-border-color);
+  }
+  .table > tbody > tr {
+    border-color: var(--bs-border-color);
+  }
+
+  // ── Badges ────────────────────────────────────────────────────────────────
+  .badge.bg-light,
+  .badge.bg-secondary {
+    background-color: var(--bs-secondary-bg) !important;
+    color: var(--bs-body-color) !important;
+  } // Warning/orange ALWAYS needs dark text — do not inherit body color
+  .badge.bg-warning {
+    color: #000 !important;
+  }
+  // ── Buttons ───────────────────────────────────────────────────────────────
+  .btn-dark {
+    background-color: #3d4349;
+    border-color: #3d4349;
+    color: #dee2e6;
+  }
+  .btn-dark:hover {
+    background-color: #4a5159;
+  }
+  .btn-outline-secondary {
+    border-color: var(--bs-border-color);
+    color: var(--bs-secondary-color);
+  }
+  .btn-outline-secondary:hover {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+  }
+
+  // ── Forms ─────────────────────────────────────────────────────────────────
+  .form-control,
+  .form-select {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+  }
+  .form-control:focus,
+  .form-select:focus {
+    background-color: var(--bs-secondary-bg);
+    border-color: #5d8fd8;
+    color: var(--bs-body-color);
+    box-shadow: 0 0 0 0.2rem rgba(77, 171, 247, 0.2);
+  }
+  .form-check-input {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+  }
+  .input-group-text {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+  }
+
+  // ── Modals ────────────────────────────────────────────────────────────────
+  .modal-content {
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+  }
+  .modal-header,
+  .modal-footer {
+    border-color: var(--bs-border-color);
+    background-color: var(--bs-tertiary-bg);
+  }
+
+  // ── List groups ───────────────────────────────────────────────────────────
+  .list-group-item {
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+  }
+}
+
+// ─── (Military theme removed) ─────────────────────────────────────────────────

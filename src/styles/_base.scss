@@ -7,7 +7,7 @@ html {
 body {
   margin: 0;
   padding: 0;
-  background-color: #f8f9fa;
+  background-color: var(--app-bg, #f8f9fa);
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
@@ -27,9 +27,9 @@ body.modal-open-fixed {
 // 3. MAIN CONTAINER
 .main-container {
   margin: 0 auto;
-  max-width: 1400px;
+  max-width: 1920px;
   width: 100%;
-  background: white;
+  background: var(--app-container-bg, white);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -38,8 +38,8 @@ body.modal-open-fixed {
 }
 
 .header-simple {
-  background-color: #fff;
-  border-bottom: 1px solid #dee2e6;
+  background-color: var(--app-header-bg, #fff);
+  border-bottom: 1px solid var(--app-header-border, #dee2e6);
   padding: 20px 30px;
   flex: 0 0 auto;
   position: relative;
@@ -83,8 +83,11 @@ body.modal-open-fixed {
   background-color: #f4e6dc;
   border: 1px solid #d8b19a;
   color: #7a4630;
-  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out,
-    color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  transition:
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out,
+    color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
 
   &:hover {
     background-color: #ecd7c8;

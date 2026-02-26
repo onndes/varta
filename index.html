@@ -9,6 +9,18 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/shield-x512.png" />
     <title>VARTA-2026 Система нарядів</title>
+    <!--
+      Inline theme script: runs synchronously in <head> before any paint.
+      Sets data-bs-theme on <html> so both Bootstrap AND our CSS vars
+      (scoped to html[data-bs-theme="dark"]) are active before first render.
+    -->
+    <script>
+      (function () {
+        if (localStorage.getItem('varta-theme') === 'dark') {
+          document.documentElement.setAttribute('data-bs-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,7 @@
 // src/hooks/useSettings.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions, AppTheme } from '../types';
 import * as settingsService from '../services/settingsService';
 import {
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
@@ -33,6 +33,7 @@ export const useSettings = () => {
   const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
   const [printMaxRows, setPrintMaxRows] = useState<number>(DEFAULT_PRINT_MAX_ROWS);
   const [ignoreHistoryInLogic, setIgnoreHistoryInLogic] = useState(false);
+  const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,17 +43,27 @@ export const useSettings = () => {
       setLoading(true);
       setError(null);
 
-      const [weights, sigs, cascadeDate, perDay, autoOpts, debt, maxRows, ignoreHistory] =
-        await Promise.all([
-          settingsService.getDayWeights(),
-          settingsService.getSignatories(),
-          settingsService.getCascadeStartDate(),
-          settingsService.getDutiesPerDay(),
-          settingsService.getAutoScheduleOptions(),
-          settingsService.getMaxDebt(),
-          settingsService.getPrintMaxRows(),
-          settingsService.getIgnoreHistoryInLogic(),
-        ]);
+      const [
+        weights,
+        sigs,
+        cascadeDate,
+        perDay,
+        autoOpts,
+        debt,
+        maxRows,
+        ignoreHistory,
+        savedTheme,
+      ] = await Promise.all([
+        settingsService.getDayWeights(),
+        settingsService.getSignatories(),
+        settingsService.getCascadeStartDate(),
+        settingsService.getDutiesPerDay(),
+        settingsService.getAutoScheduleOptions(),
+        settingsService.getMaxDebt(),
+        settingsService.getPrintMaxRows(),
+        settingsService.getIgnoreHistoryInLogic(),
+        settingsService.getTheme(),
+      ]);
 
       setDayWeights(weights);
       setSignatories(sigs);
@@ -62,6 +73,8 @@ export const useSettings = () => {
       setMaxDebt(debt);
       setPrintMaxRows(maxRows);
       setIgnoreHistoryInLogic(ignoreHistory);
+      const validThemes: AppTheme[] = ['light', 'dark'];
+      setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -183,6 +196,17 @@ export const useSettings = () => {
     }
   }, []);
 
+  // Save theme
+  const saveTheme = useCallback(async (value: AppTheme) => {
+    try {
+      await settingsService.saveTheme(value);
+      setTheme(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save theme');
+      throw err;
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     loadSettings();
@@ -197,6 +221,7 @@ export const useSettings = () => {
     maxDebt,
     printMaxRows,
     ignoreHistoryInLogic,
+    theme,
     loading,
     error,
     loadSettings,
@@ -205,6 +230,7 @@ export const useSettings = () => {
     saveDutiesPerDay,
     savePrintMaxRows,
     saveIgnoreHistoryInLogic,
+    saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,
     updateCascadeTrigger,

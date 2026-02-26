@@ -19,6 +19,36 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
   const displayStatus = statusEnded ? 'ACTIVE' : u.status;
   const showStatusDates = !statusEnded;
 
+  // Map status codes to readable icon+label pairs
+  const STATUS_META: Record<string, { icon: string; label: string; cls: string }> = {
+    ACTIVE: { icon: 'fa-circle-check', label: 'В строю', cls: 'bg-success' },
+    SICK: { icon: 'fa-kit-medical', label: 'Лікування', cls: 'text-bg-warning' },
+    VACATION: { icon: 'fa-umbrella-beach', label: 'Відпустка', cls: 'text-bg-warning' },
+    BUSINESS: { icon: 'fa-briefcase', label: 'Відрядж.', cls: 'text-bg-info' },
+    OTHER: { icon: 'fa-circle-info', label: 'Інше', cls: 'text-bg-secondary' },
+    INACTIVE: { icon: 'fa-circle-xmark', label: 'Неактив', cls: 'bg-secondary' },
+  };
+
+  const statusKey = !u.isActive ? 'INACTIVE' : displayStatus;
+  const meta = STATUS_META[statusKey] ?? STATUS_META.OTHER;
+
+  const dateRange =
+    (u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && showStatusDates
+      ? [
+          u.statusFrom
+            ? new Date(u.statusFrom).toLocaleDateString('uk-UA', {
+                day: '2-digit',
+                month: '2-digit',
+              })
+            : '',
+          u.statusTo
+            ? new Date(u.statusTo).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' – ')
+      : null;
+
   return (
     <tr className={!u.isActive ? 'user-row-inactive' : ''}>
       <td className="text-start" style={{ cursor: 'pointer' }} onClick={() => onViewStats(u)}>
@@ -28,36 +58,16 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         <span className="fw-bold">{u.name}</span>
         <div className="small text-muted">{u.note}</div>
       </td>
+
+      {/* Status column – status pill + optional date range on same line */}
       <td className="text-center">
         <div className="d-flex align-items-center justify-content-center gap-2 flex-wrap">
-          <span
-            className={`badge ${u.isActive ? (displayStatus === 'ACTIVE' ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'}`}
-          >
-            {u.isActive ? STATUSES[displayStatus] : 'НЕАКТИВНИЙ'}
+          <span className={`badge ${meta.cls}`} style={{ minWidth: '72px', fontSize: '0.75rem' }}>
+            {u.isActive ? STATUSES[displayStatus] : 'Неактив'}
           </span>
-          {u.excludeFromAuto && (
-            <span
-              className="badge bg-warning text-dark"
-              style={{ fontSize: '0.65rem', opacity: 0.8 }}
-            >
-              виключ. з авторозп.
-            </span>
-          )}
-          {(u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && showStatusDates && (
-            <small className="text-muted" style={{ fontSize: '0.75rem' }}>
-              {u.statusFrom
-                ? new Date(u.statusFrom).toLocaleDateString('uk-UA', {
-                    day: '2-digit',
-                    month: '2-digit',
-                  })
-                : ''}
-              {u.statusFrom && u.statusTo && ' - '}
-              {u.statusTo
-                ? new Date(u.statusTo).toLocaleDateString('uk-UA', {
-                    day: '2-digit',
-                    month: '2-digit',
-                  })
-                : ''}
+          {dateRange && (
+            <small className="text-muted" style={{ fontSize: '0.73rem', whiteSpace: 'nowrap' }}>
+              {dateRange}
             </small>
           )}
           {u.status === 'OTHER' && u.statusComment && (
@@ -66,6 +76,16 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
             </small>
           )}
         </div>
+        {u.excludeFromAuto && (
+          <div className="mt-1">
+            <span
+              className="badge bg-warning"
+              style={{ fontSize: '0.62rem', color: '#000', letterSpacing: '0.01em' }}
+            >
+              <i className="fas fa-ban me-1" style={{ fontSize: '0.55rem' }}></i>без авторозп.
+            </span>
+          </div>
+        )}
       </td>
       <td>
         {u.blockedDays && u.blockedDays.length > 0 ? (

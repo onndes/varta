@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { getWeekNumber } from '../../utils/helpers';
+import React, { useState, useMemo } from 'react';
+import { getWeekNumber, getMondayOfWeek } from '../../utils/helpers';
 
 interface WeekNavigatorProps {
   currentDate: Date;
@@ -8,9 +8,24 @@ interface WeekNavigatorProps {
   onJumpToWeek: (weekNumber: number, year?: number) => void;
 }
 
+const MONTH_ABBR = [
+  'Січ',
+  'Лют',
+  'Бер',
+  'Кві',
+  'Тра',
+  'Чер',
+  'Лип',
+  'Сер',
+  'Вер',
+  'Жов',
+  'Лис',
+  'Гру',
+];
+
 /**
  * Week Navigator Component
- * Displays 53 week squares for the year with visual indicators.
+ * Displays week squares grouped by month for the year.
  * Supports year switching.
  */
 const WeekNavigator: React.FC<WeekNavigatorProps> = ({
@@ -20,17 +35,34 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
   onJumpToWeek,
 }) => {
   const [displayYear, setDisplayYear] = useState(activeDate.getFullYear());
-  // Dec 28 is always in the last ISO week of the year — its week number = max weeks for that year
+  // Dec 28 is always in the last ISO week of the year
   const maxWeeks = getWeekNumber(new Date(displayYear, 11, 28));
-  const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1);
   const currentWeek = getWeekNumber(currentDate);
   const activeWeek = getWeekNumber(activeDate);
   const isActiveYear = displayYear === activeDate.getFullYear();
   const isCurrentYear = displayYear === currentDate.getFullYear();
+  const yearWeeks = scheduledWeeksMap.get(displayYear);
+
+  // Group week numbers by the month of their Monday
+  const monthGroups = useMemo(() => {
+    const groups: { month: number; weeks: number[] }[] = [];
+    for (let w = 1; w <= maxWeeks; w++) {
+      const monday = getMondayOfWeek(displayYear, w);
+      const month = monday.getMonth();
+      const last = groups[groups.length - 1];
+      if (last && last.month === month) {
+        last.weeks.push(w);
+      } else {
+        groups.push({ month, weeks: [w] });
+      }
+    }
+    return groups;
+  }, [displayYear, maxWeeks]);
 
   return (
     <div className="week-nav-container no-print">
-      <div className="w-100 d-flex justify-content-center align-items-center gap-2 mb-1">
+      {/* Year switcher */}
+      <div className="week-nav-year-row">
         <button
           className="btn btn-sm btn-link text-muted p-0"
           onClick={() => setDisplayYear((y) => y - 1)}
@@ -38,14 +70,14 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
         >
           <i className="fas fa-chevron-left" style={{ fontSize: '0.65rem' }}></i>
         </button>
-        <small
-          className={`fw-bold ${isCurrentYear ? 'text-primary' : 'text-muted'}`}
+        <span
+          className={`fw-bold small ${isCurrentYear ? 'text-primary' : 'text-muted'}`}
           style={{ cursor: 'pointer', userSelect: 'none', minWidth: '40px', textAlign: 'center' }}
           onClick={() => setDisplayYear(currentDate.getFullYear())}
           title="Повернутися до поточного року"
         >
           {displayYear}
-        </small>
+        </span>
         <button
           className="btn btn-sm btn-link text-muted p-0"
           onClick={() => setDisplayYear((y) => y + 1)}
@@ -54,28 +86,51 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
           <i className="fas fa-chevron-right" style={{ fontSize: '0.65rem' }}></i>
         </button>
       </div>
-      {weeks.map((week) => {
-        const isPast = isCurrentYear && week < currentWeek;
-        const isCurrent = isCurrentYear && week === currentWeek;
-        const isSelected = isActiveYear && week === activeWeek;
-        const yearWeeks = scheduledWeeksMap.get(displayYear);
-        const hasSchedule = !!yearWeeks && yearWeeks.has(week) && !isCurrent;
 
-        return (
-          <div
-            key={week}
-            className={`week-square 
-              ${isPast ? 'past' : ''} 
-              ${isCurrent ? 'current' : ''} 
-              ${isSelected ? 'selected' : ''} 
-              ${hasSchedule ? 'has-schedule' : ''}`}
-            onClick={() => onJumpToWeek(week, displayYear)}
-          >
-            {week}
-            <div className="week-tooltip">Тиждень {week}</div>
+      {/* Month columns */}
+      <div className="week-nav-months">
+        {monthGroups.map(({ month, weeks }) => (
+          // key uses first week number — unique even when December appears at both
+          // start (ISO weeks 1-n belonging to prev-year Dec) and end of year
+          <div key={weeks[0]} className="week-nav-month-col">
+            <div className="week-nav-month-label">{MONTH_ABBR[month]}</div>
+            {weeks.map((week) => {
+              const isPast = isCurrentYear && week < currentWeek;
+              const isCurrent = isCurrentYear && week === currentWeek;
+              const isSelected = isActiveYear && week === activeWeek;
+              const hasSchedule = !!yearWeeks && yearWeeks.has(week) && !isCurrent;
+              const monday = getMondayOfWeek(displayYear, week);
+              const tooltipDate = monday.toLocaleDateString('uk-UA', {
+                day: 'numeric',
+                month: 'short',
+              });
+
+              return (
+                <div
+                  key={week}
+                  className={[
+                    'week-square',
+                    isPast ? 'past' : '',
+                    isCurrent ? 'current' : '',
+                    isSelected ? 'selected' : '',
+                    hasSchedule ? 'has-schedule' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => onJumpToWeek(week, displayYear)}
+                >
+                  {week}
+                  <div className="week-tooltip">
+                    Тиждень {week}
+                    <br />
+                    {tooltipDate}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 };

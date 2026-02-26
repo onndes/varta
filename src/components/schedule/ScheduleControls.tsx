@@ -64,44 +64,45 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   const isFutureWeek = weekDates[0] > todayStr;
 
   return (
-    <div className="card border-0 shadow-sm p-3 mb-3 no-print">
-      <div
-        className="mb-2"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <div className="d-flex align-items-center gap-2">
-          <button className="btn btn-outline-secondary btn-sm" onClick={onPrevWeek}>
+    <div className="card border-0 shadow-sm p-2 mb-2 no-print">
+      {/* Row 1: navigation + week title */}
+      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+        {/* Left: prev / next / today / date */}
+        <div className="d-flex align-items-center gap-1">
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={onPrevWeek}
+            title="Попередній тиждень"
+          >
             <i className="fas fa-chevron-left"></i>
           </button>
-          <button className="btn btn-outline-secondary btn-sm" onClick={onNextWeek}>
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={onNextWeek}
+            title="Наступний тиждень"
+          >
             <i className="fas fa-chevron-right"></i>
           </button>
-          <button className="btn btn-light btn-sm ms-2" onClick={onToday}>
-            Поточний тиждень
+          <button className="btn btn-light btn-sm ms-1" onClick={onToday}>
+            Сьогодні
           </button>
           <input
             type="date"
-            className="form-control form-control-sm ms-2"
+            className="form-control form-control-sm ms-1"
             style={{ width: '130px' }}
             onChange={(e) => onDatePick(e.target.value)}
             value={weekDates[0]}
           />
         </div>
-        <div className="fw-bold fs-5 text-center">
+
+        {/* Center: week title */}
+        <div className="fw-bold text-center text-nowrap" style={{ fontSize: '1rem' }}>
           {startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} —{' '}
           {endDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
-        <div />
-      </div>
 
-      <div className="d-flex align-items-center gap-2 flex-wrap">
-        {/* Undo / Redo */}
-        <div className="d-flex gap-1 me-auto">
+        {/* Right: undo / redo */}
+        <div className="d-flex align-items-center gap-1">
           <button
             className="btn btn-sm btn-outline-secondary"
             onClick={onUndo}
@@ -119,15 +120,18 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             <i className="fas fa-redo"></i>
           </button>
         </div>
+      </div>
 
+      {/* Row 2: action buttons */}
+      <div className="d-flex align-items-center gap-2 flex-wrap">
         {!isFutureWeek && (
           <button
             className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
             onClick={onToggleHistoryMode}
             title="Розблокувати минулі дні для ручного заповнення старого графіка"
           >
-            <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-2`}></i>
-            {historyMode ? 'Редагування історії ✅' : 'Редагування історії'}
+            <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
+            {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
           </button>
         )}
         {!isFutureWeek && (
@@ -136,25 +140,29 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             onClick={onImportSchedule}
             title="Імпорт старого графіка (CSV/текст)"
           >
-            <i className="fas fa-file-import me-2"></i>Імпорт графіка
+            <i className="fas fa-file-import me-1"></i>Імпорт
           </button>
         )}
+
+        {/* Spacer pushes conflict + generation buttons to the right */}
+        <div className="flex-grow-1" />
+
         {criticalConflictsCount > 0 && (
           <button className="btn btn-sm btn-danger shadow" onClick={onFixConflicts}>
-            <i className="fas fa-exclamation-triangle me-2"></i>
+            <i className="fas fa-exclamation-triangle me-1"></i>
             ЗАМІНИТИ БЛОКОВАНИХ ({criticalConflictsCount})
           </button>
         )}
         {conflictsCount > 0 && criticalConflictsCount === 0 && (
           <button className="btn btn-sm btn-warning" onClick={onFixConflicts}>
-            <i className="fas fa-exclamation-circle me-2"></i>
-            Виправити конфлікти ({conflictsCount})
+            <i className="fas fa-exclamation-circle me-1"></i>
+            Конфлікти ({conflictsCount})
           </button>
         )}
         {cascadeStartDate && shouldShowCascade && (
           <>
             <button className="btn btn-sm btn-outline-info" onClick={onCascadeRecalc}>
-              <i className="fas fa-sync-alt me-2"></i>
+              <i className="fas fa-sync-alt me-1"></i>
               Оптимізувати (з {formatDate(cascadeStartDate!)})
             </button>
             <button
@@ -162,7 +170,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
               onClick={onDismissCascade}
               title="Все гаразд, не змінювати автоматичні призначення"
             >
-              <i className="fas fa-check me-2"></i>Залишити як є
+              <i className="fas fa-check me-1"></i>Залишити
             </button>
           </>
         )}
@@ -171,21 +179,21 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           onClick={onClearWeek}
           title="Очистити всі призначення на цьому тижні"
         >
-          <i className="fas fa-trash-alt me-2"></i>Очистити тиждень
+          <i className="fas fa-trash-alt me-1"></i>Очистити
         </button>
         <button
           className="btn btn-sm btn-outline-primary"
           onClick={onFillGaps}
           title="Заповнити тільки порожні дні"
         >
-          <i className="fas fa-fill-drip me-2"></i>Заповнити
+          <i className="fas fa-fill-drip me-1"></i>Заповнити
         </button>
         <button
           className="btn btn-sm btn-primary"
           onClick={onAutoSchedule}
           title="Автоматична генерація графіка на тиждень"
         >
-          <i className="fas fa-magic me-2"></i>Генерація
+          <i className="fas fa-magic me-1"></i>Генерація
         </button>
       </div>
     </div>

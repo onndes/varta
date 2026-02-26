@@ -86,7 +86,10 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                       className="text-start fw-bold"
                       style={{
                         fontSize: '0.82rem',
-                        background: isWeekend ? '#e9ecef' : '#f8f9fa',
+                        background: isWeekend
+                          ? 'var(--app-table-weekend-bg, #e9ecef)'
+                          : 'var(--app-table-header-bg, #f8f9fa)',
+                        color: 'var(--bs-body-color)',
                       }}
                     >
                       {dayLabel}
@@ -197,7 +200,10 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     key={date}
                     style={{
                       width: '10%',
-                      backgroundColor: isWeekend ? '#e9ecef' : '#f8f9fa',
+                      backgroundColor: isWeekend
+                        ? 'var(--app-table-weekend-bg, #e9ecef)'
+                        : 'var(--app-table-header-bg, #f8f9fa)',
+                      color: 'var(--bs-body-color)',
                     }}
                   >
                     {dayMonth}

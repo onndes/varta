@@ -10,6 +10,26 @@
     font-family: 'Times New Roman', serif !important;
   }
 
+  // Force light theme for print — always white background, black text
+  html[data-bs-theme],
+  html[data-bs-theme='dark'] {
+    --bs-body-bg: #ffffff !important;
+    --bs-body-color: #000000 !important;
+  }
+  body,
+  body.theme-dark,
+  body.theme-military {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    --app-bg: #ffffff;
+    --app-container-bg: #ffffff;
+    --app-table-header-bg: #f8f9fa;
+    --app-table-border: #dee2e6;
+    --bs-body-bg: #ffffff;
+    --bs-body-color: #000000;
+    --bs-border-color: #dee2e6;
+  }
+
   body,
   html,
   #root,

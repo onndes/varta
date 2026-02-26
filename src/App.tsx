@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import type { PrintMode } from './types';
+import React, { useState, useEffect } from 'react';
+import type { PrintMode, AppTheme } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
 
@@ -38,6 +38,7 @@ const App = () => {
     maxDebt,
     printMaxRows,
     ignoreHistoryInLogic,
+    theme,
     loadSettings,
     saveDayWeights,
     saveSignatories,
@@ -46,6 +47,7 @@ const App = () => {
     saveMaxDebt,
     savePrintMaxRows,
     saveIgnoreHistoryInLogic,
+    saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
   } = useSettings();
@@ -69,6 +71,17 @@ const App = () => {
     // Перемонтовуємо вью, що кешують дані (наприклад, журнал)
     setWorkspaceVersion(getActiveWorkspaceId());
   };
+
+  // Apply theme class to <body> and Bootstrap dark mode to <html>
+  useEffect(() => {
+    document.body.classList.remove('theme-light', 'theme-dark');
+    document.body.classList.add(`theme-${theme}`);
+    if (theme !== 'light') {
+      document.documentElement.setAttribute('data-bs-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-bs-theme');
+    }
+  }, [theme]);
 
   // Check backup status when needed
   React.useEffect(() => {
@@ -142,6 +155,8 @@ const App = () => {
         onExport={handleExport}
         onPrint={handlePrint}
         onWorkspaceSwitch={handleWorkspaceSwitch}
+        theme={theme}
+        onSaveTheme={saveTheme}
       />
 
       <div className="px-4">

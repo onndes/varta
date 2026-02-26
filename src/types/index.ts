@@ -3,6 +3,9 @@
 /** Режим друку: календар / таблиця чергувань / довідка по складу */
 export type PrintMode = 'calendar' | 'duty-table' | 'status-list';
 
+/** Тема оформлення */
+export type AppTheme = 'light' | 'dark';
+
 export interface DayWeights {
   [key: number]: number;
 }

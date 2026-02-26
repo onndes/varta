@@ -29,6 +29,7 @@ export interface ExportData {
   dutiesPerDay?: number;
   printMaxRows?: number;
   ignoreHistoryInLogic?: boolean;
+  theme?: string;
 }
 
 export interface MultiWorkspaceExportData {
@@ -70,6 +71,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dutiesPerDayRec,
     printMaxRowsRec,
     ignoreHistoryRec,
+    themeRec,
   ] = await Promise.all([
     targetDb.users.toArray(),
     targetDb.schedule.toArray(),
@@ -81,6 +83,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('dutiesPerDay'),
     targetDb.appState.get('printMaxRows'),
     targetDb.appState.get('ignoreHistoryInLogic'),
+    targetDb.appState.get('theme'),
   ]);
   return {
     version: CURRENT_BACKUP_VERSION,
@@ -95,6 +98,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
     printMaxRows: printMaxRowsRec ? (printMaxRowsRec.value as number) : undefined,
     ignoreHistoryInLogic: ignoreHistoryRec ? (ignoreHistoryRec.value as boolean) : undefined,
+    theme: themeRec ? (themeRec.value as string) : undefined,
   };
 };
 
@@ -140,6 +144,8 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
           key: 'ignoreHistoryInLogic',
           value: data.ignoreHistoryInLogic,
         });
+      // Theme is a device preference — restore only if present in backup
+      if (data.theme) await targetDb.appState.put({ key: 'theme', value: data.theme });
 
       // Прапорці
       await targetDb.appState.put({ key: 'needsExport', value: false });

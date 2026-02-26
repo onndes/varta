@@ -94,6 +94,23 @@ export const getIgnoreHistoryInLogic = async (): Promise<boolean> =>
 export const saveIgnoreHistoryInLogic = async (value: boolean): Promise<void> =>
   saveSetting('ignoreHistoryInLogic', value);
 
+// ── Theme ─────────────────────────────────────────────────────────
+
+const THEME_LS_KEY = 'varta-theme';
+
+export const getTheme = async (): Promise<string> => {
+  // Prefer localStorage (set synchronously) so we can also pre-apply in index.html
+  const lsVal = localStorage.getItem(THEME_LS_KEY);
+  if (lsVal === 'light' || lsVal === 'dark') return lsVal;
+  return getJsonSetting('theme', 'light');
+};
+
+export const saveTheme = async (theme: string): Promise<void> => {
+  // Write to localStorage first so index.html inline-script can read it immediately on next load
+  localStorage.setItem(THEME_LS_KEY, theme);
+  return saveSetting('theme', theme);
+};
+
 /**
  * Get cascade start date
  */
@@ -143,4 +160,5 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
   await saveSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
   await saveSetting('ignoreHistoryInLogic', false);
+  // theme is intentionally NOT reset — user preference
 };
