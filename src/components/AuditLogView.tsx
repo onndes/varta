@@ -126,8 +126,7 @@ const AuditLogView: React.FC = () => {
   }
 
   return (
-    <div className="row justify-content-center">
-      <div className="col-lg-10">
+    <div>
         {/* Stats cards */}
         <div className="row g-2 mb-3">
           <div className="col-auto">
@@ -265,7 +264,6 @@ const AuditLogView: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 };

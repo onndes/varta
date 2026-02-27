@@ -855,8 +855,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   );
 
   return (
-    <div className="row justify-content-center">
-      <div className="col-md-10">
+    <div>
         {/* Sub-tabs */}
         <div className="d-flex align-items-center justify-content-between mb-4">
           <ul className="nav nav-pills">
@@ -900,7 +899,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         {subTab === 'logic' && renderLogicTab()}
         {subTab === 'interface' && renderInterfaceTab()}
         {subTab === 'print' && renderPrintTab()}
-      </div>
 
       {/* DB Maintenance Modal */}
       <Modal
