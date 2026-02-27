@@ -228,9 +228,9 @@ const StatsView: React.FC<StatsViewProps> = ({
         </div>
       </div>
       {stats.length === 0 ? (
-        <div className="text-center text-muted py-5">
-          <i className="fas fa-users fa-2x mb-3 d-block"></i>
-          Немає осіб у складі
+        <div className="text-center text-muted py-5 d-flex flex-column align-items-center">
+          <i className="fas fa-users fa-2x mb-3"></i>
+          <span>Немає осіб у складі</span>
         </div>
       ) : (
         <div className="table-responsive">

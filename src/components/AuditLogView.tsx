@@ -209,9 +209,9 @@ const AuditLogView: React.FC = () => {
         <div className="card border-0 shadow-sm">
           <div className="card-body p-0">
             {filteredLogs.length === 0 ? (
-              <div className="text-center text-muted py-5">
-                <i className="fas fa-clipboard-list fa-3x mb-3 d-block opacity-25" />
-                Журнал порожній
+              <div className="text-center text-muted py-5 d-flex flex-column align-items-center">
+                <i className="fas fa-clipboard-list fa-3x mb-3 opacity-25" />
+                <span>Журнал порожній</span>
               </div>
             ) : (
               <div className="table-responsive">
