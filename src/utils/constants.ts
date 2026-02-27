@@ -89,7 +89,7 @@ export const DEFAULT_MAX_DEBT = 4.0;
 export const DEFAULT_DUTIES_PER_DAY = 1;
 
 /** Мінімальний відпочинок між нарядами (днів) */
-export const DEFAULT_MIN_REST_DAYS = 1;
+const DEFAULT_MIN_REST_DAYS = 1;
 
 /** Максимум рядків на сторінці таблиці чергувань (друк) */
 export const DEFAULT_PRINT_MAX_ROWS = 12;

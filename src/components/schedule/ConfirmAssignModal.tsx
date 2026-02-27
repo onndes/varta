@@ -1,6 +1,6 @@
 import React from 'react';
 import type { User } from '../../types';
-import { getWeekNumber } from '../../utils/helpers';
+import { getWeekNumber } from '../../utils/dateUtils';
 import { getMondayOfWeek } from '../../utils/dateUtils';
 import Modal from '../Modal';
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { getWeekNumber, getMondayOfWeek } from '../../utils/helpers';
+import { getWeekNumber, getMondayOfWeek } from '../../utils/dateUtils';
 
 interface WeekNavigatorProps {
   currentDate: Date;

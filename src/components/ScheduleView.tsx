@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useDialog } from './useDialog';
 import type {
   User,
   ScheduleEntry,
@@ -8,20 +7,20 @@ import type {
   AutoScheduleOptions,
   PrintMode,
 } from '../types';
-import { toLocalISO, getMondayOfWeek, getWeekNumber, getWeekYear } from '../utils/helpers';
-import { formatDate } from '../utils/dateUtils';
+import { toLocalISO, getWeekNumber, getWeekYear } from '../utils/dateUtils';
 import {
-  applyKarmaForTransfer,
   calculateEffectiveLoad as calcEffectiveLoad,
-  getAllSchedule,
   removeAssignmentWithDebt,
-  saveScheduleEntry,
   bulkDeleteSchedule,
 } from '../services/scheduleService';
 import * as userService from '../services/userService';
+import type { DeletedUserInfo } from '../services/userService';
+import { isUserAvailable } from '../services/userService';
 import { useAutoScheduler } from '../hooks';
 import { useScheduleHistory } from '../hooks/useScheduleHistory';
-import * as autoSchedulerService from '../services/autoScheduler';
+import { useWeekNavigation } from '../hooks/useWeekNavigation';
+import { useScheduleActions } from '../hooks/useScheduleActions';
+import { useAssignmentModal } from '../hooks/useAssignmentModal';
 import * as auditService from '../services/auditService';
 import WeekNavigator from './schedule/WeekNavigator';
 import ScheduleControls from './schedule/ScheduleControls';
@@ -31,17 +30,13 @@ import ScheduleTable from './schedule/ScheduleTable';
 import PrintCalendar from './schedule/PrintCalendar';
 import PrintDutyTable from './schedule/PrintDutyTable';
 import PrintStatusList from './schedule/PrintStatusList';
-import AssignmentModal, { type SwapMode } from './schedule/AssignmentModal';
+import AssignmentModal from './schedule/AssignmentModal';
 import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import ImportScheduleModal from './schedule/ImportScheduleModal';
-import { isUserAvailable } from '../services/userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
-import {
-  getAssignedCount,
-  isAssignedInEntry,
-  toAssignedUserIds,
-  getLogicSchedule,
-} from '../utils/assignment';
+import { getAssignedCount, toAssignedUserIds, getLogicSchedule } from '../utils/assignment';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface ScheduleViewProps {
   users: User[];
@@ -60,18 +55,7 @@ interface ScheduleViewProps {
   ignoreHistoryInLogic: boolean;
 }
 
-interface SelectedCell {
-  date: string;
-  entry: ScheduleEntry | null;
-  assignedUserId?: number;
-}
-
-interface PendingAssignConfirm {
-  userId: number;
-  transferFrom?: string;
-  isRestDay: boolean;
-  penalizeReplaced?: boolean;
-}
+// ─── Component ──────────────────────────────────────────────────────────────
 
 const ScheduleView: React.FC<ScheduleViewProps> = ({
   users,
@@ -89,13 +73,28 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   printMaxRows,
   ignoreHistoryInLogic,
 }) => {
-  // Schedule filtered for logic calculations (excludes history entries if setting is on)
+  // ── Deleted users (historical display) ──────────────────────────────────
+  const [deletedUserNames, setDeletedUserNames] = useState<Record<number, DeletedUserInfo>>({});
+  useEffect(() => {
+    userService.getDeletedUserNames().then(setDeletedUserNames);
+  }, [users]);
+
+  const deletedUserIds = useMemo(
+    () => new Set(Object.keys(deletedUserNames).map(Number)),
+    [deletedUserNames]
+  );
+
+  // ── Filtered schedule for load calculations ─────────────────────────────
   const logicSchedule = useMemo(
     () => getLogicSchedule(schedule, ignoreHistoryInLogic),
     [schedule, ignoreHistoryInLogic]
   );
 
-  // Direct service operations (no duplicate useSchedule hook)
+  // ── UI state ────────────────────────────────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [historyMode, setHistoryMode] = useState(false);
+
+  // ── Core operations ─────────────────────────────────────────────────────
   const calculateEffectiveLoad = useCallback(
     (user: User) => calcEffectiveLoad(user, logicSchedule, dayWeights),
     [logicSchedule, dayWeights]
@@ -124,7 +123,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         const prevUser = users.find((u) => u.id === replaceUserId);
         if (prevUser) {
           if (options?.penalizeReplaced) {
-            // Apply karma penalty to the replaced user
             const dayIdx = new Date(date).getDay();
             const weight = dayWeights[dayIdx] || 1.0;
             await userService.updateUserDebt(replaceUserId, -weight);
@@ -152,16 +150,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
             ? 'replace'
             : 'manual'
           : 'auto';
+
+      const { saveScheduleEntry } = await import('../services/scheduleService');
       const entry: ScheduleEntry = {
         date,
         userId: nextIds.length === 1 ? nextIds[0] : nextIds,
         type: entryType,
         isLocked: false,
       };
-
       await saveScheduleEntry(entry);
 
-      // Repay owedDays if user owes this day of week (use DB-backed service to avoid stale state)
       const user = users.find((u) => u.id === userId);
       if (user && isManual) {
         const dayIdx = new Date(date).getDay();
@@ -189,6 +187,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     await auditService.logAction('BULK_DELETE', `Видалено ${dates.length} записів`);
   }, []);
 
+  // ── Auto-scheduler & history hooks ──────────────────────────────────────
   const { fillGaps, recalculateFrom, generateWeekSchedule } = useAutoScheduler(
     users,
     schedule,
@@ -208,40 +207,63 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     redoLabel,
   } = useScheduleHistory();
 
-  const [currentMonday, setCurrentMonday] = useState(() => {
-    const d = new Date();
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
+  // ── Assignment modal ────────────────────────────────────────────────────
+  const {
+    selectedCell,
+    setSelectedCell,
+    swapMode,
+    setSwapMode,
+    pendingAssignConfirm,
+    setPendingAssignConfirm,
+    executeAssign,
+    handleAssign,
+    handleSwap,
+    handleRemove,
+  } = useAssignmentModal({
+    users,
+    schedule,
+    dayWeights,
+    dutiesPerDay,
+    historyMode,
+    pushHistory,
+    assignUser,
+    removeAssignment,
+    updateCascadeTrigger,
+    logAction,
+    refreshData,
   });
 
-  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
-  const [swapMode, setSwapMode] = useState<SwapMode>('replace');
-  const [pendingAssignConfirm, setPendingAssignConfirm] = useState<PendingAssignConfirm | null>(
-    null
-  );
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [historyMode, setHistoryMode] = useState(false);
+  // ── Week navigation ─────────────────────────────────────────────────────
+  const { weekDates, todayStr, shiftWeek, jumpToWeek, goToToday, handleDatePick } =
+    useWeekNavigation({ isModalOpen: !!selectedCell || !!pendingAssignConfirm });
 
-  const { showAlert, showConfirm } = useDialog();
+  // ── Keyboard: Ctrl+Z / Ctrl+Y for undo/redo ────────────────────────────
+  const scheduleRef = React.useRef(schedule);
+  useEffect(() => {
+    scheduleRef.current = schedule;
+  }, [schedule]);
 
-  const weekDates = useMemo(() => {
-    const dates: string[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(currentMonday);
-      d.setDate(currentMonday.getDate() + i);
-      dates.push(toLocalISO(d));
-    }
-    return dates;
-  }, [currentMonday]);
+  useEffect(() => {
+    const handleUndoRedo = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        void undoHistory(scheduleRef.current).then(() => refreshData());
+      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        void redoHistory(scheduleRef.current).then(() => refreshData());
+      }
+    };
+    window.addEventListener('keydown', handleUndoRedo);
+    return () => window.removeEventListener('keydown', handleUndoRedo);
+  }, [undoHistory, redoHistory, refreshData]);
 
-  const todayStr = useMemo(() => toLocalISO(new Date()), []);
-
+  // ── Scheduled weeks map (for WeekNavigator dots) ────────────────────────
   const scheduledWeeksMap = useMemo(() => {
     const map = new Map<number, Set<number>>();
     Object.keys(schedule).forEach((dateStr) => {
       const d = new Date(dateStr);
-      const year = getWeekYear(d); // ISO week-year, not calendar year
+      const year = getWeekYear(d);
       const week = getWeekNumber(d);
       if (!map.has(year)) map.set(year, new Set());
       map.get(year)!.add(week);
@@ -249,9 +271,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     return map;
   }, [schedule]);
 
+  // ── Schedule issues (conflicts & gaps) ──────────────────────────────────
   const scheduleIssues = useMemo(() => {
     const conflicts: string[] = [];
-    const criticalConflicts: string[] = []; // User assigned but blocked (vacation/sick)
+    const criticalConflicts: string[] = [];
     const gaps: string[] = [];
     const conflictByDate: Record<string, number[]> = {};
     const checkStart = weekDates[0];
@@ -261,17 +284,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       const ids = toAssignedUserIds(entry.userId);
       const conflictIds = ids.filter((id) => {
         const user = users.find((u) => u.id === id);
-        if (!user) return true;
+        if (!user) return !deletedUserIds.has(id);
         if (!isUserAvailable(user, date, schedule)) {
-          if (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') {
-            if (
-              user.statusFrom &&
-              user.statusTo &&
-              date >= user.statusFrom &&
-              date <= user.statusTo
-            ) {
-              criticalConflicts.push(date);
-            }
+          if (
+            (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') &&
+            user.statusFrom &&
+            user.statusTo &&
+            date >= user.statusFrom &&
+            date <= user.statusTo
+          ) {
+            criticalConflicts.push(date);
           }
           return true;
         }
@@ -288,67 +310,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     });
 
     return { conflicts, criticalConflicts, gaps, conflictByDate };
-  }, [schedule, users, weekDates, dutiesPerDay]);
+  }, [schedule, users, weekDates, dutiesPerDay, deletedUserIds]);
 
-  const shiftWeek = useCallback((offset: number) => {
-    setCurrentMonday((prev) => {
-      const newDate = new Date(prev);
-      newDate.setDate(newDate.getDate() + offset * 7);
-      return newDate;
-    });
-  }, []);
-
-  // Keep a ref to the latest schedule so keyboard undo/redo always uses fresh data
-  const scheduleRef = React.useRef(schedule);
-  useEffect(() => {
-    scheduleRef.current = schedule;
-  }, [schedule]);
-
-  // Keyboard: Ctrl+Z / Ctrl+Y for undo/redo (always uses latest schedule via ref)
-  useEffect(() => {
-    const handleUndoRedo = (e: KeyboardEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
-      if (e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        void undoHistory(scheduleRef.current).then(() => refreshData());
-      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
-        e.preventDefault();
-        void redoHistory(scheduleRef.current).then(() => refreshData());
-      }
-    };
-    window.addEventListener('keydown', handleUndoRedo);
-    return () => window.removeEventListener('keydown', handleUndoRedo);
-  }, [undoHistory, redoHistory, refreshData]);
-
-  // Keyboard navigation: ArrowLeft / ArrowRight to switch weeks
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (selectedCell || pendingAssignConfirm) return;
-      shiftWeek(e.key === 'ArrowLeft' ? -1 : 1);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shiftWeek, selectedCell, pendingAssignConfirm]);
-
-  const jumpToWeek = (w: number, year?: number) =>
-    setCurrentMonday(getMondayOfWeek(year ?? new Date().getFullYear(), w));
-
-  const goToToday = () => {
-    const d = new Date();
-    const day = d.getDay();
-    setCurrentMonday(new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))));
-  };
-
-  const handleDatePick = (dateValue: string) => {
-    if (!dateValue) return;
-    const d = new Date(dateValue);
-    const day = d.getDay();
-    setCurrentMonday(new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1))));
-  };
-
+  // ── User queries ────────────────────────────────────────────────────────
   const daysSinceLastDuty = useCallback(
     (userId: number, refDate: string): number => {
       const previousDates = Object.values(schedule)
@@ -357,8 +321,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         .sort();
       if (previousDates.length === 0) return Number.POSITIVE_INFINITY;
       const last = previousDates[previousDates.length - 1];
-      const diff = new Date(refDate).getTime() - new Date(last).getTime();
-      return Math.floor(diff / 86400000);
+      return Math.floor((new Date(refDate).getTime() - new Date(last).getTime()) / 86400000);
     },
     [schedule]
   );
@@ -371,51 +334,33 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       return users
         .filter((u) => {
           if (assignedOnDate.has(u.id!)) return false;
-          // includeRestDay: skip rest-day check so rest-day users appear (with badge)
           return includeRestDay
             ? isUserAvailable(u, dateStr)
             : isUserAvailable(u, dateStr, schedule);
         })
         .sort((a, b) => {
-          // Priority 1: Owed days for this day of week
           const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
           const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
           if (oweA !== oweB) return oweB - oweA;
-
-          // Priority 2: Effective load (least load first)
           const loadA = calculateEffectiveLoad(a);
           const loadB = calculateEffectiveLoad(b);
           if (loadA !== loadB) return loadA - loadB;
-
-          // Priority 3: Karma (most negative first)
           if (a.debt !== b.debt) return a.debt - b.debt;
-
-          // Priority 4: Days since last duty (most idle first)
-          const idleA = daysSinceLastDuty(a.id!, dateStr);
-          const idleB = daysSinceLastDuty(b.id!, dateStr);
-          return idleB - idleA;
+          return daysSinceLastDuty(b.id!, dateStr) - daysSinceLastDuty(a.id!, dateStr);
         });
     },
     [schedule, users, calculateEffectiveLoad, daysSinceLastDuty]
   );
 
-  // Get users assigned on the same week (for swap/replace mode)
   const getWeekAssignedUsers = useCallback(
     (dateStr: string) => {
       const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
-
-      // Collect all unique user IDs assigned on this week (excluding target date)
       const weekUserIds = new Set<number>();
       for (const wd of weekDates) {
         if (wd === dateStr) continue;
         const entry = schedule[wd];
-        if (entry) {
-          toAssignedUserIds(entry.userId).forEach((id) => weekUserIds.add(id));
-        }
+        if (entry) toAssignedUserIds(entry.userId).forEach((id) => weekUserIds.add(id));
       }
-
-      // Filter: must be assigned this week, NOT assigned on target date, and active
-      // Don't check isUserAvailable — rest-day users should still be swappable
       return users
         .filter(
           (u) =>
@@ -426,360 +371,69 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
           const loadB = calculateEffectiveLoad(b);
           if (loadA !== loadB) return loadA - loadB;
           if (a.debt !== b.debt) return a.debt - b.debt;
-          const idleA = daysSinceLastDuty(a.id!, dateStr);
-          const idleB = daysSinceLastDuty(b.id!, dateStr);
-          return idleB - idleA;
+          return daysSinceLastDuty(b.id!, dateStr) - daysSinceLastDuty(a.id!, dateStr);
         });
     },
     [schedule, users, weekDates, calculateEffectiveLoad, daysSinceLastDuty]
   );
 
-  // Check if cascade recalc could improve assignments (after getFreeUsers defined)
+  // ── Cascade recalc check ────────────────────────────────────────────────
   const shouldShowCascadeRecalc = useMemo(() => {
     if (!cascadeStartDate) return false;
     const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
-
-    // Require at least 2 entries that could meaningfully benefit from rebalancing.
-    // This avoids showing the button when only a single week is scheduled.
     let improvableCount = 0;
     for (const [date, entry] of Object.entries(schedule)) {
       if (date < start || entry.type === 'manual') continue;
-
       const assignedIds = toAssignedUserIds(entry.userId);
       if (assignedIds.length === 0) continue;
-
       const freeUsers = getFreeUsers(date).filter((u) => !assignedIds.includes(u.id!));
       if (freeUsers.length === 0) continue;
-
       const hasImprovement = assignedIds.some((assignedId) => {
         const currentUser = users.find((u) => u.id === assignedId);
         if (!currentUser) return true;
         const currentLoad = calculateEffectiveLoad(currentUser);
         return freeUsers.some((u) => calculateEffectiveLoad(u) < currentLoad - 0.5);
       });
-
-      if (hasImprovement) {
-        improvableCount++;
-        if (improvableCount >= 2) return true;
-      }
+      if (hasImprovement && ++improvableCount >= 2) return true;
     }
     return false;
   }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
 
-  const hasEnoughActiveUsers = useCallback(async (): Promise<boolean> => {
-    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
-    if (activeUsers.length < 2) {
-      await showAlert(
-        '⚠️ НЕДОСТАТНЬО ОСІБ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних особи.\n\nЗараз доступно: ' +
-          activeUsers.length
-      );
-      return false;
-    }
-    return true;
-  }, [users, showAlert]);
+  // ── Toolbar actions ─────────────────────────────────────────────────────
+  const {
+    runFillGaps,
+    runFixConflicts,
+    runFullAutoSchedule,
+    runClearWeek,
+    runCascadeRecalc,
+    runDismissCascade,
+    runUndo,
+    runRedo,
+  } = useScheduleActions({
+    users,
+    schedule,
+    dayWeights,
+    weekDates,
+    todayStr,
+    dutiesPerDay,
+    autoScheduleOptions,
+    cascadeStartDate,
+    scheduleIssues,
+    pushHistory,
+    fillGaps,
+    recalculateFrom,
+    generateWeekSchedule,
+    removeAssignment,
+    bulkDelete,
+    updateCascadeTrigger,
+    clearCascadeTrigger,
+    logAction,
+    refreshData,
+    undoHistory,
+    redoHistory,
+  });
 
-  const runFillGaps = async () => {
-    if (!(await hasEnoughActiveUsers())) return;
-
-    const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
-    if (datesToFill.length === 0) return;
-
-    pushHistory(schedule, 'Заповнення прогалин');
-    await fillGaps(datesToFill);
-    await logAction('AUTO_FILL', `Заповнено ${datesToFill.length} днів`);
-    await refreshData();
-  };
-
-  const runFixConflicts = async () => {
-    if (!(await hasEnoughActiveUsers())) return;
-
-    if (scheduleIssues.conflicts.length === 0) return;
-
-    const isCritical = scheduleIssues.criticalConflicts.length > 0;
-    const message = isCritical
-      ? `Замінити ${scheduleIssues.criticalConflicts.length} блокованих працівників?`
-      : `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?`;
-
-    if (!(await showConfirm(message))) return;
-
-    pushHistory(schedule, 'Виправлення конфліктів');
-
-    // Remove only conflicting assignees, keep valid assignees on same date
-    for (const date of scheduleIssues.conflicts) {
-      const badIds = scheduleIssues.conflictByDate[date] || [];
-      for (const userId of badIds) {
-        await removeAssignmentWithDebt(date, 'work', dayWeights, userId);
-      }
-    }
-
-    // Fill only dates still under-filled after conflict cleanup
-    const freshSchedule = await getAllSchedule();
-    const datesToFill = scheduleIssues.conflicts.filter(
-      (d) => getAssignedCount(freshSchedule[d]) < dutiesPerDay
-    );
-    if (datesToFill.length > 0) {
-      const updates = await autoSchedulerService.autoFillSchedule(
-        datesToFill,
-        users,
-        freshSchedule,
-        dayWeights,
-        dutiesPerDay,
-        autoScheduleOptions
-      );
-      await autoSchedulerService.saveAutoSchedule(updates, dayWeights);
-    }
-
-    await logAction('AUTO_FIX', `Замінено ${scheduleIssues.conflicts.length} конфліктів`);
-    await refreshData();
-  };
-
-  const runFullAutoSchedule = async () => {
-    if (!(await hasEnoughActiveUsers())) return;
-
-    const validTargets = weekDates.filter((d) => d >= todayStr);
-    if (validTargets.length === 0) {
-      await showAlert('Неможливо змінити минуле.');
-      return;
-    }
-    const hasExistingEntries = validTargets.some((d) => Boolean(schedule[d]));
-    if (
-      hasExistingEntries &&
-      !(await showConfirm(
-        'Перегенерувати тиждень?\n\nНезаблоковані призначення на цьому тиждні буде очищено і побудовано заново.'
-      ))
-    ) {
-      return;
-    }
-    pushHistory(schedule, 'Генерація тижня');
-    await generateWeekSchedule(validTargets);
-    await logAction(
-      'AUTO_SCHEDULE',
-      `Перегенеровано тиждень ${validTargets[0]} - ${validTargets[validTargets.length - 1]}`
-    );
-    await refreshData();
-  };
-
-  const runClearWeek = async () => {
-    const datesToClear = weekDates.filter((date) => Boolean(schedule[date]));
-    if (datesToClear.length === 0) {
-      await showAlert('На цьому тиждні немає призначень для очищення.');
-      return;
-    }
-
-    if (
-      !(await showConfirm(
-        `Очистити призначення за поточний тиждень?\n\nБуде видалено записів: ${datesToClear.length}`
-      ))
-    ) {
-      return;
-    }
-
-    pushHistory(schedule, 'Очищення тижня');
-    await bulkDelete(datesToClear);
-    await updateCascadeTrigger(weekDates[0]);
-    await logAction('CLEAR_WEEK', `Очищено тиждень ${weekDates[0]} - ${weekDates[6]}`);
-    await refreshData();
-  };
-
-  const runCascadeRecalc = async () => {
-    if (!(await hasEnoughActiveUsers())) return;
-
-    if (!cascadeStartDate) return;
-    const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
-    if (!(await showConfirm(`Перерахувати АВТОМАТИЧНІ призначення з ${formatDate(start)}?`)))
-      return;
-
-    pushHistory(schedule, 'Оптимізація');
-    await recalculateFrom(start);
-    await clearCascadeTrigger(); // Clear trigger after successful recalc
-    await logAction('CASCADE', `Перерахунок з ${start}`);
-    await refreshData();
-  };
-
-  const runDismissCascade = async () => {
-    await clearCascadeTrigger();
-  };
-
-  const runUndo = async () => {
-    await undoHistory(schedule);
-    await refreshData();
-  };
-
-  const runRedo = async () => {
-    await redoHistory(schedule);
-    await refreshData();
-  };
-
-  const isOnRestDay = useCallback(
-    (userId: number, dateStr: string): boolean => {
-      const prevDate = new Date(dateStr);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevEntry = schedule[toLocalISO(prevDate)];
-      return isAssignedInEntry(prevEntry, userId);
-    },
-    [schedule]
-  );
-
-  const getTransferSourceDate = useCallback(
-    (userId: number, targetDate: string): string | undefined => {
-      const assignedDates = Object.keys(schedule)
-        .filter((d) => d !== targetDate && isAssignedInEntry(schedule[d], userId))
-        .sort();
-      if (assignedDates.length === 0) return undefined;
-
-      const prevDates = assignedDates.filter((d) => d < targetDate);
-      if (prevDates.length > 0) return prevDates[prevDates.length - 1];
-
-      return assignedDates[0];
-    },
-    [schedule]
-  );
-
-  const executeAssign = async (
-    userId: number,
-    transferMode: 'none' | 'move',
-    penalizeReplaced = false
-  ) => {
-    if (!selectedCell) return;
-
-    try {
-      pushHistory(schedule, 'Призначення');
-
-      const transferFrom =
-        transferMode === 'move' ? getTransferSourceDate(userId, selectedCell.date) : undefined;
-
-      if (transferFrom) {
-        await removeAssignment(transferFrom, 'work', userId);
-        await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
-        await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
-      }
-
-      await assignUser(selectedCell.date, userId, true, {
-        maxPerDay: dutiesPerDay,
-        replaceUserId: selectedCell.assignedUserId,
-        penalizeReplaced,
-        historyMode,
-      });
-      await updateCascadeTrigger(selectedCell.date);
-
-      const u = users.find((user) => user.id === userId);
-      const dayIdx = new Date(selectedCell.date).getDay();
-      const weight = dayWeights[dayIdx] || 1.0;
-      if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
-
-      setPendingAssignConfirm(null);
-      setSelectedCell(null);
-      await refreshData();
-    } catch (err) {
-      await showAlert(err instanceof Error ? err.message : 'Помилка призначення');
-    }
-  };
-
-  const handleAssign = async (userId: number | undefined, penalizeReplaced = false) => {
-    if (!userId || !selectedCell) return;
-
-    // In history mode — assign directly, no confirmations
-    if (historyMode) {
-      await executeAssign(userId, 'none', false);
-      return;
-    }
-
-    const isReplaceMode = Boolean(selectedCell.assignedUserId);
-    const isRestDay = isOnRestDay(userId, selectedCell.date);
-
-    if (isReplaceMode) {
-      // Replace mode: skip transfer logic, just confirm if rest day
-      if (isRestDay) {
-        const userName = users.find((u) => u.id === userId)?.name || '';
-        const ok = await showConfirm(
-          `${userName} — відсипний (чергував вчора).\nВсе одно призначити?`
-        );
-        if (!ok) return;
-      }
-      await executeAssign(userId, 'none', penalizeReplaced);
-      return;
-    }
-
-    // Fresh assignment mode: check rest day & transfer
-    const transferFrom = getTransferSourceDate(userId, selectedCell.date);
-    if (isRestDay || transferFrom) {
-      setPendingAssignConfirm({ userId, transferFrom, isRestDay, penalizeReplaced });
-      return;
-    }
-
-    await executeAssign(userId, 'none', penalizeReplaced);
-  };
-
-  const handleSwap = async (swapUserId: number, swapDate: string) => {
-    if (!selectedCell?.assignedUserId) return;
-    const { date: targetDate, assignedUserId: currentUserId } = selectedCell;
-
-    if (!swapDate) return;
-
-    pushHistory(schedule, 'Обмін');
-
-    // Remove both users from their respective dates
-    await removeAssignment(targetDate, 'work', currentUserId);
-    await removeAssignment(swapDate, 'work', swapUserId);
-
-    // Re-read schedule to get fresh state
-    const freshSchedule = await getAllSchedule();
-
-    // Assign swapUser to targetDate and currentUser to swapDate (no karma)
-    const targetEntry = freshSchedule[targetDate];
-    const targetIds = toAssignedUserIds(targetEntry?.userId);
-    targetIds.push(swapUserId);
-    await saveScheduleEntry({
-      date: targetDate,
-      userId: targetIds.length === 1 ? targetIds[0] : targetIds,
-      type: 'swap',
-      isLocked: false,
-    });
-
-    const swapEntry = freshSchedule[swapDate];
-    const swapIds = toAssignedUserIds(swapEntry?.userId);
-    swapIds.push(currentUserId);
-    await saveScheduleEntry({
-      date: swapDate,
-      userId: swapIds.length === 1 ? swapIds[0] : swapIds,
-      type: 'swap',
-      isLocked: false,
-    });
-
-    const currentUser = users.find((u) => u.id === currentUserId);
-    const swapUser = users.find((u) => u.id === swapUserId);
-    await logAction(
-      'SWAP',
-      `Обмін: ${currentUser?.name} (${targetDate}) ↔ ${swapUser?.name} (${swapDate})`
-    );
-
-    setSelectedCell(null);
-    await refreshData();
-  };
-
-  const handleRemove = async (reason: 'request' | 'work') => {
-    if (!selectedCell?.entry || !selectedCell.entry.userId || !selectedCell.assignedUserId) return;
-    const { date } = selectedCell;
-    const dayIdx = new Date(date).getDay();
-    const weight = dayWeights[dayIdx] || 1.0;
-
-    pushHistory(schedule, 'Зняття');
-    await removeAssignment(date, reason, selectedCell.assignedUserId);
-    await updateCascadeTrigger(date);
-
-    const u = users.find((user) => user.id === selectedCell.assignedUserId);
-    if (u) {
-      if (reason === 'request') {
-        await logAction('REMOVE', `${u.name} рапорт (Карма -${weight})`);
-      } else {
-        await logAction('REMOVE', `Службова`);
-      }
-    }
-
-    setSelectedCell(null);
-    await refreshData();
-  };
-
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="schedule-view-wrapper">
       <div className="schedule-top-row no-print">
@@ -818,7 +472,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         />
       </div>
 
-      {/* Друк: заголовок (для календаря та таблиці чергувань) */}
       {printMode !== 'status-list' && (
         <PrintHeader signatories={signatories} weekDates={weekDates} />
       )}
@@ -830,18 +483,17 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         todayStr={todayStr}
         dutiesPerDay={dutiesPerDay}
         historyMode={historyMode}
+        deletedUserNames={deletedUserNames}
         onCellClick={(date, entry, assignedUserId) => {
           setSelectedCell({ date, entry, assignedUserId });
           setSwapMode('replace');
         }}
       />
 
-      {/* Друк: календар */}
       {printMode === 'calendar' && (
         <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
       )}
 
-      {/* Друк: таблиця чергувань */}
       {printMode === 'duty-table' && (
         <PrintDutyTable
           weekDates={weekDates}
@@ -851,7 +503,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         />
       )}
 
-      {/* Друк: довідка по складу */}
       {printMode === 'status-list' && (
         <PrintStatusList
           users={users}
@@ -861,7 +512,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         />
       )}
 
-      {/* Друк: підписи (для календаря та таблиці чергувань) */}
       {printMode !== 'status-list' && <PrintFooter signatories={signatories} />}
 
       <AssignmentModal
@@ -879,7 +529,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onSwap={handleSwap}
         onRemove={handleRemove}
         onClose={() => setSelectedCell(null)}
-        isOnRestDay={isOnRestDay}
+        isOnRestDay={(userId: number, dateStr: string) => {
+          const prevDate = new Date(dateStr);
+          prevDate.setDate(prevDate.getDate() - 1);
+          const prevEntry = schedule[toLocalISO(prevDate)];
+          return prevEntry ? toAssignedUserIds(prevEntry.userId).includes(userId) : false;
+        }}
         calculateEffectiveLoad={calculateEffectiveLoad}
         daysSinceLastDuty={daysSinceLastDuty}
         hasEntry={!!selectedCell?.entry}

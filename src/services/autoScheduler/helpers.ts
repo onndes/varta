@@ -1,0 +1,284 @@
+// src/services/autoScheduler/helpers.ts
+// Константи, допоміжні функції дат, метрики бійця та обмеження
+
+import type { User, ScheduleEntry, AutoScheduleOptions } from '../../types';
+import { toLocalISO } from '../../utils/dateUtils';
+import { getUserFairnessFrom } from '../../utils/fairness';
+import { isUserAvailable } from '../userService';
+import { toAssignedUserIds, isHistoryType } from '../../utils/assignment';
+
+// ─── Константи ──────────────────────────────────────────────────────
+
+/** Мілісекунд у добі */
+export const MS_PER_DAY = 86_400_000;
+
+/** Мінімум бійців, при якому вмикається обмеження «1 наряд на тиждень» */
+export const MIN_USERS_FOR_WEEKLY_LIMIT = 7;
+
+/** Максимум нарядів на тиждень для боржників */
+export const MAX_DEBT_WEEKLY_CAP = 4;
+
+/** Максимальна кількість ітерацій пост-балансування */
+export const MAX_REBALANCE_ITERATIONS = 100;
+
+/** Поріг різниці навантаження, нижче якого вважаємо збалансованим */
+export const REBALANCE_THRESHOLD = 0.03;
+
+/** Мінімальна дата для fallback-порівняння */
+export const MIN_DATE_SENTINEL = '0000-01-01';
+
+/** Максимальна дата для fallback-порівняння */
+export const MAX_DATE_SENTINEL = '9999-12-31';
+
+/** Точність порівняння дробових чисел */
+export const FLOAT_EPSILON = 1e-9;
+
+// ─── Допоміжні функції: дати ─────────────────────────────────────────
+
+/** Перша дата в графіку, або fallback якщо графік порожній */
+export const getScheduleStart = (
+  schedule: Record<string, ScheduleEntry>,
+  fallbackDate: string
+): string => {
+  const dates = Object.keys(schedule).sort();
+  return dates[0] || fallbackDate;
+};
+
+/** Найраніша історична/імпортована дата для кожного бійця */
+export const buildEarliestHistoryMap = (
+  schedule: Record<string, ScheduleEntry>
+): Map<number, string> => {
+  const map = new Map<number, string>();
+  for (const entry of Object.values(schedule)) {
+    if (!isHistoryType(entry)) continue;
+    const ids = toAssignedUserIds(entry.userId);
+    for (const id of ids) {
+      const prev = map.get(id);
+      if (!prev || entry.date < prev) {
+        map.set(id, entry.date);
+      }
+    }
+  }
+  return map;
+};
+
+/** Попередня дата (YYYY-MM-DD) */
+export const getPrevDateStr = (dateStr: string): string => {
+  const prev = new Date(dateStr);
+  prev.setDate(prev.getDate() - 1);
+  return toLocalISO(prev);
+};
+
+/** Понеділок–неділя тижня, до якого належить дата */
+export const getWeekWindow = (dateStr: string): { from: string; to: string } => {
+  const d = new Date(dateStr);
+  const dow = d.getDay(); // 0=Sun
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + mondayOffset);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { from: toLocalISO(monday), to: toLocalISO(sunday) };
+};
+
+/** Список дат в діапазоні [від, до] */
+export const getDatesInRange = (fromDate: string, toDate: string): string[] => {
+  const dates: string[] = [];
+  const cursor = new Date(fromDate);
+  const end = new Date(toDate);
+  while (cursor <= end) {
+    dates.push(toLocalISO(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+};
+
+// ─── Допоміжні функції: обмеження ──────────────────────────────────
+
+/** Чи досить бійців для обмеження «1 наряд на тиждень» */
+export const shouldEnforceOneDutyPerWeek = (
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  weekDates: string[]
+): boolean => {
+  const eligibleThisWeek = users.filter((u) => {
+    if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
+    return weekDates.some((d) => isUserAvailable(u, d, schedule));
+  });
+  return eligibleThisWeek.length >= MIN_USERS_FOR_WEEKLY_LIMIT;
+};
+
+/** Чи має боєць неоплачений борг (карма або owedDays) */
+export const hasDebtBacklog = (user: User): boolean => {
+  const hasOwedDays = Object.values(user.owedDays || {}).some((v) => v > 0);
+  return (user.debt || 0) < 0 || hasOwedDays;
+};
+
+/** Максимум нарядів на тиждень: боржники можуть більше */
+export const getWeeklyAssignmentCap = (user: User, options: AutoScheduleOptions): number => {
+  if (options.allowDebtUsersExtraWeeklyAssignments && hasDebtBacklog(user)) {
+    return Math.min(MAX_DEBT_WEEKLY_CAP, Math.max(1, options.debtUsersWeeklyLimit || 1));
+  }
+  return 1;
+};
+
+// ─── Допоміжні функції: метрики бійця ──────────────────────────────
+
+/**
+ * Очки пріоритету для повернення боргу.
+ * Якщо боєць винен саме цей день тижня — повертає очки за повернення.
+ */
+export const getDebtRepaymentScore = (user: User, dayIdx: number, dayWeight: number): number => {
+  const debtAbs = Math.abs(Math.min(0, user.debt || 0));
+  if (debtAbs <= 0) return 0;
+
+  const owedToday = (user.owedDays && user.owedDays[dayIdx]) || 0;
+  if (owedToday > 0) {
+    return Math.min(debtAbs, owedToday * dayWeight);
+  }
+  return 0;
+};
+
+/**
+ * Рішення агресивного балансування.
+ * Якщо різниця навантаження > threshold — примусово переставляє.
+ * Повертає 0 якщо немає підстав, інакше напрямок для сортування.
+ */
+export const getAggressiveBalanceDecision = (
+  loadA: number,
+  loadB: number,
+  threshold: number
+): number => {
+  const gap = loadA - loadB;
+  return Math.abs(gap) > threshold ? gap : 0;
+};
+
+/** Скільки нарядів у бійця в діапазоні дат */
+export const countUserAssignmentsInRange = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  fromDate: string,
+  toDate: string
+): number => {
+  return Object.values(schedule).filter((s) => {
+    if (s.date < fromDate || s.date > toDate) return false;
+    return toAssignedUserIds(s.userId).includes(userId);
+  }).length;
+};
+
+/** Скільки днів минуло з останнього наряду (чим більше — тим вища черга) */
+export const daysSinceLastAssignment = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): number => {
+  const previousDates = Object.values(schedule)
+    .filter((s) => s.date < dateStr && toAssignedUserIds(s.userId).includes(userId))
+    .map((s) => s.date)
+    .sort();
+  if (previousDates.length === 0) return Number.POSITIVE_INFINITY;
+  const last = previousDates[previousDates.length - 1];
+  const diff = new Date(dateStr).getTime() - new Date(last).getTime();
+  return Math.floor(diff / MS_PER_DAY);
+};
+
+/**
+ * Чи боєць гарантовано недоступний на дату
+ * (відпустка / відрядження / лікування / неактивний)
+ */
+export const isHardUnavailable = (user: User, dateStr: string): boolean => {
+  if (!user.isActive) return true;
+
+  // Заблоковані дні тижня (ISO: 1=Пн..7=Нд)
+  if (user.blockedDays && user.blockedDays.length > 0) {
+    const jsDow = new Date(dateStr).getDay();
+    const isoDayIdx = jsDow === 0 ? 7 : jsDow;
+    if (user.blockedDays.includes(isoDayIdx)) {
+      const from = user.blockedDaysFrom || MIN_DATE_SENTINEL;
+      const to = user.blockedDaysTo || MAX_DATE_SENTINEL;
+      if (dateStr >= from && dateStr <= to) return true;
+    }
+  }
+
+  if (user.status === 'ACTIVE') return false;
+
+  // Усі не-ACTIVE статуси
+  if (
+    user.status === 'VACATION' ||
+    user.status === 'TRIP' ||
+    user.status === 'SICK' ||
+    user.status === 'ABSENT' ||
+    user.status === 'OTHER'
+  ) {
+    if (user.statusFrom || user.statusTo) {
+      const from = user.statusFrom || MIN_DATE_SENTINEL;
+      const to = user.statusTo || MAX_DATE_SENTINEL;
+      if (dateStr >= from && dateStr <= to) return true;
+
+      // Відпочинок до початку статусу
+      if (user.restBeforeStatus && user.statusFrom) {
+        const dayBefore = new Date(user.statusFrom);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        if (dateStr === toLocalISO(dayBefore)) return true;
+      }
+
+      // Відпочинок після завершення статусу
+      if (user.restAfterStatus && user.statusTo) {
+        const nextDay = new Date(user.statusTo);
+        nextDay.setDate(nextDay.getDate() + 1);
+        if (dateStr === toLocalISO(nextDay)) return true;
+      }
+
+      return false;
+    }
+
+    // Не-ACTIVE без діапазону дат = постійно недоступний
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Підрахунок доступних днів бійця в діапазоні дат.
+ * Якщо dayIdx задано — рахує тільки дні цього дня тижня.
+ */
+export const countAvailableDaysInWindow = (
+  user: User,
+  fromDate: string,
+  toDate: string,
+  dayIdx?: number
+): number => {
+  if (fromDate > toDate) return 0;
+  const cursor = new Date(fromDate);
+  const end = new Date(toDate);
+  let count = 0;
+
+  while (cursor <= end) {
+    const iso = toLocalISO(cursor);
+    const matchesDay = dayIdx === undefined || cursor.getDay() === dayIdx;
+    if (matchesDay && !isHardUnavailable(user, iso)) {
+      count++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+};
+
+/** Порівняння дробових чисел з точністю epsilon */
+export const floatEq = (a: number, b: number): boolean => Math.abs(a - b) < FLOAT_EPSILON;
+
+/** Базова дата обліку для бійця (кожен рахується від своєї дати вступу) */
+export const getUserCompareFrom = (
+  user: User,
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>,
+  earliestHistoryByUser?: Map<number, string>
+): string => {
+  let from = getUserFairnessFrom(user, dateStr) || getScheduleStart(schedule, dateStr);
+  if (user.id && earliestHistoryByUser) {
+    const historyFrom = earliestHistoryByUser.get(user.id);
+    if (historyFrom && historyFrom < from) from = historyFrom;
+  }
+  return from;
+};

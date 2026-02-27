@@ -1,8 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import type { User, ScheduleEntry } from '../../types';
+import type { DeletedUserInfo } from '../../services/userService';
 import ScheduleTableRow from './ScheduleTableRow';
 import { toAssignedUserIds } from '../../utils/assignment';
-import { compareByRankAndName, sortUsersBy, type SortKey, type SortDir } from '../../utils/helpers';
+import {
+  compareByRankAndName,
+  sortUsersBy,
+  formatRank,
+  type SortKey,
+  type SortDir,
+} from '../../utils/helpers';
 
 interface ScheduleTableProps {
   users: User[];
@@ -11,6 +18,7 @@ interface ScheduleTableProps {
   todayStr: string;
   dutiesPerDay: number;
   historyMode?: boolean;
+  deletedUserNames?: Record<number, DeletedUserInfo>;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
@@ -25,6 +33,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   todayStr,
   dutiesPerDay,
   historyMode = false,
+  deletedUserNames = {},
   onCellClick,
 }) => {
   const activeUsers = users.filter((u) => u.isActive);
@@ -96,27 +105,43 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     </td>
                     {slots.map((uid, slotIdx) => {
                       const user = uid != null ? usersById[uid] : null;
-                      if (uid != null && user) {
-                        // Assigned slot
+                      const deletedInfo = uid != null && !user ? deletedUserNames[uid] : null;
+                      if (uid != null && (user || deletedInfo)) {
+                        // Assigned slot (active or deleted user)
                         const isHistory = entry?.type === 'history' || entry?.type === 'import';
+                        const isDeleted = !user && !!deletedInfo;
                         const cellClass =
                           'compact-cell' +
-                          (isHistory
-                            ? ' history-entry'
-                            : isPast && !historyMode
-                              ? ' past-locked'
-                              : ' assigned' + (entry?.isLocked ? ' locked' : ''));
+                          (isDeleted
+                            ? ' past-locked'
+                            : isHistory
+                              ? ' history-entry'
+                              : isPast && !historyMode
+                                ? ' past-locked'
+                                : ' assigned' + (entry?.isLocked ? ' locked' : ''));
+                        const displayName = user?.name ?? deletedInfo?.name ?? '?';
                         return (
                           <td
                             key={slotIdx}
                             className={cellClass}
                             onClick={() => {
+                              if (isDeleted) return; // Can't interact with deleted user's cell
                               if (isPast && !historyMode) return;
                               onCellClick(date, entry, uid);
                             }}
+                            title={isDeleted ? `Видалений: ${displayName}` : undefined}
                           >
-                            <span className="no-print" style={{ fontSize: '0.78rem' }}>
-                              {user.name}
+                            <span
+                              className="no-print"
+                              style={{ fontSize: '0.78rem', opacity: isDeleted ? 0.6 : 1 }}
+                            >
+                              {isDeleted && (
+                                <i
+                                  className="fas fa-user-slash me-1"
+                                  style={{ fontSize: '0.65rem' }}
+                                ></i>
+                              )}
+                              {displayName}
                             </span>
                           </td>
                         );
@@ -153,6 +178,22 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
       </div>
     );
   }
+
+  // Find deleted users that have assignments in current week dates
+  const deletedUsersInWeek = useMemo(() => {
+    const found = new Map<number, DeletedUserInfo>();
+    for (const date of weekDates) {
+      const entry = schedule[date];
+      if (!entry?.userId) continue;
+      const ids = toAssignedUserIds(entry.userId);
+      for (const id of ids) {
+        if (!usersById[id] && deletedUserNames[id]) {
+          found.set(id, deletedUserNames[id]);
+        }
+      }
+    }
+    return found;
+  }, [weekDates, schedule, usersById, deletedUserNames]);
 
   // ── Standard user-row view for small teams (≤ 20) ────────────────────
   return (
@@ -233,6 +274,46 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 />
               ))
             )}
+            {/* Deleted users that still have assignments in this week */}
+            {[...deletedUsersInWeek.entries()].map(([deletedId, info]) => (
+              <tr
+                key={`deleted-${deletedId}`}
+                className="user-row-inactive"
+                style={{ opacity: 0.6 }}
+              >
+                <td></td>
+                <td className="text-start px-2 col-user-screen">
+                  <span className="d-block">
+                    <span className="rank-badge">{formatRank(info.rank)}</span>
+                    <span className="fw-bold text-muted">{info.name}</span>
+                  </span>
+                  <span
+                    className="badge bg-secondary text-white ms-1"
+                    style={{ fontSize: '0.6rem' }}
+                  >
+                    <i className="fas fa-user-slash me-1" style={{ fontSize: '0.55rem' }}></i>
+                    ВИДАЛЕНИЙ
+                  </span>
+                </td>
+                <td className="col-user-print text-start" style={{ fontSize: '10pt' }}>
+                  {info.rank}
+                </td>
+                <td className="col-user-print text-start fw-bold" style={{ fontSize: '10pt' }}>
+                  {info.name}
+                </td>
+                {weekDates.map((date) => {
+                  const entry = schedule[date];
+                  const ids = toAssignedUserIds(entry?.userId);
+                  const isAssigned = ids.includes(deletedId);
+                  return (
+                    <td key={date} className={`compact-cell${isAssigned ? ' past-locked' : ''}`}>
+                      <span className="no-print">{isAssigned ? 'НАРЯД' : ''}</span>
+                      <span className="print-only">{isAssigned ? '08:00' : ''}</span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

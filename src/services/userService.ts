@@ -5,6 +5,12 @@ import type { User, ScheduleEntry } from '../types';
 import { DEFAULT_MAX_DEBT } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
 
+/** Дані видаленого бійця для збереження в історії графіку */
+export interface DeletedUserInfo {
+  name: string;
+  rank: string;
+}
+
 /** Дата-сентінел: «з початку часів» */
 const MIN_DATE = '0000-01-01';
 /** Дата-сентінел: «до кінця часів» */
@@ -62,9 +68,33 @@ export const updateUser = async (id: number, updates: Partial<User>): Promise<nu
 };
 
 /**
- * Delete user and clean up their future schedule entries
+ * Отримати карту видалених бійців {id → {name, rank}}
+ */
+export const getDeletedUserNames = async (): Promise<Record<number, DeletedUserInfo>> => {
+  const entry = await db.appState.get('deletedUsers');
+  return (entry?.value as Record<number, DeletedUserInfo>) || {};
+};
+
+/**
+ * Зберегти інформацію про видаленого бійця в appState
+ */
+const saveDeletedUserInfo = async (id: number, info: DeletedUserInfo): Promise<void> => {
+  const existing = await getDeletedUserNames();
+  existing[id] = info;
+  await db.appState.put({ key: 'deletedUsers', value: existing });
+};
+
+/**
+ * Delete user and clean up their future schedule entries.
+ * Preserves user name+rank in appState for historical schedule display.
  */
 export const deleteUser = async (id: number): Promise<string[]> => {
+  // Save user info for historical display before deletion
+  const user = await db.users.get(id);
+  if (user) {
+    await saveDeletedUserInfo(id, { name: user.name, rank: user.rank });
+  }
+
   // Find and clean up future schedule entries for this user
   const todayStr = toLocalISO(new Date());
   const allSchedule = await db.schedule.toArray();

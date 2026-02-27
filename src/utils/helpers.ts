@@ -2,9 +2,6 @@
 import { RANKS_SHORT, RANK_WEIGHTS } from './constants';
 import type { User } from '../types';
 
-// Re-export date utils to maintain backward compatibility
-export { toLocalISO, getWeekNumber, getWeekYear, getMondayOfWeek } from './dateUtils';
-
 /** Порівняння двох користувачів за званням (від вищого) та ПІБ (а-я) */
 export const compareByRankAndName = (a: User, b: User): number => {
   const rankDiff = (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0);

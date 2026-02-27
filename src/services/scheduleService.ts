@@ -184,12 +184,15 @@ export const calculateEffectiveLoad = (
 };
 
 /**
- * Find conflicts in schedule (users assigned when unavailable)
+ * Find conflicts in schedule (users assigned when unavailable).
+ * Deleted users (not found in users list but present in deletedUserIds) are NOT conflicts —
+ * they are historical records preserved for audit purposes.
  */
 export const findScheduleConflicts = (
   schedule: Record<string, ScheduleEntry>,
   users: User[],
-  startDate?: string
+  startDate?: string,
+  deletedUserIds?: Set<number>
 ): string[] => {
   const conflicts: string[] = [];
 
@@ -200,7 +203,10 @@ export const findScheduleConflicts = (
     const userIds = toAssignedUserIds(entry.userId);
     const hasConflict = userIds.some((userId) => {
       const user = users.find((u) => u.id === userId);
-      if (!user) return true;
+      if (!user) {
+        // Deleted user — not a conflict, just historical record
+        return !(deletedUserIds?.has(userId) ?? false);
+      }
       return !userService.isUserAvailable(user, date, schedule);
     });
     if (hasConflict) {

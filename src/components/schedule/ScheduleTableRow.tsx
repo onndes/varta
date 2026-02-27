@@ -2,7 +2,7 @@ import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import { formatRank, formatNameForPrint } from '../../utils/helpers';
 import { STATUSES } from '../../utils/constants';
-import { getUserAvailabilityStatus } from './availability.utils';
+import { getUserAvailabilityStatus } from '../../services/userService';
 import { isAssignedInEntry } from '../../utils/assignment';
 
 interface ScheduleTableRowProps {

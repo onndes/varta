@@ -72,7 +72,7 @@
 
 // ─── Dark Theme ───────────────────────────────────────────────────────────────
 // Selector: html[data-bs-theme="dark"] is set synchronously in <head> script
-// so ALL vars below are active before the first paint — no FOUC.
+// so ALL vars below are active before the first paint — no FOCUS.
 html[data-bs-theme='dark'] {
   // Bootstrap core tokens
   --bs-body-bg: #1a1d21;
