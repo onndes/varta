@@ -1,17 +1,12 @@
-// 1. External libraries
-@import 'bootstrap/dist/css/bootstrap.min.css';
-@import 'bootstrap-icons/font/bootstrap-icons.css';
-@import '@fortawesome/fontawesome-free/css/all.css';
-
-// 2. Project modules
-@import './variables';
-@import './themes';
-@import './base';
-@import './app-shell';
-@import './week-navigator';
-@import './table';
-@import './animations';
-@import './print';
+// Project modules (Sass module system)
+@use './variables';
+@use './themes';
+@use './base';
+@use './app-shell';
+@use './week-navigator';
+@use './table';
+@use './animations';
+@use './print';
 
 // Screen defaults (must be LAST to override print styles)
 .print-only,

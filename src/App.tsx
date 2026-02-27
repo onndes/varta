@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { PrintMode, AppTheme } from './types';
+import type { PrintMode } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
 
