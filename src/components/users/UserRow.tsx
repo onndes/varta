@@ -50,14 +50,41 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
           .join(' – ')
       : null;
 
+  // Розділяємо ПІБ: прізвище (КАПСОМ), ім'я + по-батькові (тонше, менше)
+  const nameParts = u.name.trim().split(/\s+/);
+  const surname = nameParts[0] || '';
+  const firstAndMiddle = nameParts.slice(1).join(' ');
+
   return (
     <tr className={!u.isActive ? 'user-row-inactive' : ''}>
-      <td className="text-start" style={{ cursor: 'pointer' }} onClick={() => onViewStats(u)}>
-        <small className="d-block text-muted text-uppercase" style={{ fontSize: '0.7rem' }}>
+      <td
+        className="text-start ps-3"
+        style={{ width: '96px', minWidth: '96px', maxWidth: '96px', whiteSpace: 'nowrap' }}
+      >
+        <small
+          className="text-muted text-uppercase"
+          style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}
+        >
           {formatRank(u.rank)}
         </small>
-        <span className="fw-bold">{u.name}</span>
-        <div className="small text-muted">{u.note}</div>
+      </td>
+      <td className="text-start" style={{ cursor: 'pointer' }} onClick={() => onViewStats(u)}>
+        <div
+          className="fw-bold text-uppercase"
+          style={{ fontSize: '0.85rem', letterSpacing: '0.02em' }}
+        >
+          {surname}
+        </div>
+        {firstAndMiddle && (
+          <div className="text-muted" style={{ fontSize: '0.78rem', opacity: 0.75 }}>
+            {firstAndMiddle}
+          </div>
+        )}
+        {u.note && (
+          <div className="small text-muted" style={{ fontSize: '0.7rem' }}>
+            {u.note}
+          </div>
+        )}
       </td>
 
       {/* Status column – status pill + optional date range on same line */}

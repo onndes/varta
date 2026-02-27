@@ -181,11 +181,22 @@ const UsersView: React.FC<UsersViewProps> = ({
   const renderTableHead = () => (
     <thead>
       <tr className="users-table__head">
-        <th className="text-start ps-3" style={{ userSelect: 'none', width: '40%' }}>
+        <th
+          className="text-start ps-3"
+          style={{
+            userSelect: 'none',
+            width: '96px',
+            minWidth: '96px',
+            maxWidth: '96px',
+            whiteSpace: 'nowrap',
+          }}
+        >
           <div className="d-flex align-items-center gap-1">
-            {renderSortBtn('name', 'ПІБ')}
             {renderSortBtn('rank', 'Звання', 'fa-medal')}
           </div>
+        </th>
+        <th className="text-start" style={{ userSelect: 'none' }}>
+          <div className="d-flex align-items-center gap-1">{renderSortBtn('name', 'ПІБ')}</div>
         </th>
         <th className="text-start" style={{ width: '22%' }}>
           Статус
@@ -232,7 +243,7 @@ const UsersView: React.FC<UsersViewProps> = ({
             <tbody>
               {activeCount === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center text-muted py-5">
+                  <td colSpan={6} className="text-center text-muted py-5">
                     <i
                       className="fas fa-user-plus me-2"
                       style={{ fontSize: '1.5rem', opacity: 0.4 }}

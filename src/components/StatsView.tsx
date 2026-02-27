@@ -10,7 +10,12 @@ import {
 import { toLocalISO } from '../utils/dateUtils';
 import { getUserAvailabilityStatus } from '../services/userService';
 import UserStatsModal from './users/UserStatsModal';
-import { isAssignedInEntry, getLogicSchedule, isHistoryType, getFirstDutyDate } from '../utils/assignment';
+import {
+  isAssignedInEntry,
+  getLogicSchedule,
+  isHistoryType,
+  getFirstDutyDate,
+} from '../utils/assignment';
 import { useDialog } from './useDialog';
 import * as userService from '../services/userService';
 
@@ -203,8 +208,7 @@ const StatsView: React.FC<StatsViewProps> = ({
               className="btn btn-outline-primary btn-sm"
               onClick={applyFirstDutyDates}
             >
-              <i className="fas fa-calendar-check me-1"></i>
-              З дати першого чергування
+              <i className="fas fa-calendar-check me-1"></i>З дати першого чергування
             </button>
             <div className="btn-group btn-group-sm" role="group">
               <button
@@ -237,6 +241,21 @@ const StatsView: React.FC<StatsViewProps> = ({
           <table className="table table-hover align-middle mb-0 table-align-center">
             <thead className="table-light small">
               <tr>
+                <th
+                  rowSpan={2}
+                  style={{ userSelect: 'none', minWidth: '70px', whiteSpace: 'nowrap' }}
+                  className="text-start"
+                >
+                  <span
+                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
+                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                    onClick={() => toggleSort('rank')}
+                    title="Сортувати за званням"
+                  >
+                    <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Зв.
+                    {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </span>
+                </th>
                 <th rowSpan={2} style={{ userSelect: 'none' }} className="text-start">
                   <span
                     className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
@@ -245,15 +264,6 @@ const StatsView: React.FC<StatsViewProps> = ({
                     title="Сортувати за ПІБ"
                   >
                     ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </span>
-                  <span
-                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
-                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                    onClick={() => toggleSort('rank')}
-                    title="Сортувати за званням"
-                  >
-                    <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Звання
-                    {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                   </span>
                 </th>
                 <th rowSpan={2} style={{ minWidth: '72px' }}>
@@ -330,19 +340,34 @@ const StatsView: React.FC<StatsViewProps> = ({
                 return (
                   <tr key={u.id} className={!u.isActive ? 'user-row-inactive' : ''}>
                     <td className="text-start">
+                      <small
+                        className="text-muted text-uppercase"
+                        style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
+                      >
+                        {formatRank(u.rank)}
+                      </small>
+                    </td>
+                    <td className="text-start">
                       <button
                         type="button"
-                        className="btn btn-link p-0 fw-bold text-decoration-none text-start"
+                        className="btn btn-link p-0 text-decoration-none text-start"
                         onClick={() => setSelectedUser(u)}
                       >
-                        {u.name}
-                      </button>
-                      <div className="small text-muted">{formatRank(u.rank)}</div>
-                      {u.availability !== 'AVAILABLE' && (
-                        <div className="small text-warning">
-                          <i className="fas fa-lock me-1"></i>Тимчасово недоступний
+                        <div
+                          className="fw-bold text-uppercase"
+                          style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
+                        >
+                          {u.name.trim().split(/\s+/)[0]}
                         </div>
-                      )}
+                        {u.name.trim().split(/\s+/).length > 1 && (
+                          <div
+                            className="text-muted"
+                            style={{ fontSize: '0.73rem', opacity: 0.7, lineHeight: 1.2 }}
+                          >
+                            {u.name.trim().split(/\s+/).slice(1).join(' ')}
+                          </div>
+                        )}
+                      </button>
                     </td>
                     <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
                     <td className="text-center fw-bold">{u.totalComparableDuties}</td>
@@ -367,9 +392,7 @@ const StatsView: React.FC<StatsViewProps> = ({
                     >
                       {u.balance > 0 ? `+${u.balance}` : u.balance}
                     </td>
-                    <td className="text-center fw-bold bg-light">
-                      {u.effectiveComparable.toFixed(1)}
-                    </td>
+                    <td className="text-center fw-bold">{u.effectiveComparable.toFixed(1)}</td>
                     <td
                       className="text-center border-start fw-bold"
                       title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
@@ -419,8 +442,8 @@ const StatsView: React.FC<StatsViewProps> = ({
               </li>
               <li>
                 <strong>Днів в графіку</strong>: Кількість календарних днів від дати включення в
-                облік до сьогодні (мінус відпустка/відрядження/лікарняний). Це період перебування
-                в обліку, а не кількість призначень.
+                облік до сьогодні (мінус відпустка/відрядження/лікарняний). Це період перебування в
+                обліку, а не кількість призначень.
               </li>
               <li>
                 <strong>Пн-Нд</strong>: Розподіл нарядів по дням тижня тільки в межах поточного

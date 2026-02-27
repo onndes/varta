@@ -468,6 +468,29 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
           </div>
 
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="forceUseAllWhenFew"
+              checked={autoOpts.forceUseAllWhenFew}
+              onChange={(e) =>
+                setAutoOpts({
+                  ...autoOpts,
+                  forceUseAllWhenFew: e.target.checked,
+                })
+              }
+            />
+            <label className="form-check-label" htmlFor="forceUseAllWhenFew">
+              <strong>Задіяти всіх, якщо мало осіб (менше 7)</strong>
+              <div className="text-muted small">
+                Коли доступних осіб менше 7 — система спочатку призначає тих, хто ще не чергував
+                цього тижня, навіть якщо їх навантаження вище за інших. Вимкніть, щоб строго
+                дотримуватись балансу навантаження.
+              </div>
+            </label>
+          </div>
+
           <div className="form-check form-switch mb-2">
             <input
               className="form-check-input"
@@ -856,49 +879,49 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
   return (
     <div>
-        {/* Sub-tabs */}
-        <div className="d-flex align-items-center justify-content-between mb-4">
-          <ul className="nav nav-pills">
-            <li className="nav-item">
-              <button
-                className={`nav-link ${subTab === 'logic' ? 'active' : ''}`}
-                onClick={() => setSubTab('logic')}
-              >
-                <i className="fas fa-cogs me-1"></i>Логіка графіка
-              </button>
-            </li>
-            <li className="nav-item">
-              <button
-                className={`nav-link ${subTab === 'print' ? 'active' : ''}`}
-                onClick={() => setSubTab('print')}
-              >
-                <i className="fas fa-print me-1"></i>Друк
-              </button>
-            </li>
-            <li className="nav-item">
-              <button
-                className={`nav-link ${subTab === 'interface' ? 'active' : ''}`}
-                onClick={() => setSubTab('interface')}
-              >
-                <i className="fas fa-display me-1"></i>Інтерфейс
-              </button>
-            </li>
-          </ul>
+      {/* Sub-tabs */}
+      <div className="d-flex align-items-center justify-content-between mb-4">
+        <ul className="nav nav-pills">
+          <li className="nav-item">
+            <button
+              className={`nav-link ${subTab === 'logic' ? 'active' : ''}`}
+              onClick={() => setSubTab('logic')}
+            >
+              <i className="fas fa-cogs me-1"></i>Логіка графіка
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${subTab === 'print' ? 'active' : ''}`}
+              onClick={() => setSubTab('print')}
+            >
+              <i className="fas fa-print me-1"></i>Друк
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${subTab === 'interface' ? 'active' : ''}`}
+              onClick={() => setSubTab('interface')}
+            >
+              <i className="fas fa-display me-1"></i>Інтерфейс
+            </button>
+          </li>
+        </ul>
 
-          {/* DB Maintenance — small button */}
-          <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={handleOpenDbModal}
-            title="Обслуговування бази даних"
-          >
-            <i className="fas fa-database me-1"></i>База даних
-          </button>
-        </div>
+        {/* DB Maintenance — small button */}
+        <button
+          className="btn btn-outline-secondary btn-sm"
+          onClick={handleOpenDbModal}
+          title="Обслуговування бази даних"
+        >
+          <i className="fas fa-database me-1"></i>База даних
+        </button>
+      </div>
 
-        {/* Content */}
-        {subTab === 'logic' && renderLogicTab()}
-        {subTab === 'interface' && renderInterfaceTab()}
-        {subTab === 'print' && renderPrintTab()}
+      {/* Content */}
+      {subTab === 'logic' && renderLogicTab()}
+      {subTab === 'interface' && renderInterfaceTab()}
+      {subTab === 'print' && renderPrintTab()}
 
       {/* DB Maintenance Modal */}
       <Modal

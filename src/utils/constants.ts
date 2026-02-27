@@ -106,6 +106,7 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   allowDebtUsersExtraWeeklyAssignments: true,
   debtUsersWeeklyLimit: 3,
   prioritizeFasterDebtRepayment: true,
+  forceUseAllWhenFew: true,
 };
 
 /** Підписанти документа за замовчуванням (пусті рядки) */

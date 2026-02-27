@@ -203,7 +203,27 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
           <thead>
             <tr>
               <th style={{ width: '40px' }}>#</th>
-              <th className="col-user-screen" style={{ width: '250px', userSelect: 'none' }}>
+              <th
+                className="col-user-screen"
+                style={{
+                  width: '96px',
+                  minWidth: '96px',
+                  maxWidth: '96px',
+                  whiteSpace: 'nowrap',
+                  userSelect: 'none',
+                }}
+              >
+                <span
+                  className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
+                  style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                  onClick={() => toggleSort('rank')}
+                  title="Сортувати за званням"
+                >
+                  <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Зв.
+                  {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                </span>
+              </th>
+              <th className="col-user-screen" style={{ width: '170px', userSelect: 'none' }}>
                 <span
                   className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
                   style={{ cursor: 'pointer', fontSize: '0.7rem' }}
@@ -211,15 +231,6 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   title="Сортувати за ПІБ"
                 >
                   ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                </span>
-                <span
-                  className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
-                  style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                  onClick={() => toggleSort('rank')}
-                  title="Сортувати за званням"
-                >
-                  <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Звання
-                  {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </span>
               </th>
               <th className="col-user-print" style={{ width: '120px' }}>
@@ -256,7 +267,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
           <tbody>
             {displayUsers.length === 0 ? (
               <tr>
-                <td colSpan={2 + weekDates.length} className="text-center text-muted py-4 no-print">
+                <td colSpan={3 + weekDates.length} className="text-center text-muted py-4 no-print">
                   <i className="fas fa-users me-2"></i>Немає бійців у складі
                 </td>
               </tr>
@@ -282,16 +293,34 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 style={{ opacity: 0.6 }}
               >
                 <td></td>
-                <td className="text-start px-2 col-user-screen">
-                  <span className="d-block">
-                    <span className="rank-badge">{formatRank(info.rank)}</span>
-                    <span className="fw-bold text-muted">{info.name}</span>
-                  </span>
-                  <span
-                    className="badge bg-secondary text-white ms-1"
-                    style={{ fontSize: '0.6rem' }}
+                <td
+                  className="text-start col-user-screen"
+                  style={{ minWidth: '70px', paddingRight: 0 }}
+                >
+                  <small
+                    className="text-muted text-uppercase"
+                    style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
                   >
-                    <i className="fas fa-user-slash me-1" style={{ fontSize: '0.55rem' }}></i>
+                    {formatRank(info.rank)}
+                  </small>
+                </td>
+                <td className="text-start px-2 col-user-screen">
+                  <div
+                    className="fw-bold text-uppercase text-muted"
+                    style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
+                  >
+                    {info.name.trim().split(/\s+/)[0]}
+                  </div>
+                  {info.name.trim().split(/\s+/).length > 1 && (
+                    <div
+                      className="text-muted"
+                      style={{ fontSize: '0.73rem', opacity: 0.5, lineHeight: 1.2 }}
+                    >
+                      {info.name.trim().split(/\s+/).slice(1).join(' ')}
+                    </div>
+                  )}
+                  <span className="badge bg-secondary text-white" style={{ fontSize: '0.55rem' }}>
+                    <i className="fas fa-user-slash me-1" style={{ fontSize: '0.5rem' }}></i>
                     ВИДАЛЕНИЙ
                   </span>
                 </td>

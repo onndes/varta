@@ -19,6 +19,7 @@ import {
   getUserCompareFrom,
   shouldEnforceOneDutyPerWeek,
   getWeeklyAssignmentCap,
+  MIN_USERS_FOR_WEEKLY_LIMIT,
 } from './helpers';
 
 // ─── Універсальний компаратор пріоритетів ──────────────────────────
@@ -45,7 +46,8 @@ export const buildUserComparator = (
   dayWeights: DayWeights,
   options: AutoScheduleOptions,
   tempLoadOffset?: Record<number, number>,
-  fairnessSchedule?: Record<string, ScheduleEntry>
+  fairnessSchedule?: Record<string, ScheduleEntry>,
+  totalEligibleCount?: number
 ): ((a: User, b: User) => number) => {
   // For load/fairness calcs use fairnessSchedule (history entries filtered out);
   // for existence/constraint checks the caller uses the full schedule directly.
@@ -62,6 +64,19 @@ export const buildUserComparator = (
     const fromB = getUserCompareFrom(b, dateStr, fs, earliestHistoryByUser);
     const offsetA = tempLoadOffset?.[a.id] ?? 0;
     const offsetB = tempLoadOffset?.[b.id] ?? 0;
+
+    // Пріоритет -1: Примусове використання всіх при малій кількості людей
+    // Якщо людей менше порогу (7) — спочатку ставимо тих, хто ще не чергував цього тижня
+    if (
+      options.forceUseAllWhenFew &&
+      totalEligibleCount !== undefined &&
+      totalEligibleCount < MIN_USERS_FOR_WEEKLY_LIMIT
+    ) {
+      const week = getWeekWindow(dateStr);
+      const weekA = countUserAssignmentsInRange(a.id!, fs, week.from, week.to);
+      const weekB = countUserAssignmentsInRange(b.id!, fs, week.from, week.to);
+      if (weekA !== weekB) return weekA - weekB;
+    }
 
     // Пріоритет 0: Агресивне балансування (override)
     if (options.considerLoad && options.aggressiveLoadBalancing) {

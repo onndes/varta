@@ -75,6 +75,11 @@ export const autoFillSchedule = async (
         u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, tempSchedule)
     );
 
+    // Загальна кількість доступних бійців (для визначення «мало людей»)
+    const totalEligibleCount = users.filter(
+      (u) => u.isActive && !u.isExtra && !u.excludeFromAuto
+    ).length;
+
     // Спільний компаратор (з тимчасовим offset навантаження)
     // For fairness calcs, exclude history entries when ignoreHistoryInLogic is on
     const fairnessSched = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
@@ -84,7 +89,8 @@ export const autoFillSchedule = async (
       dayWeights,
       options,
       tempLoadOffset,
-      fairnessSched
+      fairnessSched,
+      totalEligibleCount
     );
     pool.sort(compare);
 

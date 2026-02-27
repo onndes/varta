@@ -112,10 +112,28 @@ const UserListItem: React.FC<{
       onClick={() => onAction(user.id!)}
     >
       <div>
-        <span className="fw-bold">{user.name}</span>
-        <span className="text-muted ms-1 small">
-          ({formatRank(user.rank)}, {daysSinceLabel})
-        </span>
+        <div className="d-flex align-items-baseline gap-2">
+          <small
+            className="text-muted text-uppercase"
+            style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
+          >
+            {formatRank(user.rank)}
+          </small>
+          <div>
+            <span
+              className="fw-bold text-uppercase"
+              style={{ fontSize: '0.82rem', letterSpacing: '0.02em' }}
+            >
+              {user.name.trim().split(/\s+/)[0]}
+            </span>
+            {user.name.trim().split(/\s+/).length > 1 && (
+              <span className="text-muted ms-1" style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                {user.name.trim().split(/\s+/).slice(1).join(' ')}
+              </span>
+            )}
+          </div>
+        </div>
+        <span className="text-muted ms-1 small">({daysSinceLabel})</span>
 
         {owes > 0 && <span className="badge bg-danger ms-2">борг: {owes}</span>}
         {isRest && (

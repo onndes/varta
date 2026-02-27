@@ -66,9 +66,22 @@ export const getFreeUsersForDate = (
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
 
+  // Загальна кількість доступних бійців (для визначення «мало людей»)
+  const totalEligibleCount = users.filter(
+    (u) => u.isActive && !u.isExtra && !u.excludeFromAuto
+  ).length;
+
   // Сортуємо за спільним пріоритетним компаратором
   return candidatePool.sort(
-    buildUserComparator(dateStr, schedule, dayWeights, options, undefined, fairnessSched)
+    buildUserComparator(
+      dateStr,
+      schedule,
+      dayWeights,
+      options,
+      undefined,
+      fairnessSched,
+      totalEligibleCount
+    )
   );
 };
 

@@ -27,6 +27,10 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   historyMode = false,
   onCellClick,
 }) => {
+  // Split name: surname (CAPS) + first/middle (dimmer)
+  const nameParts = user.name.trim().split(/\s+/);
+  const nameRest = nameParts.slice(1).join(' ');
+
   // Status label logic: show only if relevant to current time
   let statusLabel: string | null = null;
 
@@ -62,35 +66,58 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   return (
     <tr className={!user.isActive ? 'user-row-inactive' : ''}>
       <td>{index + 1}</td>
+      <td
+        className="text-start col-user-screen"
+        style={{
+          width: '96px',
+          minWidth: '96px',
+          maxWidth: '96px',
+          paddingRight: 0,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <small
+          className="text-muted text-uppercase"
+          style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
+        >
+          {formatRank(user.rank)}
+        </small>
+      </td>
       <td className="text-start px-2 col-user-screen">
-        <span className="d-block">
-          <span className="rank-badge">{formatRank(user.rank)}</span>
-          <span className="fw-bold text-dark">{user.name}</span>
-        </span>
-        {!user.isActive && (
-          <span
-            className="badge bg-secondary text-white ms-2 no-print"
-            style={{ fontSize: '0.65rem' }}
+        <div
+          className="fw-bold text-uppercase"
+          style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
+        >
+          {nameParts[0]}
+        </div>
+        {nameRest && (
+          <div
+            className="text-muted"
+            style={{ fontSize: '0.73rem', opacity: 0.7, lineHeight: 1.2 }}
           >
-            ВІДСУТНІЙ
-          </span>
+            {nameRest}
+          </div>
         )}
-        {user.excludeFromAuto && (
-          <span
-            className="badge bg-warning text-dark ms-2 no-print"
-            style={{ fontSize: '0.65rem', opacity: 0.75 }}
-          >
-            без авторозп.
-          </span>
-        )}
-        {statusLabel && (
-          <span
-            className="badge bg-warning text-dark ms-2 no-print"
-            style={{ fontSize: '0.65rem' }}
-          >
-            {statusLabel}
-          </span>
-        )}
+        <div className="d-flex flex-wrap gap-1 mt-1">
+          {!user.isActive && (
+            <span className="badge bg-secondary text-white no-print" style={{ fontSize: '0.6rem' }}>
+              ВІДСУТНІЙ
+            </span>
+          )}
+          {user.excludeFromAuto && (
+            <span
+              className="badge bg-warning text-dark no-print"
+              style={{ fontSize: '0.6rem', opacity: 0.75 }}
+            >
+              без авторозп.
+            </span>
+          )}
+          {statusLabel && (
+            <span className="badge bg-warning text-dark no-print" style={{ fontSize: '0.6rem' }}>
+              {statusLabel}
+            </span>
+          )}
+        </div>
       </td>
       <td className="col-user-print text-start" style={{ fontSize: '10pt' }}>
         {user.rank}

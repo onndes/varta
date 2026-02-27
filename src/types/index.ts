@@ -76,6 +76,7 @@ export interface AutoScheduleOptions {
   allowDebtUsersExtraWeeklyAssignments: boolean;
   debtUsersWeeklyLimit: number;
   prioritizeFasterDebtRepayment: boolean;
+  forceUseAllWhenFew: boolean; // When few users available (<7), force cyclic use of ALL users regardless of load
 }
 
 export interface AuditLogEntry {
