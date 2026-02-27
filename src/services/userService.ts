@@ -65,23 +65,29 @@ export const updateUser = async (id: number, updates: Partial<User>): Promise<nu
  * Delete user and clean up their future schedule entries
  */
 export const deleteUser = async (id: number): Promise<string[]> => {
-  // Find and remove future schedule entries for this user
+  // Find and clean up future schedule entries for this user
   const todayStr = toLocalISO(new Date());
   const allSchedule = await db.schedule.toArray();
-  const orphanedDates = allSchedule
-    .filter((entry) => {
-      if (!entry.userId) return false;
-      const userId = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
-      return userId.includes(id) && entry.date >= todayStr;
-    })
-    .map((entry) => entry.date);
+  const affectedDates: string[] = [];
 
-  if (orphanedDates.length > 0) {
-    await db.schedule.bulkDelete(orphanedDates);
+  for (const entry of allSchedule) {
+    if (!entry.userId || entry.date < todayStr) continue;
+    const userIds = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
+    if (!userIds.includes(id)) continue;
+
+    affectedDates.push(entry.date);
+    const remaining = userIds.filter((uid) => uid !== id);
+    if (remaining.length === 0) {
+      await db.schedule.delete(entry.date);
+    } else {
+      await db.schedule.update(entry.date, {
+        userId: remaining.length === 1 ? remaining[0] : remaining,
+      });
+    }
   }
 
   await db.users.delete(id);
-  return orphanedDates;
+  return affectedDates;
 };
 
 /**

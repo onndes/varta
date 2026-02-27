@@ -64,19 +64,37 @@ describe('autoScheduler', () => {
   describe('autoFillSchedule with perDay', () => {
     it('повинен ставити кількох чергових на день при dutiesPerDay=2', async () => {
       const users: User[] = [
-        { id: 1, name: 'A', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
-        { id: 2, name: 'B', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
-        { id: 3, name: 'C', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 3,
+          name: 'C',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
       ];
 
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
-      const updates = await autoFillSchedule(
-        ['2026-03-15'],
-        users,
-        {},
-        dayWeights,
-        2
-      );
+      const updates = await autoFillSchedule(['2026-03-15'], users, {}, dayWeights, 2);
 
       expect(updates).toHaveLength(1);
       expect(Array.isArray(updates[0].userId)).toBe(true);
@@ -87,8 +105,24 @@ describe('autoScheduler', () => {
   describe('priority soft rules', () => {
     it('повинен віддавати пріоритет менш завантаженому в поточному тижні', async () => {
       const users: User[] = [
-        { id: 1, name: 'A', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
-        { id: 2, name: 'B', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
       ];
       const schedule: Record<string, ScheduleEntry> = {
         '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' }, // same week
@@ -101,8 +135,24 @@ describe('autoScheduler', () => {
 
     it('повинен віддавати tie-break тому, хто довше не чергував', async () => {
       const users: User[] = [
-        { id: 1, name: 'A', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
-        { id: 2, name: 'B', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
       ];
       const schedule: Record<string, ScheduleEntry> = {
         '2026-03-01': { date: '2026-03-01', userId: 2, type: 'auto' },
@@ -243,8 +293,24 @@ describe('autoScheduler', () => {
 
     it('жорсткий баланс ON/OFF реально міняє вибір при великій різниці навантаження', () => {
       const users: User[] = [
-        { id: 1, name: 'LowLoad', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
-        { id: 2, name: 'HighLoad', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        {
+          id: 1,
+          name: 'LowLoad',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'HighLoad',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
       ];
       const schedule: Record<string, ScheduleEntry> = {
         '2026-03-01': { date: '2026-03-01', userId: 2, type: 'auto' },
@@ -285,6 +351,102 @@ describe('autoScheduler', () => {
 
       expect(withoutAggressive?.id).toBe(2);
       expect(withAggressive?.id).toBe(1);
+    });
+  });
+
+  describe('forward rest-day check (BUG FIX)', () => {
+    it('не повинен ставити бійця на день перед існуючим призначенням (підряд)', async () => {
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+      ];
+
+      // User 1 already assigned on Wednesday (manual)
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-11': { date: '2026-03-11', userId: 1, type: 'manual' },
+      };
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      // Auto-fill Tuesday — should NOT assign user 1 (consecutive with Wed)
+      const updates = await autoFillSchedule(['2026-03-10'], users, schedule, dayWeights, 1);
+
+      expect(updates).toHaveLength(1);
+      // Should pick user 2 (A has Wed manual, so Tue would be consecutive)
+      expect(updates[0].userId).toBe(2);
+    });
+  });
+
+  describe('calculateOptimalAssignment filters (BUG FIX)', () => {
+    it('не повинен пропонувати isExtra бійця як оптимального', () => {
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'Extra',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+          isExtra: true,
+        },
+        {
+          id: 2,
+          name: 'Normal',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+      ];
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const selected = calculateOptimalAssignment('2026-03-10', users, {}, dayWeights);
+      expect(selected?.id).toBe(2);
+    });
+
+    it('не повинен пропонувати excludeFromAuto бійця як оптимального', () => {
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'Excluded',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+          excludeFromAuto: true,
+        },
+        {
+          id: 2,
+          name: 'Normal',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+      ];
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+
+      const selected = calculateOptimalAssignment('2026-03-10', users, {}, dayWeights);
+      expect(selected?.id).toBe(2);
     });
   });
 });

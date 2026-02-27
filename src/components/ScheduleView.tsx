@@ -161,18 +161,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
       await saveScheduleEntry(entry);
 
-      // Repay owedDays if user owes this day of week
+      // Repay owedDays if user owes this day of week (use DB-backed service to avoid stale state)
       const user = users.find((u) => u.id === userId);
       if (user && isManual) {
         const dayIdx = new Date(date).getDay();
-        if (user.owedDays && user.owedDays[dayIdx] > 0) {
-          const weight = dayWeights[dayIdx] || 1.0;
-          await userService.updateOwedDays(userId, dayIdx, -1);
-          if (user.debt < 0) {
-            const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
-            await userService.updateUserDebt(userId, newDebt - user.debt);
-          }
-        }
+        const weight = dayWeights[dayIdx] || 1.0;
+        await userService.repayOwedDay(userId, dayIdx, weight);
         await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
       } else if (user) {
         await auditService.logAction('ASSIGN', `${user.name} на ${date}`);

@@ -6,7 +6,12 @@ import { toLocalISO } from '../utils/dateUtils';
 import { getUserFairnessFrom } from '../utils/fairness';
 import { isUserAvailable, repayOwedDay } from './userService';
 import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from './scheduleService';
-import { toAssignedUserIds, isManualType, getLogicSchedule, isHistoryType } from '../utils/assignment';
+import {
+  toAssignedUserIds,
+  isManualType,
+  getLogicSchedule,
+  isHistoryType,
+} from '../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
 // ─── \u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438 ──────────────────────────────────────────────────────
@@ -47,9 +52,7 @@ const getScheduleStart = (
 };
 
 /** Найраніша історична/імпортована дата для кожного бійця */
-const buildEarliestHistoryMap = (
-  schedule: Record<string, ScheduleEntry>
-): Map<number, string> => {
+const buildEarliestHistoryMap = (schedule: Record<string, ScheduleEntry>): Map<number, string> => {
   const map = new Map<number, string>();
   for (const entry of Object.values(schedule)) {
     if (!isHistoryType(entry)) continue;
@@ -186,16 +189,54 @@ const daysSinceLastAssignment = (
  */
 const isHardUnavailable = (user: User, dateStr: string): boolean => {
   if (!user.isActive) return true;
+
+  // Заблоковані дні тижня (ISO: 1=Пн..7=Нд)
+  if (user.blockedDays && user.blockedDays.length > 0) {
+    const jsDow = new Date(dateStr).getDay();
+    const isoDayIdx = jsDow === 0 ? 7 : jsDow;
+    if (user.blockedDays.includes(isoDayIdx)) {
+      const from = user.blockedDaysFrom || MIN_DATE_SENTINEL;
+      const to = user.blockedDaysTo || MAX_DATE_SENTINEL;
+      if (dateStr >= from && dateStr <= to) return true;
+    }
+  }
+
+  if (user.status === 'ACTIVE') return false;
+
+  // Усі не-ACTIVE статуси
   if (
     user.status === 'VACATION' ||
     user.status === 'TRIP' ||
     user.status === 'SICK' ||
-    user.status === 'ABSENT'
+    user.status === 'ABSENT' ||
+    user.status === 'OTHER'
   ) {
-    const from = user.statusFrom || MIN_DATE_SENTINEL;
-    const to = user.statusTo || MAX_DATE_SENTINEL;
-    if (dateStr >= from && dateStr <= to) return true;
+    if (user.statusFrom || user.statusTo) {
+      const from = user.statusFrom || MIN_DATE_SENTINEL;
+      const to = user.statusTo || MAX_DATE_SENTINEL;
+      if (dateStr >= from && dateStr <= to) return true;
+
+      // Відпочинок до початку статусу
+      if (user.restBeforeStatus && user.statusFrom) {
+        const dayBefore = new Date(user.statusFrom);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        if (dateStr === toLocalISO(dayBefore)) return true;
+      }
+
+      // Відпочинок після завершення статусу
+      if (user.restAfterStatus && user.statusTo) {
+        const nextDay = new Date(user.statusTo);
+        nextDay.setDate(nextDay.getDate() + 1);
+        if (dateStr === toLocalISO(nextDay)) return true;
+      }
+
+      return false;
+    }
+
+    // Не-ACTIVE без діапазону дат = постійно недоступний
+    return true;
   }
+
   return false;
 };
 
@@ -361,11 +402,20 @@ const filterByRestDays = (
 ): User[] => {
   const recentUserIds = new Set<number>();
   for (let i = 1; i <= minRest; i++) {
-    const checkDate = new Date(dateStr);
-    checkDate.setDate(checkDate.getDate() - i);
-    const rawId = tempSchedule[toLocalISO(checkDate)]?.userId;
-    if (rawId) {
-      const ids = Array.isArray(rawId) ? rawId : [rawId];
+    // Backward: check previous days
+    const checkBefore = new Date(dateStr);
+    checkBefore.setDate(checkBefore.getDate() - i);
+    const rawBefore = tempSchedule[toLocalISO(checkBefore)]?.userId;
+    if (rawBefore) {
+      const ids = Array.isArray(rawBefore) ? rawBefore : [rawBefore];
+      ids.forEach((id) => recentUserIds.add(id));
+    }
+    // Forward: check next days (pre-existing entries like manual assignments)
+    const checkAfter = new Date(dateStr);
+    checkAfter.setDate(checkAfter.getDate() + i);
+    const rawAfter = tempSchedule[toLocalISO(checkAfter)]?.userId;
+    if (rawAfter) {
+      const ids = Array.isArray(rawAfter) ? rawAfter : [rawAfter];
       ids.forEach((id) => recentUserIds.add(id));
     }
   }
@@ -789,7 +839,9 @@ export const calculateOptimalAssignment = (
   options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   ignoreHistoryInLogic = false
 ): User | null => {
-  let available = users.filter((u) => u.isActive && isUserAvailable(u, dateStr, schedule));
+  let available = users.filter(
+    (u) => u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, schedule)
+  );
   if (available.length === 0) return null;
   const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
 

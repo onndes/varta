@@ -335,4 +335,66 @@ describe('userService', () => {
       expect(user?.debt).toBeGreaterThanOrEqual(-4.0); // MAX_DEBT = 4.0
     });
   });
+
+  describe('deleteUser — multi-slot safety', () => {
+    it('повинен видалити лише конкретного бійця з multi-slot запису, залишивши інших', async () => {
+      const idA = await db.users.add({
+        name: 'A',
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+      const idB = await db.users.add({
+        name: 'B',
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+
+      // Future multi-slot entry
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().slice(0, 10);
+      await db.schedule.put({
+        date: dateStr,
+        userId: [idA!, idB!],
+        type: 'auto',
+      });
+
+      await deleteUser(idA!);
+
+      const entry = await db.schedule.get(dateStr);
+      expect(entry).toBeDefined();
+      expect(entry?.userId).toBe(idB!); // B remains, single value
+    });
+
+    it('повинен видалити запис повністю, якщо це єдиний боєць', async () => {
+      const id = await db.users.add({
+        name: 'Solo',
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().slice(0, 10);
+      await db.schedule.put({
+        date: dateStr,
+        userId: id!,
+        type: 'auto',
+      });
+
+      await deleteUser(id!);
+
+      const entry = await db.schedule.get(dateStr);
+      expect(entry).toBeUndefined();
+    });
+  });
 });
