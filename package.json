@@ -1,14 +1,15 @@
 {
   "name": "varta-2026",
   "private": true,
-  "version": "1.0.0-beta",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "sync:version": "node scripts/sync-version.mjs",
+    "build": "npm run sync:version && tsc -b && vite build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:build": "npm run sync:version && tauri build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",

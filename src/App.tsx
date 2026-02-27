@@ -22,6 +22,7 @@ import InfoButton from './components/InfoButton';
 import './styles/main.scss';
 
 const App = () => {
+  const APP_CHANNEL_LABEL = 'beta';
   const { showAlert, showConfirm } = useDialog();
   const [activeTab, setActiveTab] = useState('schedule');
   const [showBackupAlert, setShowBackupAlert] = useState(false);
@@ -110,6 +111,7 @@ const App = () => {
   }, [appVersion, showAlert]);
 
   const displayVersion = appVersion || import.meta.env.VITE_APP_VERSION || '0.0.0';
+  const displayVersionLabel = `v${displayVersion}-${APP_CHANNEL_LABEL}`;
 
   // Global UI scale for cross-device readability
   useEffect(() => {
@@ -202,7 +204,7 @@ const App = () => {
           </div>
           <div className="app-sidebar__brand-text">
             <span className="app-sidebar__brand-name">ВАРТА</span>
-            <span className="app-sidebar__brand-sub">v{displayVersion}</span>
+            <span className="app-sidebar__brand-sub">{displayVersionLabel}</span>
           </div>
         </div>
 
@@ -314,7 +316,7 @@ const App = () => {
         </main>
 
         <footer className="app-footer no-print">
-          ВАРТА v{displayVersion} · Vladyslav V.V. ·{' '}
+          ВАРТА {displayVersionLabel} · Vladyslav V.V. ·{' '}
           <a href="mailto:vladvyljotnikov@gmail.com" className="text-muted">
             vladvyljotnikov@gmail.com
           </a>
