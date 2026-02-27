@@ -262,7 +262,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
               key={key}
               type="button"
               className={`btn btn-sm ${
-                shownAbsence[key] ? 'btn-outline-dark' : 'btn-outline-secondary'
+                shownAbsence[key] ? 'btn-primary' : 'btn-outline-secondary'
               }`}
               onClick={() =>
                 setShownAbsence((prev) => ({
@@ -283,12 +283,15 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
         <div className="small mb-2">
           <strong>Доступних днів для чергування:</strong> {availableDaysTotal}
         </div>
-        <div className="table-responsive">
-          <table className="table table-sm mb-0 table-align-center">
+        <div className="d-flex justify-content-center">
+          <table
+            className="table table-sm mb-0 text-center"
+            style={{ width: 'auto', minWidth: '280px' }}
+          >
             <thead>
               <tr>
-                <th>Категорія</th>
-                <th className="text-end">Кількість</th>
+                <th className="text-center">Категорія</th>
+                <th className="text-center">Кількість</th>
               </tr>
             </thead>
             <tbody>
@@ -302,7 +305,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
                 visibleAbsenceKeys.map((key) => (
                   <tr key={key}>
                     <td>{ABSENCE_LABELS[key]}</td>
-                    <td className="text-end fw-bold">{absenceCounts[key]}</td>
+                    <td className="fw-bold">{absenceCounts[key]}</td>
                   </tr>
                 ))
               )}

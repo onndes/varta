@@ -1,0 +1,126 @@
+// ─── Users Table ──────────────────────────────────────────────────────────────
+
+.users-table {
+  font-size: 0.85rem;
+
+  th {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--bs-secondary-color, #6c757d);
+    border-bottom-width: 2px;
+    padding: 0.5rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.55rem 0.5rem;
+    vertical-align: middle;
+  }
+}
+
+.users-table__head {
+  background: var(--bs-tertiary-bg, #f8f9fa);
+}
+
+.users-table__row {
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: var(--bs-tertiary-bg, rgba(0, 0, 0, 0.02));
+  }
+
+  &--inactive {
+    opacity: 0.55;
+  }
+}
+
+// Sort button pills
+.users-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  color: var(--bs-secondary-color, #6c757d);
+  background: transparent;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+
+  &:hover {
+    background: var(--bs-tertiary-bg, rgba(0, 0, 0, 0.05));
+    color: var(--bs-body-color);
+  }
+
+  &--active {
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+
+    &:hover {
+      background: var(--bs-primary, #0d6efd);
+      color: #fff;
+      filter: brightness(1.1);
+    }
+  }
+}
+
+// ─── Schedule Controls ───────────────────────────────────────────────────────
+
+.schedule-controls {
+  padding: 0.5rem 0.75rem;
+}
+
+.schedule-controls__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+
+  // On small screens, stack leftward
+  @media (max-width: 767.98px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    > * {
+      justify-content: center;
+    }
+  }
+}
+
+.schedule-controls__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+
+  // On small screens, stack and center
+  @media (max-width: 991.98px) {
+    justify-content: center;
+  }
+}
+
+// ─── Sidebar bottom area ─────────────────────────────────────────────────────
+
+.app-sidebar__bottom {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  flex-shrink: 0;
+
+  .app-sidebar__item {
+    opacity: 0.6;
+    font-size: 0.82rem;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}

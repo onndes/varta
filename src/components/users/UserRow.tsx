@@ -61,8 +61,8 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
       </td>
 
       {/* Status column – status pill + optional date range on same line */}
-      <td className="text-center">
-        <div className="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+      <td className="text-start">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
           <span className={`badge ${meta.cls}`} style={{ minWidth: '72px', fontSize: '0.75rem' }}>
             {u.isActive ? STATUSES[displayStatus] : 'Неактив'}
           </span>
@@ -88,7 +88,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
           </div>
         )}
       </td>
-      <td>
+      <td className="text-center">
         {u.blockedDays && u.blockedDays.length > 0 ? (
           <>
             <div className="d-flex gap-1 justify-content-center flex-wrap">
@@ -130,7 +130,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
           <span className="text-muted">—</span>
         )}
       </td>
-      <td>
+      <td className="text-center">
         <span
           className={
             u.debt < 0

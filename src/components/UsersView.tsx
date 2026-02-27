@@ -5,6 +5,7 @@ import AddUserForm from './users/AddUserForm';
 import UserRow from './users/UserRow';
 import EditUserModal from './users/EditUserModal';
 import UserStatsModal from './users/UserStatsModal';
+import Modal from './Modal';
 import { useDialog } from './useDialog';
 import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
@@ -31,6 +32,7 @@ const UsersView: React.FC<UsersViewProps> = ({
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
   const editingUserRef = useRef<User | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -113,9 +115,6 @@ const UsersView: React.FC<UsersViewProps> = ({
   }, [editingUser, saveUser, logAction]);
 
   const handleAdd = async (name: string, rank: string, note: string) => {
-    // Set dateAddedToAuto to the day AFTER the last existing schedule entry.
-    // This ensures the new user isn't compared against assignments that were
-    // generated before they joined the pool.
     const scheduleDates = Object.keys(schedule).sort();
     const lastScheduleDate = scheduleDates[scheduleDates.length - 1];
 
@@ -144,6 +143,7 @@ const UsersView: React.FC<UsersViewProps> = ({
     });
     await logAction('ADD', `Додано: ${name}`);
     await refreshData();
+    setShowAddModal(false);
   };
 
   const handleDelete = async (u: User) => {
@@ -163,57 +163,87 @@ const UsersView: React.FC<UsersViewProps> = ({
     await refreshData();
   };
 
+  const activeCount = sortedActiveUsers.length;
+  const inactiveCount = sortedInactiveUsers.length;
+
+  const renderSortBtn = (key: SortKey, label: string, icon?: string) => (
+    <span
+      className={`users-sort-btn ${sortKey === key ? 'users-sort-btn--active' : ''}`}
+      onClick={() => toggleSort(key)}
+      title={`Сортувати за ${label.toLowerCase()}`}
+    >
+      {icon && <i className={`fas ${icon} me-1`} style={{ fontSize: '0.6rem' }}></i>}
+      {label}
+      {sortKey === key && <span className="ms-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+    </span>
+  );
+
+  const renderTableHead = () => (
+    <thead>
+      <tr className="users-table__head">
+        <th className="text-start ps-3" style={{ userSelect: 'none', width: '40%' }}>
+          <div className="d-flex align-items-center gap-1">
+            {renderSortBtn('name', 'ПІБ')}
+            {renderSortBtn('rank', 'Звання', 'fa-medal')}
+          </div>
+        </th>
+        <th className="text-start" style={{ width: '22%' }}>
+          Статус
+        </th>
+        <th className="text-center" style={{ width: '14%' }}>
+          Блокування
+        </th>
+        <th className="text-center" style={{ width: '10%' }}>
+          Карма
+        </th>
+        <th className="text-end pe-3" style={{ width: '14%' }}>
+          Дії
+        </th>
+      </tr>
+    </thead>
+  );
+
   return (
-    <div className="row">
-      <div className="col-lg-3 mb-4">
-        <AddUserForm onAdd={handleAdd} />
+    <div>
+      {/* Header bar */}
+      <div className="d-flex align-items-center justify-content-between mb-3">
+        <div className="d-flex align-items-center gap-2">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-users me-2 text-primary"></i>
+            Особовий склад
+          </h5>
+          <span
+            className="badge bg-primary bg-opacity-10 text-primary"
+            style={{ fontSize: '0.75rem' }}
+          >
+            {activeCount} {activeCount === 1 ? 'особа' : activeCount < 5 ? 'особи' : 'осіб'}
+          </span>
+        </div>
+        <button className="btn btn-success btn-sm" onClick={() => setShowAddModal(true)}>
+          <i className="fas fa-user-plus me-1"></i>Додати особу
+        </button>
       </div>
 
-      <div className="col-lg-9">
-        {/* Active users */}
-        <div className="card shadow-sm border-0 mb-3">
-          <div className="card-header bg-white">
-            <h6 className="mb-0 fw-bold">
-              <i className="fas fa-users me-2 text-primary"></i>
-              Основний склад
-            </h6>
-          </div>
-          <table className="table table-hover align-middle mb-0 table-align-center">
-            <thead className="table-light small">
-              <tr>
-                <th className="text-start" style={{ userSelect: 'none' }}>
-                  <span
-                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
-                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                    onClick={() => toggleSort('name')}
-                    title="Сортувати за ПІБ"
-                  >
-                    ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </span>
-                  <span
-                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
-                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                    onClick={() => toggleSort('rank')}
-                    title="Сортувати за званням"
-                  >
-                    <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Звання
-                    {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </span>
-                </th>
-                <th style={{ width: '32%' }}>Статус</th>
-                <th style={{ width: '120px' }}>Блокування</th>
-                <th style={{ width: '76px' }}>Карма</th>
-                <th className="text-end" style={{ width: '116px' }}>
-                  Дії
-                </th>
-              </tr>
-            </thead>
+      {/* Active users */}
+      <div className="card shadow-sm border-0 mb-3">
+        <div className="table-responsive">
+          <table className="table table-hover align-middle mb-0 users-table">
+            {renderTableHead()}
             <tbody>
-              {sortedActiveUsers.length === 0 ? (
+              {activeCount === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center text-muted py-4">
-                    <i className="fas fa-users me-2"></i>Список порожній — додайте особу за
-                    допомогою форми зліва
+                  <td colSpan={5} className="text-center text-muted py-5">
+                    <i
+                      className="fas fa-user-plus me-2"
+                      style={{ fontSize: '1.5rem', opacity: 0.4 }}
+                    ></i>
+                    <div className="mt-2">Список порожній</div>
+                    <button
+                      className="btn btn-outline-success btn-sm mt-2"
+                      onClick={() => setShowAddModal(true)}
+                    >
+                      Додати першу особу
+                    </button>
                   </td>
                 </tr>
               ) : (
@@ -231,44 +261,23 @@ const UsersView: React.FC<UsersViewProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
 
-        {/* Inactive users (separate section) */}
-        {sortedInactiveUsers.length > 0 && (
-          <div className="card shadow-sm border-0">
-            <div className="card-header bg-light">
-              <h6 className="mb-0 fw-bold text-muted">
-                <i className="fas fa-user-slash me-2"></i>
-                Особовий склад (відсутні)
-              </h6>
-            </div>
-            <table className="table table-hover align-middle mb-0 table-align-center">
-              <thead className="table-light small">
-                <tr>
-                  <th className="text-start" style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    <span onClick={() => toggleSort('name')} title="Сортувати за ПІБ">
-                      Особа{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </span>
-                    <span
-                      className="ms-2"
-                      onClick={() => toggleSort('rank')}
-                      title="Сортувати за званням"
-                      style={{
-                        fontSize: '0.75rem',
-                        color: sortKey === 'rank' ? '#0d6efd' : '#6c757d',
-                      }}
-                    >
-                      <i className="fas fa-medal"></i>
-                      {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </span>
-                  </th>
-                  <th style={{ width: '32%' }}>Статус</th>
-                  <th style={{ width: '120px' }}>Блокування</th>
-                  <th style={{ width: '76px' }}>Карма</th>
-                  <th className="text-end" style={{ width: '116px' }}>
-                    Дії
-                  </th>
-                </tr>
-              </thead>
+      {/* Inactive users */}
+      {inactiveCount > 0 && (
+        <div className="card shadow-sm border-0">
+          <div
+            className="card-header py-2"
+            style={{ background: 'var(--bs-tertiary-bg, #f8f9fa)' }}
+          >
+            <h6 className="mb-0 fw-bold text-muted small">
+              <i className="fas fa-user-slash me-2"></i>
+              Неактивні ({inactiveCount})
+            </h6>
+          </div>
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0 users-table">
+              {renderTableHead()}
               <tbody>
                 {sortedInactiveUsers.map((u) => (
                   <UserRow
@@ -283,8 +292,18 @@ const UsersView: React.FC<UsersViewProps> = ({
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Add user modal */}
+      <Modal
+        show={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Додати нову особу"
+        size="modal-sm"
+      >
+        <AddUserForm onAdd={handleAdd} />
+      </Modal>
 
       {editingUser && (
         <EditUserModal
@@ -295,9 +314,7 @@ const UsersView: React.FC<UsersViewProps> = ({
             const dates = Object.keys(schedule).sort();
             return dates[0] || toLocalISO(new Date());
           })()}
-          firstDutyDate={
-            editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined
-          }
+          firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
           allUsers={users}
         />
       )}

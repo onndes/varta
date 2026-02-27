@@ -15,6 +15,7 @@ import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
 import AuditLogView from './components/AuditLogView';
+import InfoButton from './components/InfoButton';
 
 // Styles
 import './styles/main.scss';
@@ -184,13 +185,16 @@ const App = () => {
           ))}
         </nav>
 
-        <button
-          className="app-sidebar__collapse-btn"
-          onClick={() => setSidebarCollapsed((v) => !v)}
-          title={sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
-        >
-          <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
-        </button>
+        <div className="app-sidebar__bottom">
+          <InfoButton />
+          <button
+            className="app-sidebar__collapse-btn"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            title={sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
+          >
+            <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
+          </button>
+        </div>
       </aside>
 
       {/* ─── Main area ──────────────────────────────────────────── */}
@@ -266,7 +270,7 @@ const App = () => {
             />
           )}
           {activeTab === 'logs' && <AuditLogView key={workspaceVersion} />}
-          {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
+          {activeTab === 'dev' && import.meta.env.DEV && <DevTools refreshData={refreshData} />}
         </main>
 
         <footer className="app-footer no-print">

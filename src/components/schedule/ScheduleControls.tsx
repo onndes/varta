@@ -65,9 +65,21 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
 
   return (
     <div className="card border-0 shadow-sm p-2 mb-2 no-print">
-      {/* Row 1: navigation + week title */}
-      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
-        {/* Left: prev / next / today / date */}
+      {/* Row 0: period title */}
+      <div className="text-center mb-2">
+        <span className="fw-bold" style={{ fontSize: '1.05rem' }}>
+          {startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} —{' '}
+          {endDate.toLocaleDateString('uk-UA', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </span>
+      </div>
+
+      {/* Row 1: navigation + undo/redo */}
+      <div className="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
+        {/* Left: nav arrows + today + date picker */}
         <div className="d-flex align-items-center gap-1">
           <button
             className="btn btn-outline-secondary btn-sm"
@@ -95,12 +107,6 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           />
         </div>
 
-        {/* Center: week title */}
-        <div className="fw-bold text-center text-nowrap" style={{ fontSize: '1rem' }}>
-          {startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} —{' '}
-          {endDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
-        </div>
-
         {/* Right: undo / redo */}
         <div className="d-flex align-items-center gap-1">
           <button
@@ -122,9 +128,9 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
         </div>
       </div>
 
-      {/* Row 2: action buttons */}
-      <div className="d-flex align-items-center gap-2 flex-wrap">
-        {!isFutureWeek && (
+      {/* Row 2: history/import */}
+      {!isFutureWeek && (
+        <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
           <button
             className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
             onClick={onToggleHistoryMode}
@@ -133,8 +139,6 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
             {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
           </button>
-        )}
-        {!isFutureWeek && (
           <button
             className="btn btn-sm btn-outline-secondary"
             onClick={onImportSchedule}
@@ -142,11 +146,11 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           >
             <i className="fas fa-file-import me-1"></i>Імпорт
           </button>
-        )}
+        </div>
+      )}
 
-        {/* Spacer pushes conflict + generation buttons to the right */}
-        <div className="flex-grow-1" />
-
+      {/* Row 3: conflicts + cascade + generation actions */}
+      <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
         {criticalConflictsCount > 0 && (
           <button className="btn btn-sm btn-danger shadow" onClick={onFixConflicts}>
             <i className="fas fa-exclamation-triangle me-1"></i>
@@ -174,6 +178,9 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             </button>
           </>
         )}
+
+        <div className="flex-grow-1" />
+
         <button
           className="btn btn-sm btn-outline-danger"
           onClick={onClearWeek}

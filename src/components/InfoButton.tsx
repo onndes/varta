@@ -6,20 +6,9 @@ const InfoButton: React.FC = () => {
 
   return (
     <>
-      <button
-        className="btn btn-link text-muted p-0 ms-2 info-btn-subtle"
-        onClick={() => setShow(true)}
-        title="Про систему"
-        style={{
-          opacity: 0.35,
-          fontSize: '0.85rem',
-          transition: 'opacity 0.2s',
-          lineHeight: 1,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.35')}
-      >
-        <i className="fas fa-info-circle"></i>
+      <button className="app-sidebar__item" onClick={() => setShow(true)} title="Про систему">
+        <i className="fas fa-info-circle app-sidebar__icon"></i>
+        <span className="app-sidebar__label">Довідка</span>
       </button>
 
       <Modal show={show} onClose={() => setShow(false)} title="Про систему ВАРТА" size="modal-lg">

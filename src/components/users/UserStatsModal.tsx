@@ -272,30 +272,33 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
         </div>
       )}
 
-      <table className="table table-sm table-bordered table-align-center">
-        <thead className="table-light">
-          <tr>
-            <th>День тижня</th>
-            <th className="text-end">Відпрацьовано</th>
-            <th className="text-end">Борг</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.keys(DAY_NAMES_FULL).map((dayKey) => {
-            const dayNum = parseInt(dayKey, 10);
-            const owed = owedDays[dayNum] || 0;
-            return (
-              <tr key={dayNum} className={owed > 0 ? 'table-warning' : ''}>
-                <td>{DAY_NAMES_FULL[dayNum]}</td>
-                <td className="text-end">{daysCount[dayNum] || 0}</td>
-                <td className="text-end">
-                  {owed > 0 ? <span className="text-danger fw-bold">{owed}</span> : '—'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="d-flex justify-content-center">
+        <table
+          className="table table-sm table-bordered text-center"
+          style={{ width: 'auto', minWidth: '320px' }}
+        >
+          <thead className="table-light">
+            <tr>
+              <th className="text-center">День тижня</th>
+              <th className="text-center">Відпрацьовано</th>
+              <th className="text-center">Борг</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.keys(DAY_NAMES_FULL).map((dayKey) => {
+              const dayNum = parseInt(dayKey, 10);
+              const owed = owedDays[dayNum] || 0;
+              return (
+                <tr key={dayNum} className={owed > 0 ? 'table-warning' : ''}>
+                  <td>{DAY_NAMES_FULL[dayNum]}</td>
+                  <td>{daysCount[dayNum] || 0}</td>
+                  <td>{owed > 0 ? <span className="text-danger fw-bold">{owed}</span> : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <TimelineSection timeline={timeline} />
     </Modal>
