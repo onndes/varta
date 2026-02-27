@@ -11,6 +11,7 @@ import {
   getDbName,
 } from './workspaceService';
 import type { Workspace } from './workspaceService';
+import { saveTextFile } from '../utils/platform';
 
 /**
  * Service for import/export operations
@@ -222,7 +223,7 @@ const importData = async (data: ExportData): Promise<void> => {
 export const downloadBackup = async (): Promise<void> => {
   const workspaces = getWorkspaces();
   const dateStr = toLocalISO(new Date());
-  let blob: Blob;
+  let jsonContent: string;
   let filename: string;
 
   if (workspaces.length > 1) {
@@ -232,7 +233,6 @@ export const downloadBackup = async (): Promise<void> => {
 
     for (const ws of workspaces) {
       if (ws.id === activeId) {
-        // Use existing db connection to avoid dual-open
         databases[ws.id] = await exportData();
       } else {
         databases[ws.id] = await readDbData(getDbName(ws.id));
@@ -246,21 +246,17 @@ export const downloadBackup = async (): Promise<void> => {
       workspaces,
       databases,
     };
-    blob = new Blob([JSON.stringify(multiData, null, 2)], { type: 'application/json' });
+    jsonContent = JSON.stringify(multiData, null, 2);
     filename = `VARTA_FULL_BACKUP_${dateStr}.json`;
   } else {
     // Single workspace — v7 format
     const data = await exportData();
-    blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    jsonContent = JSON.stringify(data, null, 2);
     filename = `VARTA_BACKUP_${dateStr}.json`;
   }
 
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // Use native Tauri dialog when available, otherwise browser download
+  await saveTextFile(jsonContent, filename);
 
   // Mark active DB as exported
   await db.appState.put({ key: 'needsExport', value: false });

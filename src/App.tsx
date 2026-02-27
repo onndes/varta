@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { PrintMode } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
+import { triggerPrint } from './utils/platform';
 
 // Hooks
 import { useUsers, useSchedule, useSettings, useExport } from './hooks';
@@ -131,8 +132,8 @@ const App = () => {
       setPrintMode('calendar');
     };
 
-    window.addEventListener('afterprint', restoreTab, { once: true });
-    setTimeout(() => window.print(), activeTab === 'schedule' ? 100 : 250);
+    // Use platform-aware print (works in browser, file://, and Tauri)
+    triggerPrint(undefined, restoreTab);
   };
 
   const NAV_TABS = [
