@@ -12,12 +12,12 @@ import {
   REBALANCE_THRESHOLD,
   buildEarliestHistoryMap,
   getWeekWindow,
-  getDatesInRange,
-  shouldEnforceOneDutyPerWeek,
+  countEligibleUsersForDate,
   countUserAssignmentsInRange,
   getWeeklyAssignmentCap,
   countAvailableDaysInWindow,
   getUserCompareFrom,
+  MIN_USERS_FOR_WEEKLY_LIMIT,
 } from './helpers';
 import {
   buildUserComparator,
@@ -76,9 +76,7 @@ export const autoFillSchedule = async (
     );
 
     // Загальна кількість доступних бійців (для визначення «мало людей»)
-    const totalEligibleCount = users.filter(
-      (u) => u.isActive && !u.isExtra && !u.excludeFromAuto
-    ).length;
+    const totalEligibleCount = countEligibleUsersForDate(users, tempSchedule, dateStr);
 
     // Спільний компаратор (з тимчасовим offset навантаження)
     // For fairness calcs, exclude history entries when ignoreHistoryInLogic is on
@@ -100,7 +98,7 @@ export const autoFillSchedule = async (
     }
     pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
     if (options.limitOneDutyPerWeekWhenSevenPlus) {
-      pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options);
+      pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options, totalEligibleCount);
     }
 
     // Призначити найкращих кандидатів до dutiesPerDay
@@ -236,9 +234,9 @@ function postBalancePass(
 
       // Check weekly cap for less-loaded user
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
-        const week = getWeekWindow(dateStr);
-        const weekDates = getDatesInRange(week.from, week.to);
-        if (shouldEnforceOneDutyPerWeek(users, tempSchedule, weekDates)) {
+        const eligibleOnDate = countEligibleUsersForDate(users, tempSchedule, dateStr);
+        if (eligibleOnDate >= MIN_USERS_FOR_WEEKLY_LIMIT) {
+          const week = getWeekWindow(dateStr);
           const inWeek = countUserAssignmentsInRange(
             under.user.id!,
             tempSchedule,
@@ -247,6 +245,28 @@ function postBalancePass(
           );
           const cap = getWeeklyAssignmentCap(under.user, options);
           if (inWeek >= cap) continue;
+        }
+      }
+
+      // In "use everyone when few" mode, post-balance must not reduce
+      // the number of unique users assigned in the week.
+      if (options.forceUseAllWhenFew) {
+        const eligibleOnDate = countEligibleUsersForDate(users, tempSchedule, dateStr);
+        if (eligibleOnDate <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+          const week = getWeekWindow(dateStr);
+          const overInWeek = countUserAssignmentsInRange(
+            over.user.id!,
+            tempSchedule,
+            week.from,
+            week.to
+          );
+          const underInWeek = countUserAssignmentsInRange(
+            under.user.id!,
+            tempSchedule,
+            week.from,
+            week.to
+          );
+          if (overInWeek <= 1 && underInWeek >= 1) continue;
         }
       }
 

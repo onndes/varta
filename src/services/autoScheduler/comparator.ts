@@ -7,9 +7,9 @@ import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from '..
 import { toAssignedUserIds } from '../../utils/assignment';
 import {
   buildEarliestHistoryMap,
+  countEligibleUsersForDate,
   getPrevDateStr,
   getWeekWindow,
-  getDatesInRange,
   getDebtRepaymentScore,
   getAggressiveBalanceDecision,
   countUserAssignmentsInRange,
@@ -17,7 +17,6 @@ import {
   countAvailableDaysInWindow,
   floatEq,
   getUserCompareFrom,
-  shouldEnforceOneDutyPerWeek,
   getWeeklyAssignmentCap,
   MIN_USERS_FOR_WEEKLY_LIMIT,
 } from './helpers';
@@ -70,12 +69,19 @@ export const buildUserComparator = (
     if (
       options.forceUseAllWhenFew &&
       totalEligibleCount !== undefined &&
-      totalEligibleCount < MIN_USERS_FOR_WEEKLY_LIMIT
+      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
     ) {
       const week = getWeekWindow(dateStr);
       const weekA = countUserAssignmentsInRange(a.id!, fs, week.from, week.to);
       const weekB = countUserAssignmentsInRange(b.id!, fs, week.from, week.to);
       if (weekA !== weekB) return weekA - weekB;
+
+      // Tie-break for "use everyone" mode:
+      // prefer users with a narrower remaining availability window in this week,
+      // so we don't miss assigning weekend-only users when they still can be scheduled.
+      const remainingAvailA = Math.max(1, countAvailableDaysInWindow(a, dateStr, week.to));
+      const remainingAvailB = Math.max(1, countAvailableDaysInWindow(b, dateStr, week.to));
+      if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
     }
 
     // Пріоритет 0: Агресивне балансування (override)
@@ -231,12 +237,14 @@ export const filterByWeeklyCap = (
   allUsers: User[],
   dateStr: string,
   schedule: Record<string, ScheduleEntry>,
-  options: AutoScheduleOptions
+  options: AutoScheduleOptions,
+  eligibleCountOnDate?: number
 ): User[] => {
-  const week = getWeekWindow(dateStr);
-  const weekDates = getDatesInRange(week.from, week.to);
-  if (!shouldEnforceOneDutyPerWeek(allUsers, schedule, weekDates)) return pool;
+  const effectiveEligibleCount =
+    eligibleCountOnDate ?? countEligibleUsersForDate(allUsers, schedule, dateStr);
+  if (effectiveEligibleCount < MIN_USERS_FOR_WEEKLY_LIMIT) return pool;
 
+  const week = getWeekWindow(dateStr);
   const filtered = pool.filter((u) => {
     if (!u.id) return false;
     const assignedInWeek = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);

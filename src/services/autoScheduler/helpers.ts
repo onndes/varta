@@ -108,6 +108,17 @@ export const shouldEnforceOneDutyPerWeek = (
   return eligibleThisWeek.length >= MIN_USERS_FOR_WEEKLY_LIMIT;
 };
 
+/** Скільки бійців доступно саме на конкретну дату */
+export const countEligibleUsersForDate = (
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): number =>
+  users.filter((u) => {
+    if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
+    return isUserAvailable(u, dateStr, schedule);
+  }).length;
+
 /** Чи має боєць неоплачений борг (карма або owedDays) */
 export const hasDebtBacklog = (user: User): boolean => {
   const hasOwedDays = Object.values(user.owedDays || {}).some((v) => v > 0);

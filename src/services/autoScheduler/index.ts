@@ -8,6 +8,7 @@ import { repayOwedDay, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isManualType, getLogicSchedule } from '../../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
 import { buildUserComparator, filterByIncompatiblePairs, filterByWeeklyCap } from './comparator';
+import { countEligibleUsersForDate } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
 // Re-export головного алгоритму
@@ -59,17 +60,20 @@ export const getFreeUsersForDate = (
       !assignedOnDate.has(u.id!) &&
       isUserAvailable(u, dateStr, schedule)
   );
+  const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule, options);
+    candidatePool = filterByWeeklyCap(
+      candidatePool,
+      users,
+      dateStr,
+      schedule,
+      options,
+      totalEligibleCount
+    );
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
-
-  // Загальна кількість доступних бійців (для визначення «мало людей»)
-  const totalEligibleCount = users.filter(
-    (u) => u.isActive && !u.isExtra && !u.excludeFromAuto
-  ).length;
 
   // Сортуємо за спільним пріоритетним компаратором
   return candidatePool.sort(
@@ -157,17 +161,33 @@ export const calculateOptimalAssignment = (
     (u) => u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, schedule)
   );
   if (available.length === 0) return null;
+  const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
   const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    available = filterByWeeklyCap(available, users, dateStr, schedule, options);
+    available = filterByWeeklyCap(
+      available,
+      users,
+      dateStr,
+      schedule,
+      options,
+      totalEligibleCount
+    );
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
   available.sort(
-    buildUserComparator(dateStr, schedule, dayWeights, options, undefined, fairnessSched)
+    buildUserComparator(
+      dateStr,
+      schedule,
+      dayWeights,
+      options,
+      undefined,
+      fairnessSched,
+      totalEligibleCount
+    )
   );
   return available[0];
 };

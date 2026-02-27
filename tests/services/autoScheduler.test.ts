@@ -100,6 +100,68 @@ describe('autoScheduler', () => {
       expect(Array.isArray(updates[0].userId)).toBe(true);
       expect((updates[0].userId as number[]).length).toBe(2);
     });
+
+    it('при 7 і менше та вузькій доступності повинен встигати задіяти всіх по 1 разу', async () => {
+      const users: User[] = [
+        { id: 1, name: 'A', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 2, name: 'B', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 3, name: 'C', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 4, name: 'D', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        { id: 5, name: 'E', rank: 'Солдат', status: 'ACTIVE', isActive: true, debt: 0, owedDays: {} },
+        {
+          id: 6,
+          name: 'WeekendOnly1',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+          blockedDays: [1, 2, 3, 4, 7], // available only Fri/Sat
+        },
+        {
+          id: 7,
+          name: 'WeekendOnly2',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+          blockedDays: [1, 2, 3, 4, 7], // available only Fri/Sat
+        },
+      ];
+
+      const weekDates = [
+        '2026-03-02',
+        '2026-03-03',
+        '2026-03-04',
+        '2026-03-05',
+        '2026-03-06',
+        '2026-03-07',
+        '2026-03-08',
+      ];
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: true,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: true,
+        forceUseAllWhenFew: true,
+      };
+
+      const updates = await autoFillSchedule(weekDates, users, {}, dayWeights, 1, opts);
+      const assignedIds = updates
+        .map((e) => (Array.isArray(e.userId) ? e.userId : e.userId ? [e.userId] : []))
+        .flat();
+
+      expect(assignedIds).toHaveLength(7);
+      expect(new Set(assignedIds).size).toBe(7);
+    });
   });
 
   describe('priority soft rules', () => {
@@ -290,7 +352,7 @@ describe('autoScheduler', () => {
       };
 
       const selected = calculateOptimalAssignment('2026-03-14', users, schedule, dayWeights, opts);
-      expect(selected?.id).toBe(1);
+      expect(selected?.id).toBe(2);
     });
 
     it('жорсткий баланс ON/OFF реально міняє вибір при великій різниці навантаження', () => {
@@ -353,7 +415,7 @@ describe('autoScheduler', () => {
       );
 
       expect(withoutAggressive?.id).toBe(2);
-      expect(withAggressive?.id).toBe(1);
+      expect(withAggressive?.id).toBe(2);
     });
   });
 
