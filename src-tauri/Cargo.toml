@@ -1,9 +1,9 @@
 [package]
 name = "app"
 version = "1.0.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
+description = "VARTA — Система автоматичного розподілу нарядів"
+authors = ["Vladyslav V.V. <vladvyljotnikov@gmail.com>"]
+license = "UNLICENSED"
 repository = ""
 edition = "2021"
 rust-version = "1.77.2"
