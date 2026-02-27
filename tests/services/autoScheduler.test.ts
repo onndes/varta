@@ -285,6 +285,7 @@ describe('autoScheduler', () => {
         allowDebtUsersExtraWeeklyAssignments: true,
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
+        forceUseAllWhenFew: true,
       };
 
       const selected = calculateOptimalAssignment('2026-03-14', users, schedule, dayWeights, opts);
@@ -331,6 +332,7 @@ describe('autoScheduler', () => {
         allowDebtUsersExtraWeeklyAssignments: true,
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: false,
+        forceUseAllWhenFew: true,
       };
       const optsOn: AutoScheduleOptions = { ...optsOff, aggressiveLoadBalancing: true };
 
