@@ -95,7 +95,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           >
             <i className="fas fa-chevron-right"></i>
           </button>
-          <button className="btn btn-light btn-sm ms-1" onClick={onToday}>
+          <button className="btn btn-light btn-sm ms-1 schedule-controls__today" onClick={onToday}>
             Сьогодні
           </button>
           <input

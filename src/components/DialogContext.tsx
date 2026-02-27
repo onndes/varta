@@ -89,11 +89,16 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}
           tabIndex={-1}
         >
-          <div className="modal-dialog modal-dialog-centered modal-sm">
+          <div
+            className="modal-dialog modal-dialog-centered"
+            style={{ maxWidth: 'min(560px, calc(100vw - 2rem))' }}
+          >
             <div className="modal-content shadow border-0">
               <div className="modal-body d-flex gap-3 align-items-start p-4">
                 <i className="fas fa-info-circle text-primary mt-1 fs-5 flex-shrink-0"></i>
-                <div style={{ whiteSpace: 'pre-line' }}>{dialog.message}</div>
+                <div style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                  {dialog.message}
+                </div>
               </div>
               <div className="modal-footer border-0 pt-0">
                 <button className="btn btn-primary" onClick={handleAlertOk} autoFocus>
@@ -112,11 +117,16 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}
           tabIndex={-1}
         >
-          <div className="modal-dialog modal-dialog-centered modal-sm">
+          <div
+            className="modal-dialog modal-dialog-centered"
+            style={{ maxWidth: 'min(560px, calc(100vw - 2rem))' }}
+          >
             <div className="modal-content shadow border-0">
               <div className="modal-body d-flex gap-3 align-items-start p-4">
                 <i className="fas fa-question-circle text-warning mt-1 fs-5 flex-shrink-0"></i>
-                <div style={{ whiteSpace: 'pre-line' }}>{dialog.message}</div>
+                <div style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                  {dialog.message}
+                </div>
               </div>
               <div className="modal-footer border-0 pt-0 gap-2">
                 <button className="btn btn-outline-secondary" onClick={handleConfirmCancel}>

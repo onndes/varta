@@ -209,7 +209,7 @@ const StatsView: React.FC<StatsViewProps> = ({
             <div className="btn-group btn-group-sm" role="group">
               <button
                 type="button"
-                className={`btn ${showActive ? 'btn-primary' : 'btn-outline-secondary'}`}
+                className={`btn btn-sm stats-filter-btn ${showActive ? 'is-on' : ''}`}
                 onClick={() => setShowActive(!showActive)}
               >
                 <i className="fas fa-user-check me-1"></i>
@@ -217,7 +217,7 @@ const StatsView: React.FC<StatsViewProps> = ({
               </button>
               <button
                 type="button"
-                className={`btn ${showInactive ? 'btn-warning' : 'btn-outline-secondary'}`}
+                className={`btn btn-sm stats-filter-btn ${showInactive ? 'is-on' : ''}`}
                 onClick={() => setShowInactive(!showInactive)}
               >
                 <i className="fas fa-user-slash me-1"></i>

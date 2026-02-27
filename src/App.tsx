@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { PrintMode } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
-import { triggerPrint } from './utils/platform';
+import { getAppVersion, triggerPrint } from './utils/platform';
 
 // Hooks
 import { useUsers, useSchedule, useSettings, useExport } from './hooks';
@@ -28,6 +28,7 @@ const App = () => {
   const [printMode, setPrintMode] = useState<PrintMode>('calendar');
   const [workspaceVersion, setWorkspaceVersion] = useState(() => getActiveWorkspaceId());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
 
   // Use custom hooks
   const { users, loading: usersLoading, loadUsers } = useUsers();
@@ -87,6 +88,28 @@ const App = () => {
       document.documentElement.removeAttribute('data-bs-theme');
     }
   }, [theme]);
+
+  // Read runtime app version (Tauri bundle version or web package version)
+  useEffect(() => {
+    getAppVersion().then(setAppVersion);
+  }, []);
+
+  // Show one-time notice when app version changes (offline-friendly)
+  useEffect(() => {
+    if (!appVersion) return;
+    const key = 'varta:last-seen-version';
+    const prev = localStorage.getItem(key);
+    if (!prev) {
+      localStorage.setItem(key, appVersion);
+      return;
+    }
+    if (prev !== appVersion) {
+      showAlert(`Оновлено до версії ${appVersion}`);
+      localStorage.setItem(key, appVersion);
+    }
+  }, [appVersion, showAlert]);
+
+  const displayVersion = appVersion || import.meta.env.VITE_APP_VERSION || '0.0.0';
 
   // Global UI scale for cross-device readability
   useEffect(() => {
@@ -179,7 +202,7 @@ const App = () => {
           </div>
           <div className="app-sidebar__brand-text">
             <span className="app-sidebar__brand-name">ВАРТА</span>
-            <span className="app-sidebar__brand-sub">v1.0-beta</span>
+            <span className="app-sidebar__brand-sub">v{displayVersion}</span>
           </div>
         </div>
 
@@ -291,7 +314,7 @@ const App = () => {
         </main>
 
         <footer className="app-footer no-print">
-          ВАРТА v1.0-beta · Vladyslav V.V. ·{' '}
+          ВАРТА v{displayVersion} · Vladyslav V.V. ·{' '}
           <a href="mailto:vladvyljotnikov@gmail.com" className="text-muted">
             vladvyljotnikov@gmail.com
           </a>

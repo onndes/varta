@@ -25,24 +25,59 @@ export const isDev = (): boolean =>
   typeof import.meta !== 'undefined' && import.meta.env?.DEV === true;
 
 /**
+ * Get app version for UI:
+ * - Tauri: native app version from bundle metadata.
+ * - Browser/file://: Vite-injected package version.
+ */
+export const getAppVersion = async (): Promise<string> => {
+  const fallback = import.meta.env?.VITE_APP_VERSION || '0.0.0';
+  if (isTauri()) {
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app');
+      return await getVersion();
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
+/**
  * Save text content to a file.
  * - In Tauri: opens a native "Save As" dialog → writes to chosen path.
  * - In browser/file://: falls back to Blob + <a> download trick.
  */
 export const saveTextFile = async (content: string, defaultFilename: string): Promise<void> => {
+  const LAST_SAVE_DIR_KEY = 'varta:last-save-dir';
+  const extractDirFromPath = (filePath: string): string | null => {
+    const normalized = filePath.replace(/\\/g, '/');
+    const idx = normalized.lastIndexOf('/');
+    if (idx <= 0) return null;
+    return normalized.slice(0, idx);
+  };
+  const joinPath = (dir: string, filename: string): string => {
+    const usesBackslash = dir.includes('\\') && !dir.includes('/');
+    const sep = usesBackslash ? '\\' : '/';
+    return `${dir.replace(/[\\/]+$/, '')}${sep}${filename}`;
+  };
+
   if (isTauri()) {
     try {
       // Dynamic imports so these modules are tree-shaken in non-Tauri builds
       const { save } = await import('@tauri-apps/plugin-dialog');
       const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+      const lastDir = localStorage.getItem(LAST_SAVE_DIR_KEY);
+      const initialPath = lastDir ? joinPath(lastDir, defaultFilename) : defaultFilename;
 
       const filePath = await save({
-        defaultPath: defaultFilename,
+        defaultPath: initialPath,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
 
       if (filePath) {
         await writeTextFile(filePath, content);
+        const dir = extractDirFromPath(filePath);
+        if (dir) localStorage.setItem(LAST_SAVE_DIR_KEY, dir);
       }
       return;
     } catch (err) {

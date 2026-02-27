@@ -277,6 +277,33 @@ html[data-bs-theme='dark'] {
     color: var(--bs-body-color);
   }
 
+  // Tone down bright buttons in dark mode
+  .schedule-controls__today.btn-light {
+    background-color: #3a414a;
+    border-color: #4a525c;
+    color: #dee2e6;
+  }
+  .schedule-controls__today.btn-light:hover {
+    background-color: #46505a;
+    border-color: #5a646f;
+    color: #f8f9fa;
+  }
+  .stats-filter-btn {
+    border-color: #49505a;
+    background-color: transparent;
+    color: #a0a8b0;
+  }
+  .stats-filter-btn:hover {
+    background-color: #323842;
+    border-color: #5a616b;
+    color: #e2e7ec;
+  }
+  .stats-filter-btn.is-on {
+    background-color: #3a414a;
+    border-color: #59606a;
+    color: #f0f4f8;
+  }
+
   // ── Forms ─────────────────────────────────────────────────────────────────
   .form-control,
   .form-select {
@@ -322,3 +349,27 @@ html[data-bs-theme='dark'] {
 }
 
 // ─── (Military theme removed) ─────────────────────────────────────────────────
+
+// ── Stats filter buttons (base / light theme) ───────────────────────────────
+.stats-filter-btn {
+  min-width: 130px;
+  border: 1px solid #ced4da;
+  background-color: transparent;
+  color: #6c757d;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.stats-filter-btn:hover {
+  background-color: #f3f5f7;
+  border-color: #c3c9d0;
+  color: #495057;
+}
+
+.stats-filter-btn.is-on {
+  background-color: #e9ecef;
+  border-color: #c8ced6;
+  color: #212529;
+}
