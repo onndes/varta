@@ -81,8 +81,9 @@ export const saveTextFile = async (content: string, defaultFilename: string): Pr
       }
       return;
     } catch (err) {
-      console.warn('Tauri save dialog failed, falling back to browser download:', err);
-      // Fall through to browser download
+      throw new Error(
+        `Не вдалося зберегти файл через системний діалог Tauri: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
