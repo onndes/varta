@@ -45,6 +45,14 @@ const CURRENT_BACKUP_VERSION = 7;
 const BACKUP_VERSION_MULTI = 8;
 const SUPPORTED_BACKUP_VERSIONS = new Set([6, CURRENT_BACKUP_VERSION, BACKUP_VERSION_MULTI]);
 
+const sanitizeFilenamePart = (value: string): string =>
+  value
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
 const isValidTimestamp = (value: string): boolean => {
   const isoDateTimePattern =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -223,12 +231,14 @@ const importData = async (data: ExportData): Promise<void> => {
 export const downloadBackup = async (): Promise<void> => {
   const workspaces = getWorkspaces();
   const dateStr = toLocalISO(new Date());
+  const activeId = getActiveWorkspaceId();
+  const activeWorkspaceName = workspaces.find((w) => w.id === activeId)?.name || 'workspace';
+  const workspaceNamePart = sanitizeFilenamePart(activeWorkspaceName) || 'workspace';
   let jsonContent: string;
   let filename: string;
 
   if (workspaces.length > 1) {
     // Multi-workspace v8 format
-    const activeId = getActiveWorkspaceId();
     const databases: Record<string, ExportData> = {};
 
     for (const ws of workspaces) {
@@ -247,12 +257,12 @@ export const downloadBackup = async (): Promise<void> => {
       databases,
     };
     jsonContent = JSON.stringify(multiData, null, 2);
-    filename = `VARTA_FULL_BACKUP_${dateStr}.json`;
+    filename = `VARTA_FULL_BACKUP_${workspaceNamePart}_${dateStr}.json`;
   } else {
     // Single workspace — v7 format
     const data = await exportData();
     jsonContent = JSON.stringify(data, null, 2);
-    filename = `VARTA_BACKUP_${dateStr}.json`;
+    filename = `VARTA_BACKUP_${workspaceNamePart}_${dateStr}.json`;
   }
 
   // Use native Tauri dialog when available, otherwise browser download

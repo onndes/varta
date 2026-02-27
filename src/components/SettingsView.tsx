@@ -14,6 +14,7 @@ interface SettingsViewProps {
   maxDebt: number;
   printMaxRows: number;
   ignoreHistoryInLogic: boolean;
+  uiScale: number;
   onSave: (w: DayWeights) => Promise<void>;
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
@@ -21,10 +22,11 @@ interface SettingsViewProps {
   onSaveMaxDebt: (value: number) => Promise<void>;
   onSavePrintMaxRows: (value: number) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
+  onSaveUiScale: (value: number) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
 }
 
-type SubTab = 'logic' | 'print';
+type SubTab = 'logic' | 'interface' | 'print';
 
 const SettingsView: React.FC<SettingsViewProps> = ({
   dayWeights,
@@ -34,6 +36,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   maxDebt,
   printMaxRows,
   ignoreHistoryInLogic,
+  uiScale,
   onSave,
   onSaveSignatories,
   onSaveDutiesPerDay,
@@ -41,6 +44,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   onSaveMaxDebt,
   onSavePrintMaxRows,
   onSaveIgnoreHistoryInLogic,
+  onSaveUiScale,
   logAction,
 }) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
@@ -50,6 +54,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [autoOpts, setAutoOpts] = useState<AutoScheduleOptions>(autoScheduleOptions);
   const [debt, setDebt] = useState<number>(maxDebt);
   const [maxRows, setMaxRows] = useState<number>(printMaxRows);
+  const [scale, setScale] = useState<number>(uiScale);
 
   // DB maintenance modal
   const [showDbModal, setShowDbModal] = useState(false);
@@ -79,6 +84,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     setMaxRows(printMaxRows);
   }, [printMaxRows]);
+
+  useEffect(() => {
+    setScale(uiScale);
+  }, [uiScale]);
 
   // ─── Auto-save effects (debounced) ──────────────────────
   const mountedRef = useRef(false);
@@ -137,6 +146,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxRows]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (scale === uiScale) return;
+    const t = setTimeout(() => {
+      onSaveUiScale(scale);
+      logAction('SETTINGS', `Масштаб інтерфейсу: ${scale}%`);
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale]);
 
   useEffect(() => {
     if (!mountedRef.current) return;
@@ -584,6 +604,40 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     </>
   );
 
+  // ─── Sub-tab: Interface ────────────────────────────────────
+  const renderInterfaceTab = () => (
+    <>
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-search-plus me-2"></i>Масштаб інтерфейсу
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="row g-3 align-items-end">
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Розмір UI</label>
+              <select
+                className="form-select"
+                value={scale}
+                onChange={(e) => setScale(parseInt(e.target.value, 10))}
+              >
+                <option value={90}>90% (менший)</option>
+                <option value={100}>100% (стандарт)</option>
+                <option value={110}>110%</option>
+                <option value={120}>120%</option>
+                <option value={130}>130% (великий)</option>
+              </select>
+              <div className="form-text">
+                Застосовується до всього інтерфейсу (браузер, Tauri, Electron).
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   // ─── Sub-tab: Print ────────────────────────────────────────
   const renderPrintTab = () => (
     <>
@@ -822,6 +876,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 <i className="fas fa-print me-1"></i>Друк
               </button>
             </li>
+            <li className="nav-item">
+              <button
+                className={`nav-link ${subTab === 'interface' ? 'active' : ''}`}
+                onClick={() => setSubTab('interface')}
+              >
+                <i className="fas fa-display me-1"></i>Інтерфейс
+              </button>
+            </li>
           </ul>
 
           {/* DB Maintenance — small button */}
@@ -836,6 +898,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Content */}
         {subTab === 'logic' && renderLogicTab()}
+        {subTab === 'interface' && renderInterfaceTab()}
         {subTab === 'print' && renderPrintTab()}
       </div>
 

@@ -112,15 +112,30 @@
 .app-sidebar__bottom {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
   margin-top: auto;
+  padding: 0 0.5rem 0.6rem;
   flex-shrink: 0;
 
   .app-sidebar__item {
+    width: 100%;
+    margin: 0;
     opacity: 0.6;
     font-size: 0.82rem;
 
     &:hover {
       opacity: 1;
+    }
+  }
+
+  .app-shell--collapsed & {
+    .app-sidebar__item {
+      width: 34px;
+      justify-content: center;
+      padding-left: 0;
+      padding-right: 0;
+      border-radius: 50%;
     }
   }
 }

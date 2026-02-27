@@ -33,6 +33,7 @@ export const useSettings = () => {
   const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
   const [printMaxRows, setPrintMaxRows] = useState<number>(DEFAULT_PRINT_MAX_ROWS);
   const [ignoreHistoryInLogic, setIgnoreHistoryInLogic] = useState(false);
+  const [uiScale, setUiScale] = useState(100);
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export const useSettings = () => {
         debt,
         maxRows,
         ignoreHistory,
+        savedUiScale,
         savedTheme,
       ] = await Promise.all([
         settingsService.getDayWeights(),
@@ -62,6 +64,7 @@ export const useSettings = () => {
         settingsService.getMaxDebt(),
         settingsService.getPrintMaxRows(),
         settingsService.getIgnoreHistoryInLogic(),
+        settingsService.getUiScale(),
         settingsService.getTheme(),
       ]);
 
@@ -73,6 +76,7 @@ export const useSettings = () => {
       setMaxDebt(debt);
       setPrintMaxRows(maxRows);
       setIgnoreHistoryInLogic(ignoreHistory);
+      setUiScale(savedUiScale);
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
     } catch (err) {
@@ -196,6 +200,17 @@ export const useSettings = () => {
     }
   }, []);
 
+  // Save UI scale
+  const saveUiScale = useCallback(async (value: number) => {
+    try {
+      await settingsService.saveUiScale(value);
+      setUiScale(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save UI scale');
+      throw err;
+    }
+  }, []);
+
   // Save theme
   const saveTheme = useCallback(async (value: AppTheme) => {
     try {
@@ -221,6 +236,7 @@ export const useSettings = () => {
     maxDebt,
     printMaxRows,
     ignoreHistoryInLogic,
+    uiScale,
     theme,
     loading,
     error,
@@ -230,6 +246,7 @@ export const useSettings = () => {
     saveDutiesPerDay,
     savePrintMaxRows,
     saveIgnoreHistoryInLogic,
+    saveUiScale,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,

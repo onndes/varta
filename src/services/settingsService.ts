@@ -94,6 +94,12 @@ export const getIgnoreHistoryInLogic = async (): Promise<boolean> =>
 export const saveIgnoreHistoryInLogic = async (value: boolean): Promise<void> =>
   saveSetting('ignoreHistoryInLogic', value);
 
+// ── UI scale ───────────────────────────────────────────────────────────
+
+export const getUiScale = async (): Promise<number> => getJsonSetting('uiScale', 100);
+
+export const saveUiScale = async (value: number): Promise<void> => saveSetting('uiScale', value);
+
 // ── Theme ─────────────────────────────────────────────────────────
 
 const THEME_LS_KEY = 'varta-theme';
@@ -160,5 +166,6 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
   await saveSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
   await saveSetting('ignoreHistoryInLogic', false);
+  await saveSetting('uiScale', 100);
   // theme is intentionally NOT reset — user preference
 };

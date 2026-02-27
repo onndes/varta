@@ -40,6 +40,7 @@ const App = () => {
     maxDebt,
     printMaxRows,
     ignoreHistoryInLogic,
+    uiScale,
     theme,
     loadSettings,
     saveDayWeights,
@@ -49,6 +50,7 @@ const App = () => {
     saveMaxDebt,
     savePrintMaxRows,
     saveIgnoreHistoryInLogic,
+    saveUiScale,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -60,6 +62,7 @@ const App = () => {
     importData: handleImportData,
     logAction,
   } = useExport();
+  const hasData = users.length > 0 || Object.keys(schedule).length > 0;
 
   const loading = usersLoading || scheduleLoading;
 
@@ -85,12 +88,20 @@ const App = () => {
     }
   }, [theme]);
 
+  // Global UI scale for cross-device readability
+  useEffect(() => {
+    const scale = Number.isFinite(uiScale) ? Math.min(130, Math.max(85, uiScale)) : 100;
+    document.documentElement.style.fontSize = `${(16 * scale) / 100}px`;
+  }, [uiScale]);
+
   // Check backup status when needed
   React.useEffect(() => {
-    if (isBackupNeeded) {
+    if (isBackupNeeded && hasData) {
       setShowBackupAlert(true);
+    } else if (!hasData) {
+      setShowBackupAlert(false);
     }
-  }, [isBackupNeeded]);
+  }, [isBackupNeeded, hasData]);
 
   // Handle import
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,6 +205,9 @@ const App = () => {
             title={sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
           >
             <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
+            <span className="app-sidebar__collapse-label">
+              {sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
+            </span>
           </button>
         </div>
       </aside>
@@ -201,8 +215,8 @@ const App = () => {
       {/* ─── Main area ──────────────────────────────────────────── */}
       <div className="app-main">
         <Header
-          needsExport={needsExport}
-          hasData={users.length > 0 || Object.keys(schedule).length > 0}
+          needsExport={needsExport && hasData}
+          hasData={hasData}
           onImport={handleImport}
           onExport={handleExport}
           onPrint={handlePrint}
@@ -260,6 +274,7 @@ const App = () => {
               maxDebt={maxDebt}
               printMaxRows={printMaxRows}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
+              uiScale={uiScale}
               onSave={saveDayWeights}
               onSaveSignatories={saveSignatories}
               onSaveDutiesPerDay={saveDutiesPerDay}
@@ -267,6 +282,7 @@ const App = () => {
               onSaveMaxDebt={saveMaxDebt}
               onSavePrintMaxRows={savePrintMaxRows}
               onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
+              onSaveUiScale={saveUiScale}
               logAction={logAction}
             />
           )}
