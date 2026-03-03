@@ -3,6 +3,7 @@ import type { User } from '../../types';
 import { STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
 import { formatRank } from '../../utils/helpers';
 import { toLocalISO } from '../../utils/dateUtils';
+import { getFutureStatusPeriods, getStatusPeriodAtDate } from '../../utils/userStatus';
 
 interface UserRowProps {
   user: User;
@@ -23,15 +24,8 @@ const UserRow: React.FC<UserRowProps> = ({
 }) => {
   const u = user;
   const todayStr = toLocalISO(new Date());
-  const statusFrom = u.statusFrom || '0000-01-01';
-  const statusTo = u.statusTo || '9999-12-31';
-  const hasStatusRange = !!(u.statusFrom || u.statusTo);
-  const isNonActiveStatus = u.isActive && u.status !== 'ACTIVE';
-  const isFuturePlannedStatus = isNonActiveStatus && !!u.statusFrom && u.statusFrom > todayStr;
-  const isCurrentStatus =
-    isNonActiveStatus && (!hasStatusRange || (todayStr >= statusFrom && todayStr <= statusTo));
-  const displayStatus = !u.isActive ? 'INACTIVE' : isCurrentStatus ? u.status : 'ACTIVE';
-  const showStatusDates = isCurrentStatus || isFuturePlannedStatus;
+  const currentStatusPeriod = getStatusPeriodAtDate(u, todayStr);
+  const futureStatusPeriods = getFutureStatusPeriods(u, todayStr);
 
   // Map status codes to readable icon+label pairs
   const STATUS_META: Record<string, { icon: string; label: string; cls: string }> = {
@@ -40,12 +34,11 @@ const UserRow: React.FC<UserRowProps> = ({
     VACATION: { icon: 'fa-umbrella-beach', label: 'Відпустка', cls: 'text-bg-warning' },
     TRIP: { icon: 'fa-briefcase', label: 'Відрядж.', cls: 'text-bg-info' },
     ABSENT: { icon: 'fa-circle-minus', label: 'Відсутній', cls: 'text-bg-secondary' },
-    OTHER: { icon: 'fa-circle-info', label: 'Інше', cls: 'text-bg-secondary' },
     INACTIVE: { icon: 'fa-circle-xmark', label: 'Неактив', cls: 'bg-secondary' },
   };
 
-  const statusKey = displayStatus;
-  const meta = STATUS_META[statusKey] ?? STATUS_META.OTHER;
+  const statusKey = !u.isActive ? 'INACTIVE' : currentStatusPeriod?.status || 'ACTIVE';
+  const meta = STATUS_META[statusKey] ?? STATUS_META.ABSENT;
 
   const toShortDate = (iso?: string) =>
     iso
@@ -55,21 +48,22 @@ const UserRow: React.FC<UserRowProps> = ({
         })
       : '..';
 
-  const statusDateRange =
-    (u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && showStatusDates
-      ? `${toShortDate(u.statusFrom)}–${toShortDate(u.statusTo)}`
-      : null;
-  const mapStatusLabel = (status: string) => {
-    if (status === 'OTHER') return 'Відсутній';
-    return STATUSES[status] || status;
+  const mapStatusLabel = (status: string) => STATUSES[status] || status;
+  const formatStatusBadgeText = (status: string, from?: string, to?: string) => {
+    const hasRange = !!(from || to);
+    const range = hasRange ? ` ${toShortDate(from)}–${toShortDate(to)}` : '';
+    return `${mapStatusLabel(status)}${range}`;
   };
-  const statusBadgeText = `${u.isActive ? mapStatusLabel(displayStatus) : 'Неактив'}${
-    displayStatus !== 'ACTIVE' && statusDateRange ? ` ${statusDateRange}` : ''
-  }`;
-  const plannedStatusBadgeText =
-    isFuturePlannedStatus && u.status !== 'ACTIVE'
-      ? `${mapStatusLabel(u.status)}${statusDateRange ? ` ${statusDateRange}` : ''}`
-      : null;
+  const statusBadgeText = !u.isActive
+    ? 'Неактив'
+    : currentStatusPeriod
+      ? formatStatusBadgeText(currentStatusPeriod.status, currentStatusPeriod.from, currentStatusPeriod.to)
+      : mapStatusLabel('ACTIVE');
+  const absenceComments = [currentStatusPeriod, ...futureStatusPeriods]
+    .filter((period): period is NonNullable<typeof period> => !!period)
+    .filter((period) => period.status === 'ABSENT' && !!period.comment)
+    .map((period) => period.comment!.trim())
+    .filter(Boolean);
 
   const blockedDateRange =
     u.blockedDaysFrom || u.blockedDaysTo
@@ -148,17 +142,18 @@ const UserRow: React.FC<UserRowProps> = ({
           <span className={`badge ${meta.cls}`} style={{ minWidth: '72px', fontSize: '0.75rem' }}>
             {statusBadgeText}
           </span>
-          {plannedStatusBadgeText && (
+          {futureStatusPeriods.map((period, idx) => (
             <span
-              className={`badge ${STATUS_META[u.status]?.cls || STATUS_META.OTHER.cls}`}
+              key={`${period.status}-${period.from || ''}-${period.to || ''}-${idx}`}
+              className={`badge ${STATUS_META[period.status]?.cls || STATUS_META.ABSENT.cls}`}
               style={{ minWidth: '72px', fontSize: '0.75rem' }}
             >
-              {plannedStatusBadgeText}
+              {formatStatusBadgeText(period.status, period.from, period.to)}
             </span>
-          )}
-          {u.status === 'OTHER' && u.statusComment && (
+          ))}
+          {absenceComments.length > 0 && (
             <small className="text-muted fst-italic" style={{ fontSize: '0.7rem' }}>
-              {u.statusComment}
+              {absenceComments.join(' • ')}
             </small>
           )}
         </div>

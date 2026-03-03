@@ -15,6 +15,7 @@ import {
   getLogicSchedule,
   isHistoryType,
 } from '../utils/assignment';
+import { getStatusPeriodsInRange } from '../utils/userStatus';
 
 interface StatsViewProps {
   users: User[];
@@ -62,19 +63,28 @@ const StatsView: React.FC<StatsViewProps> = ({
       .map(([d]) => d)
       .sort();
     const earliestScheduleDate = nonHistoryDates[0] || todayStr;
-    const overlapDays = (
-      from: string,
-      to: string,
-      statusFrom?: string,
-      statusTo?: string
-    ): number => {
-      if (!statusFrom || !statusTo) return 0;
-      const lo = statusFrom > from ? statusFrom : from;
-      const hi = statusTo < to ? statusTo : to;
-      if (hi < lo) return 0;
-      const d1 = new Date(lo);
-      const d2 = new Date(hi);
-      return Math.floor((d2.getTime() - d1.getTime()) / 86400000) + 1;
+    const countUnavailableDays = (user: User, from: string, to: string): number => {
+      const periods = getStatusPeriodsInRange(user, from, to).filter(
+        (period) =>
+          period.status === 'VACATION' || period.status === 'TRIP' || period.status === 'SICK'
+      );
+      if (periods.length === 0) return 0;
+
+      const days = new Set<string>();
+      periods.forEach((period) => {
+        const fromDate = period.from || from;
+        const toDate = period.to || to;
+        const lo = fromDate > from ? fromDate : from;
+        const hi = toDate < to ? toDate : to;
+        if (hi < lo) return;
+        const cursor = new Date(lo);
+        const end = new Date(hi);
+        while (cursor <= end) {
+          days.add(toLocalISO(cursor));
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      });
+      return days.size;
     };
 
     return users
@@ -108,9 +118,7 @@ const StatsView: React.FC<StatsViewProps> = ({
               (new Date(todayStr).getTime() - new Date(trackingFrom).getTime()) / 86400000
             ) + 1;
           const statusBlockedDays =
-            u.status === 'VACATION' || u.status === 'TRIP' || u.status === 'SICK'
-              ? overlapDays(trackingFrom, todayStr, u.statusFrom, u.statusTo)
-              : 0;
+            countUnavailableDays(u, trackingFrom, todayStr);
           availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
         }
 

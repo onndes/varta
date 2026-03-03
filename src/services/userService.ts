@@ -4,6 +4,7 @@ import { db } from '../db/db';
 import type { User, ScheduleEntry } from '../types';
 import { DEFAULT_MAX_DEBT } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
+import { getStatusPeriodAtDate, getUserStatusPeriods } from '../utils/userStatus';
 
 /** Дані видаленого бійця для збереження в історії графіку */
 export interface DeletedUserInfo {
@@ -279,33 +280,26 @@ export const getUserAvailabilityStatus = (
     }
   }
 
-  if (user.status === 'ACTIVE') return 'AVAILABLE';
+  const activeStatusPeriod = getStatusPeriodAtDate(user, dateStr);
+  if (activeStatusPeriod) return 'STATUS_BUSY';
 
-  // Перевірка діапазону статусу та відпочинку навколо нього
-  if (user.statusFrom || user.statusTo) {
-    const from = user.statusFrom || MIN_DATE;
-    const to = user.statusTo || MAX_DATE;
-
-    // День до початку статусу (якщо увімкнено)
-    if (user.restBeforeStatus && user.statusFrom) {
-      const dayBefore = new Date(user.statusFrom);
+  const statusPeriods = getUserStatusPeriods(user);
+  for (const period of statusPeriods) {
+    const restBefore = period.restBefore ?? !!user.restBeforeStatus;
+    const restAfter = period.restAfter ?? !!user.restAfterStatus;
+    if (restBefore && period.from) {
+      const dayBefore = new Date(period.from);
       dayBefore.setDate(dayBefore.getDate() - 1);
       if (dateStr === toLocalISO(dayBefore)) return 'PRE_STATUS_DAY';
     }
-
-    // День після завершення статусу (якщо увімкнено)
-    if (user.restAfterStatus && user.statusTo) {
-      const nextDay = new Date(user.statusTo);
+    if (restAfter && period.to) {
+      const nextDay = new Date(period.to);
       nextDay.setDate(nextDay.getDate() + 1);
       if (dateStr === toLocalISO(nextDay)) return 'REST_DAY';
     }
-
-    if (dateStr >= from && dateStr <= to) return 'STATUS_BUSY';
-
-    return 'AVAILABLE';
   }
 
-  return 'UNAVAILABLE';
+  return 'AVAILABLE';
 };
 
 /**

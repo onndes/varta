@@ -38,7 +38,7 @@ export interface User {
   id?: number;
   name: string;
   rank: string;
-  status: 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT' | 'OTHER';
+  status: UserStatus;
   statusFrom?: string;
   statusTo?: string;
   isActive: boolean; // Full participation (if false - user is absent, shown gray in separate tab)
@@ -55,7 +55,20 @@ export interface User {
   owedDays?: Record<number, number>;
   isExtra?: boolean; // Special participant (trainee, driver) - manual assignment only
   dateAddedToAuto?: string; // Date when isExtra was disabled (included in auto schedule)
-  statusComment?: string; // Comment for OTHER status reason
+  statusComment?: string; // Legacy comment field (migrated into statusPeriods[].comment)
+  statusPeriods?: UserStatusPeriod[]; // Planned/current status periods (multiple intervals)
+}
+
+export type UserStatus = 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT' | 'OTHER';
+export type UserAbsenceStatus = 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT';
+
+export interface UserStatusPeriod {
+  status: UserAbsenceStatus;
+  from?: string;
+  to?: string;
+  comment?: string; // For ABSENT only
+  restBefore?: boolean; // Rest day before this status period
+  restAfter?: boolean; // Rest day after this status period
 }
 
 export interface ScheduleEntry {

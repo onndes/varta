@@ -10,6 +10,11 @@ import { useDialog } from './useDialog';
 import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
 import { getFirstDutyDate } from '../utils/assignment';
+import {
+  getFutureStatusPeriods,
+  getStatusPeriodAtDate,
+  getUserStatusPeriods,
+} from '../utils/userStatus';
 import * as userService from '../services/userService';
 
 interface UsersViewProps {
@@ -63,30 +68,41 @@ const UsersView: React.FC<UsersViewProps> = ({
   const saveUser = useCallback(
     async (user: User) => {
       if (!user.id) return;
+      const todayStr = toLocalISO(new Date());
+      const normalizedPeriods = getUserStatusPeriods(user);
+      const currentPeriod = getStatusPeriodAtDate(user, todayStr);
+      const nextPeriod = getFutureStatusPeriods(user, todayStr)[0];
+      const legacyPeriod = currentPeriod || null;
+      const legacyRestBefore = legacyPeriod?.restBefore || false;
+      const legacyRestAfter = legacyPeriod?.restAfter || false;
+
       await updateUser(user.id, {
         name: user.name,
         rank: user.rank,
-        status: user.status,
-        statusFrom: user.statusFrom,
-        statusTo: user.statusTo,
+        status: legacyPeriod ? legacyPeriod.status : 'ACTIVE',
+        statusFrom: legacyPeriod ? legacyPeriod.from : undefined,
+        statusTo: legacyPeriod ? legacyPeriod.to : undefined,
         isActive: user.isActive,
         excludeFromAuto: user.excludeFromAuto,
         note: user.note,
-        restBeforeStatus: user.restBeforeStatus,
-        restAfterStatus: user.restAfterStatus,
+        restBeforeStatus: legacyRestBefore,
+        restAfterStatus: legacyRestAfter,
         blockedDays: user.blockedDays,
         blockedDaysFrom: user.blockedDaysFrom,
         blockedDaysTo: user.blockedDaysTo,
         blockedDaysComment: user.blockedDaysComment,
-        statusComment: user.status === 'OTHER' ? user.statusComment : undefined,
+        statusComment: legacyPeriod?.status === 'ABSENT' ? legacyPeriod.comment : undefined,
+        statusPeriods: normalizedPeriods,
         dateAddedToAuto: user.dateAddedToAuto,
       });
       await userService.syncUserIncompatibility(user.id, user.incompatibleWith);
 
-      if (user.status !== 'ACTIVE' && user.statusFrom) {
-        await updateCascadeTrigger(user.statusFrom);
+      if (legacyPeriod?.from) {
+        await updateCascadeTrigger(legacyPeriod.from);
+      } else if (nextPeriod?.from) {
+        await updateCascadeTrigger(nextPeriod.from);
       } else {
-        await updateCascadeTrigger(new Date().toISOString().split('T')[0]);
+        await updateCascadeTrigger(todayStr);
       }
 
       await refreshData();
@@ -138,6 +154,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       debt: 0.0,
       statusFrom: '',
       statusTo: '',
+      statusPeriods: [],
       restAfterStatus: false,
       owedDays: {},
       dateAddedToAuto,

@@ -3,6 +3,7 @@ import type { User, ScheduleEntry, Signatories } from '../../types';
 import { formatRank, splitFormattedName, compareByRankAndName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
+import { getUserStatusPeriods } from '../../utils/userStatus';
 
 interface PrintStatusListProps {
   users: User[];
@@ -144,17 +145,18 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({
 }) => {
   const usersMap = new Map(users.map((u) => [u.id!, u]));
 
-  // Бійці з не-активними статусами
+  // Бійці з не-активними статусами (всі статус-періоди)
   const statusRows: StatusRow[] = users
-    .filter((u) => u.status !== 'ACTIVE')
     .sort(compareByRankAndName)
-    .map((user) => ({
-      user,
-      reason: STATUSES[user.status] || user.status,
-      from: formatDate(user.statusFrom),
-      to: formatDate(user.statusTo),
-      comment: [user.note, user.statusComment].filter(Boolean).join('. '),
-    }));
+    .flatMap((user) =>
+      getUserStatusPeriods(user).map((period) => ({
+        user,
+        reason: STATUSES[period.status] || period.status,
+        from: formatDate(period.from),
+        to: formatDate(period.to),
+        comment: [user.note, period.comment].filter(Boolean).join('. '),
+      }))
+    );
 
   // Бійці із заблокованими днями
   const blockedRows = collectBlockedRows(users);

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { User, ScheduleEntry, DayWeights, TimelineEvent } from '../../types';
-import { DAY_NAMES_FULL } from '../../utils/constants';
+import { DAY_NAMES_FULL, STATUSES } from '../../utils/constants';
 import { formatRank } from '../../utils/helpers';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getPoolCommonFrom, getUserFairnessFrom } from '../../utils/fairness';
@@ -14,6 +14,7 @@ import * as auditService from '../../services/auditService';
 import Modal from '../Modal';
 import { isAssignedInEntry } from '../../utils/assignment';
 import { getLogicSchedule } from '../../utils/assignment';
+import { getUserStatusPeriods } from '../../utils/userStatus';
 import AbsenceSection from './AbsenceSection';
 import TimelineSection from './TimelineSection';
 
@@ -47,6 +48,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
     () => Object.values(logicSchedule).filter((s) => isAssignedInEntry(s, user.id!)),
     [logicSchedule, user.id]
   );
+  const statusPeriods = useMemo(() => getUserStatusPeriods(user), [user]);
   const totalAssignments = userSchedule.length;
 
   const dates = userSchedule.map((s) => s.date).sort();
@@ -66,26 +68,26 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
 
   const statusEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
-    if (user.status !== 'ACTIVE' && (user.statusFrom || user.statusTo)) {
-      if (user.statusFrom) {
+    statusPeriods.forEach((period) => {
+      if (period.from) {
         events.push({
-          date: user.statusFrom,
+          date: period.from,
           title: 'Початок службової відсутності',
-          details: `Статус: ${user.status}`,
+          details: `Статус: ${STATUSES[period.status] || period.status}`,
           tone: 'warning',
         });
       }
-      if (user.statusTo) {
+      if (period.to) {
         events.push({
-          date: user.statusTo,
+          date: period.to,
           title: 'Завершення службової відсутності',
-          details: `Статус: ${user.status}`,
+          details: `Статус: ${STATUSES[period.status] || period.status}`,
           tone: 'success',
         });
       }
-    }
+    });
     return events;
-  }, [user.status, user.statusFrom, user.statusTo]);
+  }, [statusPeriods]);
 
   useEffect(() => {
     let cancelled = false;

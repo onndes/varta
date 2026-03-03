@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import type { User, ScheduleEntry, TimelineEvent } from '../../types';
 import { isAssignedInEntry } from '../../utils/assignment';
+import { getUserStatusPeriods } from '../../utils/userStatus';
 
-type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'absent' | 'other' | 'request';
+type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'absent' | 'request';
 type PeriodMode = 'all' | 'year' | 'month';
 
 const ABSENCE_LABELS: Record<AbsenceKey, string> = {
@@ -10,7 +11,6 @@ const ABSENCE_LABELS: Record<AbsenceKey, string> = {
   trip: 'Відрядження',
   sick: 'Лікарняний',
   absent: 'Відсутній',
-  other: 'Інше',
   request: 'За власним бажанням',
 };
 
@@ -44,9 +44,9 @@ const countOverlapDays = (
   periodStart?: Date,
   periodEnd?: Date
 ): number => {
-  if (!from || !to || !periodStart || !periodEnd) return 0;
-  const start = new Date(from);
-  const end = new Date(to);
+  if (!periodStart || !periodEnd) return 0;
+  const start = from ? new Date(from) : new Date(periodStart);
+  const end = to ? new Date(to) : new Date(periodEnd);
   const lo = start < periodStart ? periodStart : start;
   const hi = end > periodEnd ? periodEnd : end;
   if (hi < lo) return 0;
@@ -74,20 +74,22 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     trip: true,
     sick: true,
     absent: true,
-    other: true,
     request: true,
   });
+  const statusPeriods = useMemo(() => getUserStatusPeriods(user), [user]);
 
   const availableYears = useMemo(() => {
     const years = new Set<number>([currentYear]);
-    if (user.statusFrom) years.add(new Date(user.statusFrom).getFullYear());
-    if (user.statusTo) years.add(new Date(user.statusTo).getFullYear());
+    statusPeriods.forEach((period) => {
+      if (period.from) years.add(new Date(period.from).getFullYear());
+      if (period.to) years.add(new Date(period.to).getFullYear());
+    });
     userSchedule.forEach((s) => years.add(new Date(s.date).getFullYear()));
     auditEvents
       .filter((e) => e.title === 'Зняття за рапортом')
       .forEach((e) => years.add(new Date(e.date).getFullYear()));
     return Array.from(years).sort((a, b) => b - a);
-  }, [auditEvents, currentYear, user.statusFrom, user.statusTo, userSchedule]);
+  }, [auditEvents, currentYear, statusPeriods, userSchedule]);
 
   const effectiveYear = availableYears.includes(selectedYear)
     ? selectedYear
@@ -117,23 +119,21 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
       trip: 0,
       sick: 0,
       absent: 0,
-      other: 0,
       request: 0,
     };
 
-    if (user.status !== 'ACTIVE' && user.statusFrom && user.statusTo) {
+    statusPeriods.forEach((period) => {
       const days = countOverlapDays(
-        user.statusFrom,
-        user.statusTo,
+        period.from,
+        period.to,
         periodRange.start,
         periodRange.end
       );
-      if (user.status === 'VACATION') counts.vacation = days;
-      if (user.status === 'TRIP') counts.trip = days;
-      if (user.status === 'SICK') counts.sick = days;
-      if (user.status === 'ABSENT') counts.absent = days;
-      if (user.status === 'OTHER') counts.other = days;
-    }
+      if (period.status === 'VACATION') counts.vacation += days;
+      if (period.status === 'TRIP') counts.trip += days;
+      if (period.status === 'SICK') counts.sick += days;
+      if (period.status === 'ABSENT') counts.absent += days;
+    });
 
     counts.request = auditEvents.filter((e) => {
       if (e.title !== 'Зняття за рапортом') return false;
@@ -146,9 +146,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     auditEvents,
     periodRange.end,
     periodRange.start,
-    user.status,
-    user.statusFrom,
-    user.statusTo,
+    statusPeriods,
   ]);
 
   const visibleAbsenceKeys = useMemo(
@@ -185,12 +183,15 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     };
 
     const statusBlockedDays =
-      user.status === 'VACATION' || user.status === 'TRIP' || user.status === 'SICK'
-        ? overlapDays(start, todayStr, user.statusFrom, user.statusTo)
-        : 0;
+      statusPeriods
+        .filter((period) => period.status === 'VACATION' || period.status === 'TRIP' || period.status === 'SICK')
+        .reduce(
+          (sum, period) => sum + overlapDays(start, todayStr, period.from, period.to),
+          0
+        );
 
     return Math.max(0, totalWindowDays - statusBlockedDays);
-  }, [schedule, todayStr, user.dateAddedToAuto, user.status, user.statusFrom, user.statusTo]);
+  }, [schedule, todayStr, user.dateAddedToAuto, statusPeriods]);
 
   return (
     <div className="card border-0 bg-light mb-3">

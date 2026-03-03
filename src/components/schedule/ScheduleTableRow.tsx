@@ -4,6 +4,7 @@ import { formatRank, formatNameForPrint } from '../../utils/helpers';
 import { STATUSES } from '../../utils/constants';
 import { getUserAvailabilityStatus } from '../../services/userService';
 import { isAssignedInEntry } from '../../utils/assignment';
+import { getStatusPeriodAtDate } from '../../utils/userStatus';
 
 interface ScheduleTableRowProps {
   user: User;
@@ -139,7 +140,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
 
           // Show status text in unavailable cells
           if (availabilityStatus === 'STATUS_BUSY') {
-            screenContent = STATUSES[user.status] || 'ЗАЙНЯТИЙ';
+            const period = getStatusPeriodAtDate(user, date);
+            screenContent = period ? STATUSES[period.status] || period.status : 'ЗАЙНЯТИЙ';
           } else if (availabilityStatus === 'REST_DAY') {
             screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
           } else if (availabilityStatus === 'DAY_BLOCKED') {

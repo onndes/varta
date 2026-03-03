@@ -35,6 +35,7 @@ import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import ImportScheduleModal from './schedule/ImportScheduleModal';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 import { getAssignedCount, toAssignedUserIds, getLogicSchedule } from '../utils/assignment';
+import { getStatusPeriodAtDate } from '../utils/userStatus';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -286,13 +287,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         const user = users.find((u) => u.id === id);
         if (!user) return !deletedUserIds.has(id);
         if (!isUserAvailable(user, date, schedule)) {
-          if (
-            (user.status === 'VACATION' || user.status === 'SICK' || user.status === 'TRIP') &&
-            user.statusFrom &&
-            user.statusTo &&
-            date >= user.statusFrom &&
-            date <= user.statusTo
-          ) {
+          const period = getStatusPeriodAtDate(user, date);
+          if (period && (period.status === 'VACATION' || period.status === 'SICK' || period.status === 'TRIP')) {
             criticalConflicts.push(date);
           }
           return true;

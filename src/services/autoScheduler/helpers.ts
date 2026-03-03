@@ -4,7 +4,7 @@
 import type { User, ScheduleEntry, AutoScheduleOptions } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getUserFairnessFrom } from '../../utils/fairness';
-import { isUserAvailable } from '../userService';
+import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isHistoryType } from '../../utils/assignment';
 
 // ─── Константи ──────────────────────────────────────────────────────
@@ -23,12 +23,6 @@ export const MAX_REBALANCE_ITERATIONS = 100;
 
 /** Поріг різниці навантаження, нижче якого вважаємо збалансованим */
 export const REBALANCE_THRESHOLD = 0.03;
-
-/** Мінімальна дата для fallback-порівняння */
-export const MIN_DATE_SENTINEL = '0000-01-01';
-
-/** Максимальна дата для fallback-порівняння */
-export const MAX_DATE_SENTINEL = '9999-12-31';
 
 /** Точність порівняння дробових чисел */
 export const FLOAT_EPSILON = 1e-9;
@@ -198,56 +192,7 @@ export const daysSinceLastAssignment = (
  * (відпустка / відрядження / лікування / неактивний)
  */
 export const isHardUnavailable = (user: User, dateStr: string): boolean => {
-  if (!user.isActive) return true;
-
-  // Заблоковані дні тижня (ISO: 1=Пн..7=Нд)
-  if (user.blockedDays && user.blockedDays.length > 0) {
-    const jsDow = new Date(dateStr).getDay();
-    const isoDayIdx = jsDow === 0 ? 7 : jsDow;
-    if (user.blockedDays.includes(isoDayIdx)) {
-      const from = user.blockedDaysFrom || MIN_DATE_SENTINEL;
-      const to = user.blockedDaysTo || MAX_DATE_SENTINEL;
-      if (dateStr >= from && dateStr <= to) return true;
-    }
-  }
-
-  if (user.status === 'ACTIVE') return false;
-
-  // Усі не-ACTIVE статуси
-  if (
-    user.status === 'VACATION' ||
-    user.status === 'TRIP' ||
-    user.status === 'SICK' ||
-    user.status === 'ABSENT' ||
-    user.status === 'OTHER'
-  ) {
-    if (user.statusFrom || user.statusTo) {
-      const from = user.statusFrom || MIN_DATE_SENTINEL;
-      const to = user.statusTo || MAX_DATE_SENTINEL;
-      if (dateStr >= from && dateStr <= to) return true;
-
-      // Відпочинок до початку статусу
-      if (user.restBeforeStatus && user.statusFrom) {
-        const dayBefore = new Date(user.statusFrom);
-        dayBefore.setDate(dayBefore.getDate() - 1);
-        if (dateStr === toLocalISO(dayBefore)) return true;
-      }
-
-      // Відпочинок після завершення статусу
-      if (user.restAfterStatus && user.statusTo) {
-        const nextDay = new Date(user.statusTo);
-        nextDay.setDate(nextDay.getDate() + 1);
-        if (dateStr === toLocalISO(nextDay)) return true;
-      }
-
-      return false;
-    }
-
-    // Не-ACTIVE без діапазону дат = постійно недоступний
-    return true;
-  }
-
-  return false;
+  return getUserAvailabilityStatus(user, dateStr) !== 'AVAILABLE';
 };
 
 /**
