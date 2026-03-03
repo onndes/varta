@@ -250,7 +250,7 @@ const App = () => {
           onSaveTheme={saveTheme}
         />
 
-        <main className="app-content">
+        <main className={`app-content ${activeTab === 'schedule' ? 'app-content--schedule' : ''}`}>
           {activeTab === 'schedule' && (
             <ScheduleView
               users={users}

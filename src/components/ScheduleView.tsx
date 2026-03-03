@@ -476,19 +476,21 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         <PrintHeader signatories={signatories} weekDates={weekDates} />
       )}
 
-      <ScheduleTable
-        users={users}
-        weekDates={weekDates}
-        schedule={schedule}
-        todayStr={todayStr}
-        dutiesPerDay={dutiesPerDay}
-        historyMode={historyMode}
-        deletedUserNames={deletedUserNames}
-        onCellClick={(date, entry, assignedUserId) => {
-          setSelectedCell({ date, entry, assignedUserId });
-          setSwapMode('replace');
-        }}
-      />
+      <div className="schedule-table-scroll-area">
+        <ScheduleTable
+          users={users}
+          weekDates={weekDates}
+          schedule={schedule}
+          todayStr={todayStr}
+          dutiesPerDay={dutiesPerDay}
+          historyMode={historyMode}
+          deletedUserNames={deletedUserNames}
+          onCellClick={(date, entry, assignedUserId) => {
+            setSelectedCell({ date, entry, assignedUserId });
+            setSwapMode('replace');
+          }}
+        />
+      </div>
 
       {printMode === 'calendar' && (
         <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />

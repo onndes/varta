@@ -102,6 +102,19 @@
 
 // ─── Schedule Controls ───────────────────────────────────────────────────────
 
+.schedule-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.schedule-table-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .schedule-controls {
   padding: 0.5rem 0.75rem;
 }
