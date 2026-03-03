@@ -105,10 +105,16 @@ export const saveUiScale = async (value: number): Promise<void> => saveSetting('
 const THEME_LS_KEY = 'varta-theme';
 
 export const getTheme = async (): Promise<string> => {
-  // Prefer localStorage (set synchronously) so we can also pre-apply in index.html
+  // Prefer DB value (workspace-specific), then sync to localStorage for pre-apply in index.html
+  const dbTheme = await getJsonSetting('theme', '');
+  if (dbTheme === 'light' || dbTheme === 'dark') {
+    localStorage.setItem(THEME_LS_KEY, dbTheme);
+    return dbTheme;
+  }
+
   const lsVal = localStorage.getItem(THEME_LS_KEY);
   if (lsVal === 'light' || lsVal === 'dark') return lsVal;
-  return getJsonSetting('theme', 'light');
+  return 'light';
 };
 
 export const saveTheme = async (theme: string): Promise<void> => {

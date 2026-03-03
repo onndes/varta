@@ -30,6 +30,9 @@ export interface ExportData {
   dutiesPerDay?: number;
   printMaxRows?: number;
   ignoreHistoryInLogic?: boolean;
+  uiScale?: number;
+  deletedUsers?: Record<number, unknown>;
+  cascadeStartDate?: string | null;
   theme?: string;
 }
 
@@ -59,6 +62,22 @@ const isValidTimestamp = (value: string): boolean => {
   return isoDateTimePattern.test(value) && !Number.isNaN(Date.parse(value));
 };
 
+const THEME_LS_KEY = 'varta-theme';
+
+const applyImportedTheme = (theme: unknown): void => {
+  if (theme !== 'light' && theme !== 'dark') return;
+  if (typeof window === 'undefined') return;
+
+  localStorage.setItem(THEME_LS_KEY, theme);
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-bs-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-bs-theme');
+  }
+  document.body.classList.remove('theme-light', 'theme-dark');
+  document.body.classList.add(`theme-${theme}`);
+};
+
 /** Type guard for multi-workspace format */
 export const isMultiWorkspaceExport = (data: unknown): data is MultiWorkspaceExportData => {
   if (!data || typeof data !== 'object') return false;
@@ -80,6 +99,9 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dutiesPerDayRec,
     printMaxRowsRec,
     ignoreHistoryRec,
+    uiScaleRec,
+    deletedUsersRec,
+    cascadeStartDateRec,
     themeRec,
   ] = await Promise.all([
     targetDb.users.toArray(),
@@ -92,6 +114,9 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('dutiesPerDay'),
     targetDb.appState.get('printMaxRows'),
     targetDb.appState.get('ignoreHistoryInLogic'),
+    targetDb.appState.get('uiScale'),
+    targetDb.appState.get('deletedUsers'),
+    targetDb.appState.get('cascadeStartDate'),
     targetDb.appState.get('theme'),
   ]);
   return {
@@ -107,6 +132,13 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
     printMaxRows: printMaxRowsRec ? (printMaxRowsRec.value as number) : undefined,
     ignoreHistoryInLogic: ignoreHistoryRec ? (ignoreHistoryRec.value as boolean) : undefined,
+    uiScale: uiScaleRec ? (uiScaleRec.value as number) : undefined,
+    deletedUsers: deletedUsersRec
+      ? (deletedUsersRec.value as Record<number, unknown>)
+      : undefined,
+    cascadeStartDate: cascadeStartDateRec
+      ? ((cascadeStartDateRec.value as string | null) ?? null)
+      : undefined,
     theme: themeRec ? (themeRec.value as string) : undefined,
   };
 };
@@ -124,6 +156,7 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
       await targetDb.users.clear();
       await targetDb.schedule.clear();
       await targetDb.auditLog.clear();
+      await targetDb.appState.clear();
 
       // Записати дані
       await targetDb.users.bulkAdd(data.users as never[]);
@@ -153,7 +186,11 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
           key: 'ignoreHistoryInLogic',
           value: data.ignoreHistoryInLogic,
         });
-      // Theme is a device preference — restore only if present in backup
+      if (data.uiScale != null) await targetDb.appState.put({ key: 'uiScale', value: data.uiScale });
+      if (typeof data.deletedUsers !== 'undefined')
+        await targetDb.appState.put({ key: 'deletedUsers', value: data.deletedUsers });
+      if (typeof data.cascadeStartDate !== 'undefined')
+        await targetDb.appState.put({ key: 'cascadeStartDate', value: data.cascadeStartDate });
       if (data.theme) await targetDb.appState.put({ key: 'theme', value: data.theme });
 
       // Прапорці
@@ -214,6 +251,7 @@ const importAllWorkspaces = async (data: MultiWorkspaceExportData): Promise<void
 
   // Switch the in-memory db singleton to the restored active workspace
   await switchDatabase(restoredActiveId);
+  applyImportedTheme(data.databases[restoredActiveId]?.theme);
 };
 
 // ── Export / Import ───────────────────────────────────────────────────
@@ -224,8 +262,7 @@ export const exportData = async (): Promise<ExportData> => readDataFromDb(db);
 /** Імпортувати дані в поточну БД (v6/v7 single-workspace формат) */
 const importData = async (data: ExportData): Promise<void> => {
   await restoreDataToDb(db, data);
-  // Додатково скидаємо cascade trigger (для поточного db)
-  await db.appState.put({ key: 'cascadeStartDate', value: null });
+  applyImportedTheme(data.theme);
 };
 
 /**
