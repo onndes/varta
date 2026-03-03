@@ -695,11 +695,21 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 value={scale}
                 onChange={(e) => setScale(parseInt(e.target.value, 10))}
               >
-                <option value={90}>90% (менший)</option>
+                <option value={70}>70% (дуже малий)</option>
+                <option value={80}>80% (малий)</option>
+                <option value={85}>85%</option>
+                <option value={90}>90%</option>
+                <option value={95}>95%</option>
                 <option value={100}>100% (стандарт)</option>
+                <option value={105}>105%</option>
                 <option value={110}>110%</option>
+                <option value={115}>115%</option>
                 <option value={120}>120%</option>
+                <option value={125}>125%</option>
                 <option value={130}>130% (великий)</option>
+                <option value={140}>140%</option>
+                <option value={150}>150%</option>
+                <option value={160}>160% (дуже великий)</option>
               </select>
               <div className="form-text">
                 Застосовується до всього інтерфейсу (браузер, Tauri, Electron).

@@ -115,7 +115,7 @@ const App = () => {
 
   // Global UI scale for cross-device readability
   useEffect(() => {
-    const scale = Number.isFinite(uiScale) ? Math.min(130, Math.max(85, uiScale)) : 100;
+    const scale = Number.isFinite(uiScale) ? Math.min(160, Math.max(70, uiScale)) : 100;
     document.documentElement.style.fontSize = `${(16 * scale) / 100}px`;
   }, [uiScale]);
 
