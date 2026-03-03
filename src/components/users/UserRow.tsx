@@ -6,13 +6,21 @@ import { toLocalISO } from '../../utils/dateUtils';
 
 interface UserRowProps {
   user: User;
+  allUsers: User[];
   rowNumber: number;
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
   onViewStats: (user: User) => void;
 }
 
-const UserRow: React.FC<UserRowProps> = ({ user, rowNumber, onEdit, onDelete, onViewStats }) => {
+const UserRow: React.FC<UserRowProps> = ({
+  user,
+  allUsers,
+  rowNumber,
+  onEdit,
+  onDelete,
+  onViewStats,
+}) => {
   const u = user;
   const todayStr = toLocalISO(new Date());
   const statusEnded = !!u.statusTo && u.statusTo < todayStr;
@@ -54,6 +62,27 @@ const UserRow: React.FC<UserRowProps> = ({ user, rowNumber, onEdit, onDelete, on
     u.blockedDaysFrom || u.blockedDaysTo
       ? `${toShortDate(u.blockedDaysFrom)}–${toShortDate(u.blockedDaysTo)}`
       : null;
+
+  const userId = u.id;
+  const reverseIncompatibleIds =
+    userId !== undefined
+      ? allUsers
+          .filter(
+            (x) =>
+              x.id !== undefined &&
+              x.id !== userId &&
+              (x.incompatibleWith || []).includes(userId)
+          )
+          .map((x) => x.id!)
+      : [];
+  const incompatibleIds = Array.from(
+    new Set([...(u.incompatibleWith || []), ...reverseIncompatibleIds].filter((id) => id !== u.id))
+  ).sort((a, b) => a - b);
+  const incompatibleEntries = incompatibleIds.map((id) => {
+    const target = allUsers.find((x) => x.id === id);
+    const name = target ? target.name.trim().split(/\s+/)[0] || target.name : `ID:${id}`;
+    return { id, name };
+  });
 
   // Розділяємо ПІБ: прізвище (КАПСОМ), ім'я + по-батькові (тонше, менше)
   const nameParts = u.name.trim().split(/\s+/);
@@ -136,6 +165,15 @@ const UserRow: React.FC<UserRowProps> = ({ user, rowNumber, onEdit, onDelete, on
                 ({blockedDateRange})
               </small>
             )}
+          </div>
+        )}
+        {incompatibleEntries.length > 0 && (
+          <div className="mt-1 users-incompat">
+            <i className="fas fa-people-arrows"></i>
+            <span className="users-incompat__label">Несумісність:</span>
+            <span className="users-incompat__names">
+              {incompatibleEntries.map((entry) => entry.name).join(', ')}
+            </span>
           </div>
         )}
         {u.excludeFromAuto && (

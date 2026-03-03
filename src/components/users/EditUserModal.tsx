@@ -31,7 +31,20 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const dateFromRef = useRef<HTMLInputElement | null>(null);
   const dateToRef = useRef<HTMLInputElement | null>(null);
   const blockedDays = user.blockedDays || [];
-  const incompatibleIds = useMemo(() => user.incompatibleWith || [], [user.incompatibleWith]);
+  const reverseIncompatibleIds = useMemo(() => {
+    if (!user.id) return [];
+    return allUsers
+      .filter((u) => u.id !== undefined && u.id !== user.id && (u.incompatibleWith || []).includes(user.id!))
+      .map((u) => u.id!);
+  }, [allUsers, user.id]);
+
+  const incompatibleIds = useMemo(
+    () =>
+      Array.from(
+        new Set([...(user.incompatibleWith || []), ...reverseIncompatibleIds].filter((id) => id !== user.id))
+      ).sort((a, b) => a - b),
+    [user.incompatibleWith, reverseIncompatibleIds, user.id]
+  );
 
   // Users available for the incompatible list (exclude self)
   const otherUsers = useMemo(

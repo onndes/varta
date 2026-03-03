@@ -67,6 +67,60 @@ export const updateUser = async (id: number, updates: Partial<User>): Promise<nu
   return await db.users.update(id, updates);
 };
 
+const normalizeIncompatibleIds = (ids?: number[], selfId?: number): number[] =>
+  Array.from(
+    new Set(
+      (ids || []).filter(
+        (id) => Number.isFinite(id) && Number.isInteger(id) && id > 0 && id !== selfId
+      )
+    )
+  ).sort((a, b) => a - b);
+
+/**
+ * Синхронізувати несумісність у дві сторони:
+ * якщо A несумісний з B, то B автоматично несумісний з A.
+ */
+export const syncUserIncompatibility = async (
+  userId: number,
+  incompatibleIds?: number[]
+): Promise<void> => {
+  const allUsers = await db.users.toArray();
+  const self = allUsers.find((u) => u.id === userId);
+  if (!self) return;
+
+  const validIds = new Set(allUsers.map((u) => u.id).filter((id): id is number => !!id));
+  validIds.delete(userId);
+
+  const nextSelfIds = normalizeIncompatibleIds(incompatibleIds, userId).filter((id) =>
+    validIds.has(id)
+  );
+  const nextSet = new Set(nextSelfIds);
+
+  const currentSelfIds = normalizeIncompatibleIds(self.incompatibleWith, userId);
+  if (JSON.stringify(currentSelfIds) !== JSON.stringify(nextSelfIds)) {
+    await db.users.update(userId, {
+      incompatibleWith: nextSelfIds.length > 0 ? nextSelfIds : undefined,
+    });
+  }
+
+  for (const other of allUsers) {
+    if (!other.id || other.id === userId) continue;
+
+    const currentOtherIds = normalizeIncompatibleIds(other.incompatibleWith, other.id);
+    const hasSelfNow = currentOtherIds.includes(userId);
+    const shouldHaveSelf = nextSet.has(other.id);
+    if (hasSelfNow === shouldHaveSelf) continue;
+
+    const nextOtherIds = shouldHaveSelf
+      ? [...currentOtherIds, userId].sort((a, b) => a - b)
+      : currentOtherIds.filter((id) => id !== userId);
+
+    await db.users.update(other.id, {
+      incompatibleWith: nextOtherIds.length > 0 ? nextOtherIds : undefined,
+    });
+  }
+};
+
 /**
  * Отримати карту видалених бійців {id → {name, rank}}
  */

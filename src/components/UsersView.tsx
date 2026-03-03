@@ -10,6 +10,7 @@ import { useDialog } from './useDialog';
 import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
 import { getFirstDutyDate } from '../utils/assignment';
+import * as userService from '../services/userService';
 
 interface UsersViewProps {
   users: User[];
@@ -79,8 +80,8 @@ const UsersView: React.FC<UsersViewProps> = ({
         blockedDaysComment: user.blockedDaysComment,
         statusComment: user.status === 'OTHER' ? user.statusComment : undefined,
         dateAddedToAuto: user.dateAddedToAuto,
-        incompatibleWith: user.incompatibleWith,
       });
+      await userService.syncUserIncompatibility(user.id, user.incompatibleWith);
 
       if (user.status !== 'ACTIVE' && user.statusFrom) {
         await updateCascadeTrigger(user.statusFrom);
@@ -156,17 +157,18 @@ const UsersView: React.FC<UsersViewProps> = ({
     await refreshData();
   };
 
-  const handleCloseEditModal = useCallback(() => {
+  const handleCloseEditModal = useCallback(async () => {
     const draft = editingUser;
-    setEditingUser(null);
 
-    if (!draft?.id) return;
-
-    // Flush pending draft immediately on close (autosave debounce may be canceled).
-    const persisted = users.find((u) => u.id === draft.id);
-    if (!persisted || JSON.stringify(draft) !== JSON.stringify(persisted)) {
-      void saveUser(draft);
+    if (draft?.id) {
+      // Flush pending draft on close and wait for sync to finish.
+      const persisted = users.find((u) => u.id === draft.id);
+      if (!persisted || JSON.stringify(draft) !== JSON.stringify(persisted)) {
+        await saveUser(draft);
+      }
     }
+
+    setEditingUser(null);
   }, [editingUser, users, saveUser]);
 
   const activeCount = sortedActiveUsers.length;
@@ -266,6 +268,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                   <UserRow
                     key={u.id}
                     user={u}
+                    allUsers={users}
                     rowNumber={idx + 1}
                     onEdit={setEditingUser}
                     onDelete={handleDelete}
@@ -298,6 +301,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                   <UserRow
                     key={u.id}
                     user={u}
+                    allUsers={users}
                     rowNumber={idx + 1}
                     onEdit={setEditingUser}
                     onDelete={handleDelete}
