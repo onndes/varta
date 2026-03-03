@@ -156,6 +156,19 @@ const UsersView: React.FC<UsersViewProps> = ({
     await refreshData();
   };
 
+  const handleCloseEditModal = useCallback(() => {
+    const draft = editingUser;
+    setEditingUser(null);
+
+    if (!draft?.id) return;
+
+    // Flush pending draft immediately on close (autosave debounce may be canceled).
+    const persisted = users.find((u) => u.id === draft.id);
+    if (!persisted || JSON.stringify(draft) !== JSON.stringify(persisted)) {
+      void saveUser(draft);
+    }
+  }, [editingUser, users, saveUser]);
+
   const activeCount = sortedActiveUsers.length;
   const inactiveCount = sortedInactiveUsers.length;
 
@@ -311,7 +324,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         <EditUserModal
           user={editingUser}
           onChange={setEditingUser}
-          onClose={() => setEditingUser(null)}
+          onClose={handleCloseEditModal}
           computedFairnessDate={(() => {
             const dates = Object.keys(schedule).sort();
             return dates[0] || toLocalISO(new Date());
