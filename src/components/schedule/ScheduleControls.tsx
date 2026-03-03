@@ -62,52 +62,81 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   const endDate = new Date(weekDates[6]);
   const todayStr = toLocalISO(new Date());
   const isFutureWeek = weekDates[0] > todayStr;
+  const weekRangeLabel = `${startDate.toLocaleDateString('uk-UA', {
+    day: 'numeric',
+    month: 'long',
+  })} — ${endDate.toLocaleDateString('uk-UA', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })}`;
 
   return (
-    <div className="card border-0 shadow-sm p-2 mb-2 no-print">
+    <div className="card schedule-controls-card border-0 shadow-sm p-2 mb-2 no-print">
       {/* Row 0: period title */}
-      <div className="text-center mb-2">
-        <span className="fw-bold" style={{ fontSize: '1.05rem' }}>
-          {startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} —{' '}
-          {endDate.toLocaleDateString('uk-UA', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </span>
+      <div className="schedule-controls__title mb-2">
+        <small className="schedule-controls__title-prefix">Графік на</small>
+        <div className="schedule-controls__title-range">{weekRangeLabel}</div>
       </div>
 
-      {/* Row 1: navigation + undo/redo */}
+      {/* Row 1: navigation */}
+      <div className="d-flex align-items-center gap-1 mb-2 flex-wrap">
+        <button
+          className="btn btn-outline-secondary btn-sm"
+          onClick={onPrevWeek}
+          title="Попередній тиждень"
+        >
+          <i className="fas fa-chevron-left"></i>
+        </button>
+        <button
+          className="btn btn-outline-secondary btn-sm"
+          onClick={onNextWeek}
+          title="Наступний тиждень"
+        >
+          <i className="fas fa-chevron-right"></i>
+        </button>
+        <button className="btn btn-light btn-sm ms-1 schedule-controls__today" onClick={onToday}>
+          Сьогодні
+        </button>
+        <input
+          type="date"
+          className="form-control form-control-sm ms-1"
+          style={{ width: '130px' }}
+          onChange={(e) => onDatePick(e.target.value)}
+          value={weekDates[0]}
+        />
+      </div>
+
+      {/* Row 2: history/import + undo/redo */}
       <div className="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
-        {/* Left: nav arrows + today + date picker */}
-        <div className="d-flex align-items-center gap-1">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
           <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={onPrevWeek}
-            title="Попередній тиждень"
+            className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
+            onClick={onToggleHistoryMode}
+            disabled={isFutureWeek}
+            title={
+              isFutureWeek
+                ? 'Недоступно на майбутніх тижнях'
+                : 'Розблокувати минулі дні для ручного заповнення старого графіка'
+            }
           >
-            <i className="fas fa-chevron-left"></i>
+            <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
+            {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
           </button>
           <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={onNextWeek}
-            title="Наступний тиждень"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={onImportSchedule}
+            disabled={isFutureWeek}
+            title={
+              isFutureWeek
+                ? 'Недоступно на майбутніх тижнях'
+                : 'Імпорт старого графіка (CSV/текст)'
+            }
           >
-            <i className="fas fa-chevron-right"></i>
+            <i className="fas fa-file-import me-1"></i>Імпорт
           </button>
-          <button className="btn btn-light btn-sm ms-1 schedule-controls__today" onClick={onToday}>
-            Сьогодні
-          </button>
-          <input
-            type="date"
-            className="form-control form-control-sm ms-1"
-            style={{ width: '130px' }}
-            onChange={(e) => onDatePick(e.target.value)}
-            value={weekDates[0]}
-          />
         </div>
 
-        {/* Right: undo / redo */}
         <div className="d-flex align-items-center gap-1">
           <button
             className="btn btn-sm btn-outline-secondary"
@@ -128,29 +157,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
         </div>
       </div>
 
-      {/* Row 2: history/import */}
-      {!isFutureWeek && (
-        <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
-          <button
-            className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
-            onClick={onToggleHistoryMode}
-            title="Розблокувати минулі дні для ручного заповнення старого графіка"
-          >
-            <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
-            {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
-          </button>
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            onClick={onImportSchedule}
-            title="Імпорт старого графіка (CSV/текст)"
-          >
-            <i className="fas fa-file-import me-1"></i>Імпорт
-          </button>
-        </div>
-      )}
-
       {/* Row 3: conflicts + cascade + generation actions */}
-      <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
+      <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap schedule-controls__footer">
         {criticalConflictsCount > 0 && (
           <button className="btn btn-sm btn-danger shadow" onClick={onFixConflicts}>
             <i className="fas fa-exclamation-triangle me-1"></i>

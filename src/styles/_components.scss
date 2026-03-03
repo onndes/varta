@@ -75,6 +75,31 @@
   padding: 0.5rem 0.75rem;
 }
 
+.schedule-controls-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.schedule-controls__title {
+  text-align: center;
+  line-height: 1.15;
+}
+
+.schedule-controls__title-prefix {
+  display: block;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bs-secondary-color, #6c757d);
+  margin-bottom: 0.2rem;
+}
+
+.schedule-controls__title-range {
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
 .schedule-controls__nav {
   display: flex;
   align-items: center;
@@ -105,6 +130,11 @@
   @media (max-width: 991.98px) {
     justify-content: center;
   }
+}
+
+.schedule-controls__footer {
+  margin-top: auto;
+  padding-top: 0.4rem;
 }
 
 // ─── Sidebar bottom area ─────────────────────────────────────────────────────

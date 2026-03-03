@@ -23,9 +23,11 @@
       justify-content: flex-start;
     }
 
-    // ScheduleControls card sticks to the bottom of its cell
+    // ScheduleControls card fills the same height as WeekNavigator cell
     > .card {
-      align-self: end;
+      align-self: stretch;
+      height: 100%;
+      margin-bottom: 0 !important;
     }
   }
 }
@@ -40,6 +42,10 @@
   background: var(--app-week-nav-bg, #f8f9fa);
   border-radius: 8px;
   align-items: center;
+}
+
+.schedule-controls-card {
+  background-color: var(--app-week-nav-bg, #f8f9fa) !important;
 }
 
 .week-nav-year-row {
