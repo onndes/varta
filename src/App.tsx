@@ -285,13 +285,12 @@ const App = () => {
               schedule={schedule}
               dayWeights={dayWeights}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
-              refreshData={refreshData}
-              logAction={logAction}
-              updateCascadeTrigger={updateCascadeTrigger}
             />
           )}
           {activeTab === 'settings' && (
             <SettingsView
+              users={users}
+              schedule={schedule}
               dayWeights={dayWeights}
               signatories={signatories}
               dutiesPerDay={dutiesPerDay}
@@ -308,6 +307,8 @@ const App = () => {
               onSavePrintMaxRows={savePrintMaxRows}
               onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
               onSaveUiScale={saveUiScale}
+              refreshData={refreshData}
+              updateCascadeTrigger={updateCascadeTrigger}
               logAction={logAction}
             />
           )}

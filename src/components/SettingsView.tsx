@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions, User, ScheduleEntry } from '../types';
 import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
 import * as performanceService from '../services/performanceService';
 import type { DatabaseStats } from '../services/performanceService';
+import { toLocalISO } from '../utils/dateUtils';
+import { getFirstDutyDate } from '../utils/assignment';
+import * as userService from '../services/userService';
 import Modal from './Modal';
 import { useDialog } from './useDialog';
 
 interface SettingsViewProps {
+  users: User[];
+  schedule: Record<string, ScheduleEntry>;
   dayWeights: DayWeights;
   signatories: Signatories;
   dutiesPerDay: number;
@@ -23,12 +28,16 @@ interface SettingsViewProps {
   onSavePrintMaxRows: (value: number) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
+  refreshData: () => Promise<void>;
+  updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
 }
 
 type SubTab = 'logic' | 'interface' | 'print';
 
 const SettingsView: React.FC<SettingsViewProps> = ({
+  users,
+  schedule,
   dayWeights,
   signatories,
   dutiesPerDay,
@@ -45,6 +54,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   onSavePrintMaxRows,
   onSaveIgnoreHistoryInLogic,
   onSaveUiScale,
+  refreshData,
+  updateCascadeTrigger,
   logAction,
 }) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
@@ -176,6 +187,28 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
   const { showAlert, showConfirm } = useDialog();
 
+  const applyFirstDutyDates = async () => {
+    if (!(await showConfirm('Проставити "З дати" як перше чергування для всіх?'))) return;
+    let changed = 0;
+    for (const u of users) {
+      if (!u.id) continue;
+      const firstDuty = getFirstDutyDate(schedule, u.id);
+      if (!firstDuty || u.dateAddedToAuto === firstDuty) continue;
+      await userService.updateUser(u.id, { dateAddedToAuto: firstDuty });
+      changed += 1;
+    }
+
+    if (changed === 0) {
+      await showAlert('Немає змін');
+      return;
+    }
+
+    await updateCascadeTrigger(toLocalISO(new Date()));
+    await logAction('BULK_EDIT', `З дати = перше чергування (${changed} ос.)`);
+    await refreshData();
+    await showAlert(`Готово: оновлено ${changed}`);
+  };
+
   const loadDatabaseStats = async () => {
     const stats = await performanceService.getDatabaseStats();
     const needs = await performanceService.checkMaintenanceNeeded();
@@ -287,6 +320,23 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="form-text">Скільки осіб одночасно несуть чергування в одну добу.</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* First duty date sync */}
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-header bg-white py-3">
+          <h5 className="mb-0 fw-bold">
+            <i className="fas fa-calendar-check me-2"></i>Дата включення в авточергу
+          </h5>
+        </div>
+        <div className="card-body">
+          <div className="text-muted small mb-3">
+            Масово проставляє поле "З дати" як дату першого чергування для кожної особи.
+          </div>
+          <button type="button" className="btn btn-outline-primary btn-sm" onClick={applyFirstDutyDates}>
+            <i className="fas fa-calendar-check me-1"></i>З дати першого чергування
+          </button>
         </div>
       </div>
 

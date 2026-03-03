@@ -14,19 +14,13 @@ import {
   isAssignedInEntry,
   getLogicSchedule,
   isHistoryType,
-  getFirstDutyDate,
 } from '../utils/assignment';
-import { useDialog } from './useDialog';
-import * as userService from '../services/userService';
 
 interface StatsViewProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
   dayWeights: DayWeights;
   ignoreHistoryInLogic: boolean;
-  refreshData: () => Promise<void>;
-  logAction: (action: string, details: string) => Promise<void>;
-  updateCascadeTrigger: (date: string) => Promise<void>;
 }
 
 const StatsView: React.FC<StatsViewProps> = ({
@@ -34,9 +28,6 @@ const StatsView: React.FC<StatsViewProps> = ({
   schedule,
   dayWeights,
   ignoreHistoryInLogic,
-  refreshData,
-  logAction,
-  updateCascadeTrigger,
 }) => {
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
@@ -52,7 +43,6 @@ const StatsView: React.FC<StatsViewProps> = ({
     width: 0,
     bottom: 0,
   });
-  const { showConfirm, showAlert } = useDialog();
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -63,36 +53,6 @@ const StatsView: React.FC<StatsViewProps> = ({
     }
   };
   const todayStr = toLocalISO(new Date());
-  const firstDutyByUser = useMemo(() => {
-    const map = new Map<number, string>();
-    users.forEach((u) => {
-      if (!u.id) return;
-      const firstDuty = getFirstDutyDate(schedule, u.id);
-      if (firstDuty) map.set(u.id, firstDuty);
-    });
-    return map;
-  }, [users, schedule]);
-
-  const applyFirstDutyDates = async () => {
-    if (!(await showConfirm('Проставити "З дати" як перше чергування для всіх?'))) return;
-    let changed = 0;
-    for (const u of users) {
-      if (!u.id) continue;
-      const firstDuty = firstDutyByUser.get(u.id);
-      if (!firstDuty) continue;
-      if (u.dateAddedToAuto === firstDuty) continue;
-      await userService.updateUser(u.id, { dateAddedToAuto: firstDuty });
-      changed += 1;
-    }
-    if (changed > 0) {
-      await updateCascadeTrigger(todayStr);
-      await logAction('BULK_EDIT', `З дати = перше чергування (${changed} ос.)`);
-      await refreshData();
-      await showAlert(`Готово: оновлено ${changed}`);
-    } else {
-      await showAlert('Немає змін');
-    }
-  };
 
   const allStats = useMemo(() => {
     const logicSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
@@ -290,13 +250,6 @@ const StatsView: React.FC<StatsViewProps> = ({
             <i className="fas fa-chart-line me-2 text-primary"></i>Статистика навантаження
           </h5>
           <div className="d-flex gap-2 align-items-center">
-            <button
-              type="button"
-              className="btn btn-outline-primary btn-sm"
-              onClick={applyFirstDutyDates}
-            >
-              <i className="fas fa-calendar-check me-1"></i>З дати першого чергування
-            </button>
             <div className="btn-group btn-group-sm" role="group">
               <button
                 type="button"
