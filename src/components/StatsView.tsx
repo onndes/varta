@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import {
   formatRank,
@@ -43,6 +43,15 @@ const StatsView: React.FC<StatsViewProps> = ({
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyInnerRef = useRef<HTMLDivElement | null>(null);
+  const [stickyScrollbar, setStickyScrollbar] = useState({
+    visible: false,
+    left: 0,
+    width: 0,
+    bottom: 0,
+  });
   const { showConfirm, showAlert } = useDialog();
 
   const toggleSort = (key: SortKey) => {
@@ -195,6 +204,84 @@ const StatsView: React.FC<StatsViewProps> = ({
     return sortUsersBy(filteredStats, sortKey, sortDir);
   }, [filteredStats, sortKey, sortDir]);
 
+  useEffect(() => {
+    const tableEl = tableScrollRef.current;
+    const stickyEl = stickyScrollRef.current;
+    const stickyInnerEl = stickyInnerRef.current;
+    if (!tableEl || !stickyEl || !stickyInnerEl) return;
+
+    let isSyncing = false;
+    const syncFromTable = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      stickyEl.scrollLeft = tableEl.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncing = false;
+      });
+    };
+    const syncFromSticky = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      tableEl.scrollLeft = stickyEl.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncing = false;
+      });
+    };
+
+    const updateStickyScrollbar = () => {
+      const hasHorizontalOverflow = tableEl.scrollWidth - tableEl.clientWidth > 1;
+      stickyInnerEl.style.width = `${tableEl.scrollWidth}px`;
+
+      const rect = tableEl.getBoundingClientRect();
+      const footerEl = document.querySelector('.app-footer') as HTMLElement | null;
+      const footerRect = footerEl?.getBoundingClientRect();
+      const footerBottomOffset =
+        footerRect && footerRect.top < window.innerHeight
+          ? Math.max(0, window.innerHeight - footerRect.top)
+          : 0;
+      const viewportBottom = window.innerHeight - footerBottomOffset;
+      const shouldStick =
+        hasHorizontalOverflow && rect.top < viewportBottom && rect.bottom > viewportBottom;
+
+      const next = {
+        visible: shouldStick,
+        left: Math.max(0, rect.left),
+        width: Math.max(0, rect.width),
+        bottom: footerBottomOffset,
+      };
+      setStickyScrollbar((prev) =>
+        prev.visible === next.visible &&
+        prev.left === next.left &&
+        prev.width === next.width &&
+        prev.bottom === next.bottom
+          ? prev
+          : next
+      );
+    };
+
+    const appContentEl = tableEl.closest('.app-content');
+    tableEl.addEventListener('scroll', syncFromTable, { passive: true });
+    stickyEl.addEventListener('scroll', syncFromSticky, { passive: true });
+    appContentEl?.addEventListener('scroll', updateStickyScrollbar, { passive: true });
+    window.addEventListener('resize', updateStickyScrollbar);
+
+    const ro = new ResizeObserver(updateStickyScrollbar);
+    ro.observe(tableEl);
+    const tableTag = tableEl.querySelector('table');
+    if (tableTag) ro.observe(tableTag);
+
+    updateStickyScrollbar();
+    syncFromTable();
+
+    return () => {
+      tableEl.removeEventListener('scroll', syncFromTable);
+      stickyEl.removeEventListener('scroll', syncFromSticky);
+      appContentEl?.removeEventListener('scroll', updateStickyScrollbar);
+      window.removeEventListener('resize', updateStickyScrollbar);
+      ro.disconnect();
+    };
+  }, [stats.length, showActive, showInactive, sortKey, sortDir]);
+
   return (
     <div className="card shadow-sm border-0">
       <div className="card-header bg-white py-3">
@@ -237,8 +324,9 @@ const StatsView: React.FC<StatsViewProps> = ({
           <span>Немає осіб у складі</span>
         </div>
       ) : (
-        <div className="table-responsive">
-          <table className="table table-hover align-middle mb-0 table-align-center">
+        <>
+          <div ref={tableScrollRef} className="table-responsive stats-table-scroll">
+            <table className="table table-hover align-middle mb-0 table-align-center stats-table">
             <thead className="table-light small">
               <tr>
                 <th
@@ -427,8 +515,21 @@ const StatsView: React.FC<StatsViewProps> = ({
                 );
               })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+          <div
+            ref={stickyScrollRef}
+            className={`stats-sticky-scrollbar${stickyScrollbar.visible ? ' is-visible' : ''}`}
+            style={{
+              left: `${stickyScrollbar.left}px`,
+              width: `${stickyScrollbar.width}px`,
+              bottom: `${stickyScrollbar.bottom}px`,
+            }}
+            aria-hidden={!stickyScrollbar.visible}
+          >
+            <div ref={stickyInnerRef} className="stats-sticky-scrollbar__inner"></div>
+          </div>
+        </>
       )}
       <div className="p-3 text-muted small bg-light">
         <div className="row">

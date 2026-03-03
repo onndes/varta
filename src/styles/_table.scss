@@ -156,3 +156,37 @@
     text-align: right !important;
   }
 }
+
+.stats-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.stats-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.stats-sticky-scrollbar {
+  position: fixed;
+  bottom: 0;
+  z-index: 1045;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  opacity: 0;
+  pointer-events: none;
+  border-top: 1px solid var(--bs-border-color, #dee2e6);
+  background: color-mix(in srgb, var(--app-bg, #fff) 88%, transparent);
+  transition: opacity 0.12s ease;
+}
+
+.stats-sticky-scrollbar.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.stats-sticky-scrollbar__inner {
+  height: 1px;
+}

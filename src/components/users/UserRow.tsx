@@ -100,10 +100,12 @@ const UserRow: React.FC<UserRowProps> = ({
       <td
         className="text-start ps-3"
         style={{ width: '96px', minWidth: '96px', maxWidth: '96px', whiteSpace: 'nowrap' }}
+        onClick={() => onViewStats(u)}
+        title="Відкрити статистику"
       >
         <small
           className="text-muted text-uppercase"
-          style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}
+          style={{ fontSize: '0.7rem', whiteSpace: 'nowrap', cursor: 'pointer' }}
         >
           {formatRank(u.rank)}
         </small>
@@ -192,6 +194,7 @@ const UserRow: React.FC<UserRowProps> = ({
           className="btn btn-sm btn-outline-secondary me-1"
           onClick={() => onEdit({ ...u })}
           title="Редагувати"
+          style={{ minWidth: '40px' }}
         >
           <i className="fas fa-edit"></i>
         </button>
