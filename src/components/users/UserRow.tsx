@@ -23,9 +23,15 @@ const UserRow: React.FC<UserRowProps> = ({
 }) => {
   const u = user;
   const todayStr = toLocalISO(new Date());
-  const statusEnded = !!u.statusTo && u.statusTo < todayStr;
-  const displayStatus = statusEnded ? 'ACTIVE' : u.status;
-  const showStatusDates = !statusEnded;
+  const statusFrom = u.statusFrom || '0000-01-01';
+  const statusTo = u.statusTo || '9999-12-31';
+  const hasStatusRange = !!(u.statusFrom || u.statusTo);
+  const isNonActiveStatus = u.isActive && u.status !== 'ACTIVE';
+  const isFuturePlannedStatus = isNonActiveStatus && !!u.statusFrom && u.statusFrom > todayStr;
+  const isCurrentStatus =
+    isNonActiveStatus && (!hasStatusRange || (todayStr >= statusFrom && todayStr <= statusTo));
+  const displayStatus = !u.isActive ? 'INACTIVE' : isCurrentStatus ? u.status : 'ACTIVE';
+  const showStatusDates = isCurrentStatus || isFuturePlannedStatus;
 
   // Map status codes to readable icon+label pairs
   const STATUS_META: Record<string, { icon: string; label: string; cls: string }> = {
@@ -38,7 +44,7 @@ const UserRow: React.FC<UserRowProps> = ({
     INACTIVE: { icon: 'fa-circle-xmark', label: 'Неактив', cls: 'bg-secondary' },
   };
 
-  const statusKey = !u.isActive ? 'INACTIVE' : displayStatus;
+  const statusKey = displayStatus;
   const meta = STATUS_META[statusKey] ?? STATUS_META.OTHER;
 
   const toShortDate = (iso?: string) =>
@@ -50,13 +56,20 @@ const UserRow: React.FC<UserRowProps> = ({
       : '..';
 
   const statusDateRange =
-    (u.statusFrom || u.statusTo) && u.isActive && displayStatus !== 'ACTIVE' && showStatusDates
+    (u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && showStatusDates
       ? `${toShortDate(u.statusFrom)}–${toShortDate(u.statusTo)}`
       : null;
-
-  const statusBadgeText = `${u.isActive ? STATUSES[displayStatus] : 'Неактив'}${
-    statusDateRange ? ` ${statusDateRange}` : ''
+  const mapStatusLabel = (status: string) => {
+    if (status === 'OTHER') return 'Відсутній';
+    return STATUSES[status] || status;
+  };
+  const statusBadgeText = `${u.isActive ? mapStatusLabel(displayStatus) : 'Неактив'}${
+    displayStatus !== 'ACTIVE' && statusDateRange ? ` ${statusDateRange}` : ''
   }`;
+  const plannedStatusBadgeText =
+    isFuturePlannedStatus && u.status !== 'ACTIVE'
+      ? `${mapStatusLabel(u.status)}${statusDateRange ? ` ${statusDateRange}` : ''}`
+      : null;
 
   const blockedDateRange =
     u.blockedDaysFrom || u.blockedDaysTo
@@ -135,6 +148,14 @@ const UserRow: React.FC<UserRowProps> = ({
           <span className={`badge ${meta.cls}`} style={{ minWidth: '72px', fontSize: '0.75rem' }}>
             {statusBadgeText}
           </span>
+          {plannedStatusBadgeText && (
+            <span
+              className={`badge ${STATUS_META[u.status]?.cls || STATUS_META.OTHER.cls}`}
+              style={{ minWidth: '72px', fontSize: '0.75rem' }}
+            >
+              {plannedStatusBadgeText}
+            </span>
+          )}
           {u.status === 'OTHER' && u.statusComment && (
             <small className="text-muted fst-italic" style={{ fontSize: '0.7rem' }}>
               {u.statusComment}
