@@ -29,12 +29,12 @@ const UserRow: React.FC<UserRowProps> = ({
 
   // Map status codes to readable icon+label pairs
   const STATUS_META: Record<string, { icon: string; label: string; cls: string }> = {
-    ACTIVE: { icon: 'fa-circle-check', label: 'В строю', cls: 'bg-success' },
-    SICK: { icon: 'fa-kit-medical', label: 'Лікування', cls: 'text-bg-warning' },
-    VACATION: { icon: 'fa-umbrella-beach', label: 'Відпустка', cls: 'text-bg-warning' },
-    TRIP: { icon: 'fa-briefcase', label: 'Відрядж.', cls: 'text-bg-info' },
-    ABSENT: { icon: 'fa-circle-minus', label: 'Відсутній', cls: 'text-bg-secondary' },
-    INACTIVE: { icon: 'fa-circle-xmark', label: 'Неактив', cls: 'bg-secondary' },
+    ACTIVE: { icon: 'fa-circle-check', label: 'В строю', cls: 'users-status-badge--active' },
+    SICK: { icon: 'fa-kit-medical', label: 'Лікування', cls: 'users-status-badge--sick' },
+    VACATION: { icon: 'fa-umbrella-beach', label: 'Відпустка', cls: 'users-status-badge--vacation' },
+    TRIP: { icon: 'fa-briefcase', label: 'Відрядж.', cls: 'users-status-badge--trip' },
+    ABSENT: { icon: 'fa-circle-minus', label: 'Відсутній', cls: 'users-status-badge--absent' },
+    INACTIVE: { icon: 'fa-circle-xmark', label: 'Неактив', cls: 'users-status-badge--inactive' },
   };
 
   const statusKey = !u.isActive ? 'INACTIVE' : currentStatusPeriod?.status || 'ACTIVE';
@@ -139,14 +139,15 @@ const UserRow: React.FC<UserRowProps> = ({
       {/* Status column – status pill + blocked days/details */}
       <td className="text-start">
         <div className="d-flex align-items-center gap-2 flex-wrap">
-          <span className={`badge ${meta.cls}`} style={{ minWidth: '72px', fontSize: '0.75rem' }}>
+          <span className={`badge users-status-badge ${meta.cls}`}>
             {statusBadgeText}
           </span>
           {futureStatusPeriods.map((period, idx) => (
             <span
               key={`${period.status}-${period.from || ''}-${period.to || ''}-${idx}`}
-              className={`badge ${STATUS_META[period.status]?.cls || STATUS_META.ABSENT.cls}`}
-              style={{ minWidth: '72px', fontSize: '0.75rem' }}
+              className={`badge users-status-badge ${
+                STATUS_META[period.status]?.cls || STATUS_META.ABSENT.cls
+              }`}
             >
               {formatStatusBadgeText(period.status, period.from, period.to)}
             </span>
@@ -196,10 +197,7 @@ const UserRow: React.FC<UserRowProps> = ({
         )}
         {u.excludeFromAuto && (
           <div className="mt-1">
-            <span
-              className="badge bg-warning"
-              style={{ fontSize: '0.62rem', color: '#000', letterSpacing: '0.01em' }}
-            >
+            <span className="badge users-auto-exclude-badge">
               <i className="fas fa-ban me-1" style={{ fontSize: '0.55rem' }}></i>без авторозп.
             </span>
           </div>
