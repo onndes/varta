@@ -5,7 +5,6 @@ import { useDialog } from '../components/useDialog';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
 import {
-  applyKarmaForTransfer,
   getAllSchedule,
   saveScheduleEntry,
 } from '../services/scheduleService';
@@ -20,7 +19,8 @@ interface SelectedCell {
 
 interface PendingAssignConfirm {
   userId: number;
-  transferFrom?: string;
+  lastDutyDate?: string;
+  daysSinceLastDuty?: number;
   isRestDay: boolean;
   penalizeReplaced?: boolean;
 }
@@ -84,34 +84,23 @@ export const useAssignmentModal = ({
     [schedule]
   );
 
-  const getTransferSourceDate = useCallback(
+  const getLastDutyDateBeforeTarget = useCallback(
     (userId: number, targetDate: string): string | undefined => {
       const assignedDates = Object.keys(schedule)
-        .filter((d) => d !== targetDate && isAssignedInEntry(schedule[d], userId))
+        .filter((d) => d < targetDate && isAssignedInEntry(schedule[d], userId))
         .sort();
       if (assignedDates.length === 0) return undefined;
-      const prevDates = assignedDates.filter((d) => d < targetDate);
-      if (prevDates.length > 0) return prevDates[prevDates.length - 1];
-      return assignedDates[0];
+      return assignedDates[assignedDates.length - 1];
     },
     [schedule]
   );
 
   const executeAssign = useCallback(
-    async (userId: number, transferMode: 'none' | 'move', penalizeReplaced = false) => {
+    async (userId: number, penalizeReplaced = false) => {
       if (!selectedCell) return;
 
       try {
         pushHistory(schedule, 'Призначення');
-
-        const transferFrom =
-          transferMode === 'move' ? getTransferSourceDate(userId, selectedCell.date) : undefined;
-
-        if (transferFrom) {
-          await removeAssignment(transferFrom, 'work', userId);
-          await applyKarmaForTransfer(userId, transferFrom, selectedCell.date, dayWeights);
-          await logAction('TRANSFER', `Перенесено з ${transferFrom} на ${selectedCell.date}`);
-        }
 
         await assignUser(selectedCell.date, userId, true, {
           maxPerDay: dutiesPerDay,
@@ -137,8 +126,6 @@ export const useAssignmentModal = ({
       selectedCell,
       schedule,
       pushHistory,
-      getTransferSourceDate,
-      removeAssignment,
       dayWeights,
       assignUser,
       dutiesPerDay,
@@ -157,7 +144,7 @@ export const useAssignmentModal = ({
 
       // In history mode — assign directly, no confirmations
       if (historyMode) {
-        await executeAssign(userId, 'none', false);
+        await executeAssign(userId, false);
         return;
       }
 
@@ -172,18 +159,18 @@ export const useAssignmentModal = ({
           );
           if (!ok) return;
         }
-        await executeAssign(userId, 'none', penalizeReplaced);
+        await executeAssign(userId, penalizeReplaced);
         return;
       }
 
-      // Fresh assignment mode: check rest day & transfer
-      const transferFrom = getTransferSourceDate(userId, selectedCell.date);
-      if (isRestDay || transferFrom) {
-        setPendingAssignConfirm({ userId, transferFrom, isRestDay, penalizeReplaced });
-        return;
-      }
-
-      await executeAssign(userId, 'none', penalizeReplaced);
+      // Fresh assignment mode: always ask for confirmation with last duty info
+      const lastDutyDate = getLastDutyDateBeforeTarget(userId, selectedCell.date);
+      const daysSinceLastDuty = lastDutyDate
+        ? Math.floor(
+            (new Date(selectedCell.date).getTime() - new Date(lastDutyDate).getTime()) / 86400000
+          )
+        : undefined;
+      setPendingAssignConfirm({ userId, lastDutyDate, daysSinceLastDuty, isRestDay, penalizeReplaced });
     },
     [
       selectedCell,
@@ -192,7 +179,7 @@ export const useAssignmentModal = ({
       isOnRestDay,
       users,
       showConfirm,
-      getTransferSourceDate,
+      getLastDutyDateBeforeTarget,
     ]
   );
 

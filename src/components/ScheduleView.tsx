@@ -556,12 +556,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         pending={pendingAssignConfirm}
         targetDate={selectedCell?.date || ''}
         users={users}
-        onConfirmMove={(userId) =>
-          executeAssign(userId, 'move', pendingAssignConfirm?.penalizeReplaced)
-        }
-        onConfirmAdd={(userId) =>
-          executeAssign(userId, 'none', pendingAssignConfirm?.penalizeReplaced)
-        }
+        onConfirm={(userId) => executeAssign(userId, pendingAssignConfirm?.penalizeReplaced)}
         onClose={() => setPendingAssignConfirm(null)}
       />
     </div>

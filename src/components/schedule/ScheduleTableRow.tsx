@@ -31,38 +31,6 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   const nameParts = user.name.trim().split(/\s+/);
   const nameRest = nameParts.slice(1).join(' ');
 
-  // Status label logic: show only if relevant to current time
-  let statusLabel: string | null = null;
-
-  if (!user.isActive) {
-    statusLabel = 'ЗВІЛЬНЕНИЙ';
-  } else if (user.status !== 'ACTIVE') {
-    const today = new Date(todayStr);
-    const statusFrom = user.statusFrom ? new Date(user.statusFrom) : null;
-    const statusTo = user.statusTo ? new Date(user.statusTo) : null;
-
-    // If status hasn't started yet (future)
-    if (statusFrom && statusFrom > today) {
-      const diffDays = Math.ceil((statusFrom.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 14) {
-        // Show if starts within 2 weeks
-        statusLabel = `${STATUSES[user.status]} з ${statusFrom.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })}`;
-      }
-    }
-    // If status ended more than 7 days ago — hide
-    else if (statusTo && statusTo < today) {
-      const diffDays = Math.ceil((today.getTime() - statusTo.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 7) {
-        // Show for 7 days after end
-        statusLabel = STATUSES[user.status];
-      }
-    }
-    // Status is active now
-    else {
-      statusLabel = STATUSES[user.status];
-    }
-  }
-
   return (
     <tr className={!user.isActive ? 'user-row-inactive' : ''}>
       <td>{index + 1}</td>
@@ -110,11 +78,6 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               style={{ fontSize: '0.6rem', opacity: 0.75 }}
             >
               без авторозп.
-            </span>
-          )}
-          {statusLabel && (
-            <span className="badge bg-warning text-dark no-print" style={{ fontSize: '0.6rem' }}>
-              {statusLabel}
             </span>
           )}
         </div>

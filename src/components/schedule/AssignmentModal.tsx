@@ -3,7 +3,7 @@ import type { User, ScheduleEntry } from '../../types';
 import Modal from '../Modal';
 import { formatDate } from '../../utils/dateUtils';
 import { formatRank, compareByRankAndName } from '../../utils/helpers';
-import { toAssignedUserIds } from '../../utils/assignment';
+import { isAssignedInEntry, toAssignedUserIds } from '../../utils/assignment';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,17 +46,17 @@ const hasShiftNextDay = (
   return entry ? toAssignedUserIds(entry.userId).includes(userId) : false;
 };
 
-/** Check if user had duty on Sunday of the previous week */
-const hadPrevWeekSundayDuty = (
+/** Get user's last duty date before target date */
+const getLastDutyDateBeforeTarget = (
   userId: number,
-  weekDates: string[],
+  targetDate: string,
   schedule: Record<string, ScheduleEntry>
-): boolean => {
-  const prevSunday = new Date(weekDates[0]);
-  prevSunday.setDate(prevSunday.getDate() - 1);
-  const prevSundayIso = prevSunday.toISOString().split('T')[0];
-  const entry = schedule[prevSundayIso];
-  return entry ? toAssignedUserIds(entry.userId).includes(userId) : false;
+): string | undefined => {
+  const assignedDates = Object.keys(schedule)
+    .filter((d) => d < targetDate && isAssignedInEntry(schedule[d], userId))
+    .sort();
+  if (assignedDates.length === 0) return undefined;
+  return assignedDates[assignedDates.length - 1];
 };
 
 /** Get all dates this week where a user is assigned (excluding target date) */
@@ -80,7 +80,7 @@ const UserListItem: React.FC<{
   date: string;
   isRest: boolean;
   hasNextDayShift: boolean;
-  hadSundayDuty: boolean;
+  lastDutyWeekday?: string;
   effectiveLoad: number;
   daysSince: number;
   onAction: (userId: number) => void;
@@ -90,7 +90,7 @@ const UserListItem: React.FC<{
   date,
   isRest,
   hasNextDayShift,
-  hadSundayDuty,
+  lastDutyWeekday,
   effectiveLoad,
   daysSince,
   onAction,
@@ -133,7 +133,6 @@ const UserListItem: React.FC<{
             )}
           </div>
         </div>
-        <span className="text-muted ms-1 small">({daysSinceLabel})</span>
 
         {owes > 0 && <span className="badge bg-danger ms-2">борг: {owes}</span>}
         {isRest && (
@@ -146,20 +145,21 @@ const UserListItem: React.FC<{
             <i className="fas fa-clock me-1"></i>зміна завтра
           </span>
         )}
-        {hadSundayDuty && (
-          <span className="badge bg-secondary ms-2">
-            <i className="fas fa-calendar-day me-1"></i>Був у нд мин. тижня
-          </span>
-        )}
 
-        <div className="small text-muted">
-          Навант: {effectiveLoad.toFixed(1)} · Карма:{' '}
-          <span
-            className={
-              user.debt < 0 ? 'text-danger' : user.debt > 0 ? 'text-success' : 'text-muted'
-            }
-          >
-            {user.debt > 0 ? '+' + user.debt : user.debt}
+        <div className="small text-muted d-flex align-items-center flex-wrap">
+          <span>
+            Навант: {effectiveLoad.toFixed(1)} · Карма:{' '}
+            <span
+              className={
+                user.debt < 0 ? 'text-danger' : user.debt > 0 ? 'text-success' : 'text-muted'
+              }
+            >
+              {user.debt > 0 ? '+' + user.debt : user.debt}
+            </span>
+          </span>
+          <span className="ms-3">
+            ({daysSinceLabel}
+            {lastDutyWeekday ? `, ${lastDutyWeekday}` : ''})
           </span>
         </div>
       </div>
@@ -387,20 +387,29 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
               {query ? 'Нічого не знайдено' : emptyMessage}
             </div>
           )}
-          {filtered.map((u) => (
+          {filtered.map((u) => {
+            const lastDutyDate = getLastDutyDateBeforeTarget(u.id!, date, schedule);
+            const lastDutyWeekday = lastDutyDate
+              ? new Date(lastDutyDate)
+                  .toLocaleDateString('uk-UA', { weekday: 'short' })
+                  .replace('.', '')
+                  .toUpperCase()
+              : undefined;
+            return (
             <UserListItem
               key={u.id}
               user={u}
               date={date}
               isRest={isOnRestDay(u.id!, date)}
               hasNextDayShift={hasShiftNextDay(u.id!, date, schedule)}
-              hadSundayDuty={hadPrevWeekSundayDuty(u.id!, weekDates, schedule)}
+              lastDutyWeekday={lastDutyWeekday}
               effectiveLoad={calculateEffectiveLoad(u)}
               daysSince={daysSinceLastDuty(u.id!, date)}
               onAction={action}
               actionLabel={actionLabel}
             />
-          ))}
+            );
+          })}
         </div>
       </>
     );
