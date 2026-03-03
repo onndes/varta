@@ -146,27 +146,28 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                 : ' assigned' + (entry.isLocked ? ' locked' : '');
           }
 
-          // Show icon for type: lock, replace, swap, manual, auto, history
+          // Show icon for assignment type: manual, auto, replace, swap, history, import, locked
           let icon = '';
           if (entry.isLocked) {
-            icon = ' bi bi-lock-fill';
+            icon = 'bi bi-lock-fill';
           } else if (entry.type === 'import') {
-            icon = ' bi bi-box-arrow-in-down';
+            icon = 'bi bi-box-arrow-in-down';
           } else if (entry.type === 'history') {
-            icon = ' bi bi-clock-history';
+            icon = 'bi bi-clock-history';
           } else if (entry.type === 'replace') {
-            icon = ' bi bi-arrow-repeat';
+            icon = 'bi bi-arrow-repeat';
           } else if (entry.type === 'swap') {
-            icon = ' bi bi-arrow-left-right';
+            icon = 'bi bi-arrow-left-right';
           } else if (entry.type === 'manual') {
-            icon = ' bi bi-hand-index-thumb';
+            icon = 'bi bi-hand-index-thumb';
           } else if (entry.type === 'auto') {
-            icon = ' bi bi-gear-fill';
+            icon = 'bi bi-gear-fill';
           }
 
           screenContent = (
             <>
-              НАРЯД <i className={`${icon} ms-1`} />
+              НАРЯД
+              {icon && <i className={`${icon} schedule-cell-icon ms-1`} />}
             </>
           );
           printContent = '08:00';

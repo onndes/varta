@@ -100,6 +100,17 @@
   }
 }
 
+.schedule-cell-icon {
+  display: inline-flex;
+  width: 1.05em;
+  min-width: 1.05em;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.9em;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 .view-table {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
