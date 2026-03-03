@@ -6,6 +6,7 @@ import {
   addWorkspace,
   renameWorkspace,
   deleteWorkspace,
+  WORKSPACE_CHANGED_EVENT,
   type Workspace,
 } from '../services/workspaceService';
 import { switchDatabase } from '../db/db';
@@ -39,6 +40,22 @@ const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = ({ onSwitch }) => {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Keep selector in sync after import/export or changes outside this component.
+  useEffect(() => {
+    const handleWorkspaceChanged = () => reload();
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'varta_workspaces' || e.key === 'varta_active_workspace') {
+        reload();
+      }
+    };
+    window.addEventListener(WORKSPACE_CHANGED_EVENT, handleWorkspaceChanged);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(WORKSPACE_CHANGED_EVENT, handleWorkspaceChanged);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   const activeName = workspaces.find((w) => w.id === activeId)?.name || 'База';

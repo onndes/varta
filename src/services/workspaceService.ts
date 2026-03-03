@@ -7,6 +7,7 @@
 
 const STORAGE_KEY = 'varta_workspaces';
 const ACTIVE_KEY = 'varta_active_workspace';
+export const WORKSPACE_CHANGED_EVENT = 'varta:workspace-changed';
 
 export interface Workspace {
   id: string;
@@ -40,10 +41,16 @@ export const getActiveWorkspaceId = (): string => {
 
 export const setActiveWorkspaceId = (id: string): void => {
   localStorage.setItem(ACTIVE_KEY, id);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(WORKSPACE_CHANGED_EVENT));
+  }
 };
 
 export const saveWorkspaces = (workspaces: Workspace[]): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(WORKSPACE_CHANGED_EVENT));
+  }
 };
 
 export const addWorkspace = (name: string): Workspace => {

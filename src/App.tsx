@@ -141,7 +141,7 @@ const App = () => {
 
     try {
       await handleImportData(file);
-      await refreshData();
+      await handleWorkspaceSwitch();
       setShowBackupAlert(false);
       await showAlert('Готово!');
     } catch (err) {

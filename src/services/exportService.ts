@@ -196,9 +196,14 @@ const writeDbData = async (dbName: string, data: ExportData): Promise<void> => {
  * then switches the active DB to the saved active workspace.
  */
 const importAllWorkspaces = async (data: MultiWorkspaceExportData): Promise<void> => {
+  const fallbackWorkspaceId = data.workspaces[0]?.id || 'default';
+  const restoredActiveId = data.workspaces.some((ws) => ws.id === data.activeWorkspaceId)
+    ? data.activeWorkspaceId
+    : fallbackWorkspaceId;
+
   // Restore workspace list in localStorage
   saveWorkspaces(data.workspaces);
-  setActiveWorkspaceId(data.activeWorkspaceId);
+  setActiveWorkspaceId(restoredActiveId);
 
   // Restore each database
   for (const ws of data.workspaces) {
@@ -208,7 +213,7 @@ const importAllWorkspaces = async (data: MultiWorkspaceExportData): Promise<void
   }
 
   // Switch the in-memory db singleton to the restored active workspace
-  await switchDatabase(data.activeWorkspaceId);
+  await switchDatabase(restoredActiveId);
 };
 
 // ── Export / Import ───────────────────────────────────────────────────
