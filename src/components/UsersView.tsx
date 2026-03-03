@@ -28,7 +28,7 @@ const UsersView: React.FC<UsersViewProps> = ({
   dayWeights,
   updateCascadeTrigger,
 }) => {
-  const { createUser, updateUser, deleteUser: deleteUserHook, resetUserDebt } = useUsers();
+  const { createUser, updateUser, deleteUser: deleteUserHook } = useUsers();
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
@@ -156,13 +156,6 @@ const UsersView: React.FC<UsersViewProps> = ({
     await refreshData();
   };
 
-  const handleResetDebt = async (u: User) => {
-    if (!u.id) return;
-    if (!(await showConfirm('Скинути карму в 0?'))) return;
-    await resetUserDebt(u.id);
-    await refreshData();
-  };
-
   const activeCount = sortedActiveUsers.length;
   const inactiveCount = sortedInactiveUsers.length;
 
@@ -182,6 +175,12 @@ const UsersView: React.FC<UsersViewProps> = ({
     <thead>
       <tr className="users-table__head">
         <th
+          className="text-center"
+          style={{ width: '44px', minWidth: '44px', maxWidth: '44px', userSelect: 'none' }}
+        >
+          №
+        </th>
+        <th
           className="text-start ps-3"
           style={{
             userSelect: 'none',
@@ -191,21 +190,13 @@ const UsersView: React.FC<UsersViewProps> = ({
             whiteSpace: 'nowrap',
           }}
         >
-          <div className="d-flex align-items-center gap-1">
-            {renderSortBtn('rank', 'Звання', 'fa-medal')}
-          </div>
+          <div className="d-flex align-items-center gap-1">{renderSortBtn('rank', 'Звання')}</div>
         </th>
         <th className="text-start" style={{ userSelect: 'none' }}>
           <div className="d-flex align-items-center gap-1">{renderSortBtn('name', 'ПІБ')}</div>
         </th>
-        <th className="text-start" style={{ width: '22%' }}>
+        <th className="text-start" style={{ width: '40%', minWidth: '300px' }}>
           Статус
-        </th>
-        <th className="text-center" style={{ width: '14%' }}>
-          Блокування
-        </th>
-        <th className="text-center" style={{ width: '10%' }}>
-          Карма
         </th>
         <th className="text-end pe-3" style={{ width: '14%' }}>
           Дії
@@ -243,7 +234,7 @@ const UsersView: React.FC<UsersViewProps> = ({
             <tbody>
               {activeCount === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center text-muted py-5">
+                  <td colSpan={5} className="text-center text-muted py-5">
                     <i
                       className="fas fa-user-plus me-2"
                       style={{ fontSize: '1.5rem', opacity: 0.4 }}
@@ -258,14 +249,14 @@ const UsersView: React.FC<UsersViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                sortedActiveUsers.map((u) => (
+                sortedActiveUsers.map((u, idx) => (
                   <UserRow
                     key={u.id}
                     user={u}
+                    rowNumber={idx + 1}
                     onEdit={setEditingUser}
                     onDelete={handleDelete}
                     onViewStats={setViewStatsUser}
-                    onResetDebt={handleResetDebt}
                   />
                 ))
               )}
@@ -290,14 +281,14 @@ const UsersView: React.FC<UsersViewProps> = ({
             <table className="table table-hover align-middle mb-0 users-table">
               {renderTableHead()}
               <tbody>
-                {sortedInactiveUsers.map((u) => (
+                {sortedInactiveUsers.map((u, idx) => (
                   <UserRow
                     key={u.id}
                     user={u}
+                    rowNumber={idx + 1}
                     onEdit={setEditingUser}
                     onDelete={handleDelete}
                     onViewStats={setViewStatsUser}
-                    onResetDebt={handleResetDebt}
                   />
                 ))}
               </tbody>

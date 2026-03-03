@@ -6,13 +6,13 @@ import { toLocalISO } from '../../utils/dateUtils';
 
 interface UserRowProps {
   user: User;
+  rowNumber: number;
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
   onViewStats: (user: User) => void;
-  onResetDebt: (user: User) => void;
 }
 
-const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, onResetDebt }) => {
+const UserRow: React.FC<UserRowProps> = ({ user, rowNumber, onEdit, onDelete, onViewStats }) => {
   const u = user;
   const todayStr = toLocalISO(new Date());
   const statusEnded = !!u.statusTo && u.statusTo < todayStr;
@@ -33,21 +33,26 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
   const statusKey = !u.isActive ? 'INACTIVE' : displayStatus;
   const meta = STATUS_META[statusKey] ?? STATUS_META.OTHER;
 
-  const dateRange =
-    (u.statusFrom || u.statusTo) && u.isActive && u.status !== 'ACTIVE' && showStatusDates
-      ? [
-          u.statusFrom
-            ? new Date(u.statusFrom).toLocaleDateString('uk-UA', {
-                day: '2-digit',
-                month: '2-digit',
-              })
-            : '',
-          u.statusTo
-            ? new Date(u.statusTo).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
-            : '',
-        ]
-          .filter(Boolean)
-          .join(' – ')
+  const toShortDate = (iso?: string) =>
+    iso
+      ? new Date(iso).toLocaleDateString('uk-UA', {
+          day: '2-digit',
+          month: '2-digit',
+        })
+      : '..';
+
+  const statusDateRange =
+    (u.statusFrom || u.statusTo) && u.isActive && displayStatus !== 'ACTIVE' && showStatusDates
+      ? `${toShortDate(u.statusFrom)}–${toShortDate(u.statusTo)}`
+      : null;
+
+  const statusBadgeText = `${u.isActive ? STATUSES[displayStatus] : 'Неактив'}${
+    statusDateRange ? ` ${statusDateRange}` : ''
+  }`;
+
+  const blockedDateRange =
+    u.blockedDaysFrom || u.blockedDaysTo
+      ? `${toShortDate(u.blockedDaysFrom)}–${toShortDate(u.blockedDaysTo)}`
       : null;
 
   // Розділяємо ПІБ: прізвище (КАПСОМ), ім'я + по-батькові (тонше, менше)
@@ -57,6 +62,12 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
 
   return (
     <tr className={!u.isActive ? 'user-row-inactive' : ''}>
+      <td
+        className="text-center text-muted ps-2"
+        style={{ width: '44px', minWidth: '44px', maxWidth: '44px', fontSize: '0.75rem' }}
+      >
+        {rowNumber}
+      </td>
       <td
         className="text-start ps-3"
         style={{ width: '96px', minWidth: '96px', maxWidth: '96px', whiteSpace: 'nowrap' }}
@@ -87,23 +98,46 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         )}
       </td>
 
-      {/* Status column – status pill + optional date range on same line */}
+      {/* Status column – status pill + blocked days/details */}
       <td className="text-start">
         <div className="d-flex align-items-center gap-2 flex-wrap">
           <span className={`badge ${meta.cls}`} style={{ minWidth: '72px', fontSize: '0.75rem' }}>
-            {u.isActive ? STATUSES[displayStatus] : 'Неактив'}
+            {statusBadgeText}
           </span>
-          {dateRange && (
-            <small className="text-muted" style={{ fontSize: '0.73rem', whiteSpace: 'nowrap' }}>
-              {dateRange}
-            </small>
-          )}
           {u.status === 'OTHER' && u.statusComment && (
             <small className="text-muted fst-italic" style={{ fontSize: '0.7rem' }}>
               {u.statusComment}
             </small>
           )}
         </div>
+        {u.blockedDays && u.blockedDays.length > 0 && (
+          <div className="mt-1 d-flex gap-1 flex-wrap align-items-center">
+            {u.blockedDays
+              .slice()
+              .sort((a, b) => a - b)
+              .map((d) => {
+                // Convert 1=Mon..7=Sun to JS day index: 1→1, 2→2,...,6→6, 7→0
+                const jsIdx = d === 7 ? 0 : d;
+                return (
+                  <span
+                    key={d}
+                    className="badge bg-danger bg-opacity-75"
+                    style={{ fontSize: '0.6rem' }}
+                  >
+                    {DAY_SHORT_NAMES[jsIdx] || d}
+                  </span>
+                );
+              })}
+            {blockedDateRange && (
+              <small
+                className="text-muted"
+                style={{ fontSize: '0.66rem', whiteSpace: 'nowrap', marginLeft: '0.25rem' }}
+              >
+                ({blockedDateRange})
+              </small>
+            )}
+          </div>
+        )}
         {u.excludeFromAuto && (
           <div className="mt-1">
             <span
@@ -115,62 +149,6 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
           </div>
         )}
       </td>
-      <td className="text-center">
-        {u.blockedDays && u.blockedDays.length > 0 ? (
-          <>
-            <div className="d-flex gap-1 justify-content-center flex-wrap">
-              {u.blockedDays
-                .sort((a, b) => a - b)
-                .map((d) => {
-                  // Convert 1=Mon..7=Sun to JS day index: 1→1, 2→2,...,6→6, 7→0
-                  const jsIdx = d === 7 ? 0 : d;
-                  return (
-                    <span
-                      key={d}
-                      className="badge bg-danger bg-opacity-75"
-                      style={{ fontSize: '0.6rem' }}
-                    >
-                      {DAY_SHORT_NAMES[jsIdx] || d}
-                    </span>
-                  );
-                })}
-            </div>
-            {(u.blockedDaysFrom || u.blockedDaysTo) && (
-              <div className="text-muted text-center" style={{ fontSize: '0.6rem' }}>
-                {u.blockedDaysFrom
-                  ? new Date(u.blockedDaysFrom).toLocaleDateString('uk-UA', {
-                      day: '2-digit',
-                      month: '2-digit',
-                    })
-                  : '..'}
-                {' – '}
-                {u.blockedDaysTo
-                  ? new Date(u.blockedDaysTo).toLocaleDateString('uk-UA', {
-                      day: '2-digit',
-                      month: '2-digit',
-                    })
-                  : '..'}
-              </div>
-            )}
-          </>
-        ) : (
-          <span className="text-muted">—</span>
-        )}
-      </td>
-      <td className="text-center">
-        <span
-          className={
-            u.debt < 0
-              ? 'text-danger fw-bold'
-              : u.debt > 0
-                ? 'text-success fw-bold'
-                : 'text-muted fw-bold'
-          }
-        >
-          {u.debt > 0 ? '+' : ''}
-          {u.debt.toFixed(1)}
-        </span>
-      </td>
       <td className="text-end">
         <button
           className="btn btn-sm btn-outline-secondary me-1"
@@ -179,15 +157,6 @@ const UserRow: React.FC<UserRowProps> = ({ user, onEdit, onDelete, onViewStats, 
         >
           <i className="fas fa-edit"></i>
         </button>
-        {u.debt !== 0 && (
-          <button
-            className="btn btn-sm btn-outline-warning me-1"
-            onClick={() => onResetDebt(u)}
-            title="Скинути карму"
-          >
-            <i className="fas fa-undo"></i>
-          </button>
-        )}
         <button
           className="btn btn-sm btn-outline-danger"
           onClick={() => onDelete(u)}
