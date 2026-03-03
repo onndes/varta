@@ -65,7 +65,7 @@ export const buildUserComparator = (
     const offsetB = tempLoadOffset?.[b.id] ?? 0;
 
     // Пріоритет -1: Примусове використання всіх при малій кількості людей
-    // Якщо людей менше порогу (7) — спочатку ставимо тих, хто ще не чергував цього тижня
+    // Якщо людей 7 або менше — спочатку ставимо тих, хто ще не чергував цього тижня
     if (
       options.forceUseAllWhenFew &&
       totalEligibleCount !== undefined &&
