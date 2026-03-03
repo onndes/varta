@@ -429,6 +429,48 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     redoHistory,
   });
 
+  // ── Keyboard: C/F/G quick actions on schedule screen ───────────────────
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target.isContentEditable
+      );
+    };
+
+    const handleQuickActions = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isEditableTarget(e.target)) return;
+      if (selectedCell || pendingAssignConfirm || showImportModal) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'c') {
+        e.preventDefault();
+        void runClearWeek();
+      } else if (key === 'f') {
+        e.preventDefault();
+        void runFillGaps();
+      } else if (key === 'g') {
+        e.preventDefault();
+        void runFullAutoSchedule();
+      }
+    };
+
+    window.addEventListener('keydown', handleQuickActions);
+    return () => window.removeEventListener('keydown', handleQuickActions);
+  }, [
+    selectedCell,
+    pendingAssignConfirm,
+    showImportModal,
+    runClearWeek,
+    runFillGaps,
+    runFullAutoSchedule,
+  ]);
+
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="schedule-view-wrapper">

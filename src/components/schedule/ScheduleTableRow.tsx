@@ -73,14 +73,6 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               ВІДСУТНІЙ
             </span>
           )}
-          {user.excludeFromAuto && (
-            <span
-              className="badge bg-warning text-dark no-print"
-              style={{ fontSize: '0.6rem', opacity: 0.75 }}
-            >
-              без авторозп.
-            </span>
-          )}
         </div>
       </td>
       <td className="col-user-print text-start" style={{ fontSize: '10pt' }}>
