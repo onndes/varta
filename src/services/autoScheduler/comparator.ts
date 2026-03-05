@@ -14,6 +14,7 @@ import {
   getAggressiveBalanceDecision,
   countUserAssignmentsInRange,
   daysSinceLastAssignment,
+  daysSinceLastSameDowAssignment,
   countAvailableDaysInWindow,
   floatEq,
   getUserCompareFrom,
@@ -56,6 +57,17 @@ export const buildUserComparator = (
   const weight = dayWeights[dayIdx] || 1.0;
   const compareTo = getPrevDateStr(dateStr);
 
+  // Cache DOW-recency per user to avoid O(n) scan on every comparator call.
+  // daysSinceLastSameDowAssignment iterates the full schedule — caching it once
+  // per date keeps the sort at O(n log n) instead of O(n² log n).
+  const _dowRecencyCache = new Map<number, number>();
+  const getDowRecency = (userId: number): number => {
+    if (_dowRecencyCache.has(userId)) return _dowRecencyCache.get(userId)!;
+    const v = daysSinceLastSameDowAssignment(userId, fs, dateStr);
+    _dowRecencyCache.set(userId, v);
+    return v;
+  };
+
   return (a: User, b: User): number => {
     if (!a.id || !b.id) return 0;
 
@@ -76,9 +88,16 @@ export const buildUserComparator = (
       const weekB = countUserAssignmentsInRange(b.id!, fs, week.from, week.to);
       if (weekA !== weekB) return weekA - weekB;
 
-      // Tie-break for "use everyone" mode:
-      // prefer users with a narrower remaining availability window in this week,
-      // so we don't miss assigning weekend-only users when they still can be scheduled.
+      // Tie-break 1: DOW-recency — prefer the user who waited LONGER for this day-of-week.
+      // This prevents limited-availability users (e.g. Fri+Sat only) from sticking to
+      // the same DOW every week just because they always rank highest on remaining-avail.
+      const dowWaitA = getDowRecency(a.id!);
+      const dowWaitB = getDowRecency(b.id!);
+      // Use a 12-hour threshold to avoid floating-point noise
+      if (Math.abs(dowWaitA - dowWaitB) > 0.5) return dowWaitB - dowWaitA;
+
+      // Tie-break 2: "now-or-never" — prefer users with a narrower remaining
+      // availability window, so we don't miss weekend-only users.
       const remainingAvailA = Math.max(1, countAvailableDaysInWindow(a, dateStr, week.to));
       const remainingAvailB = Math.max(1, countAvailableDaysInWindow(b, dateStr, week.to));
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;

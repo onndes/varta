@@ -224,6 +224,30 @@ export const countAvailableDaysInWindow = (
 /** Порівняння дробових чисел з точністю epsilon */
 export const floatEq = (a: number, b: number): boolean => Math.abs(a - b) < FLOAT_EPSILON;
 
+/**
+ * Кількість днів, що минуло з останнього разу, коли боєць чергував
+ * у той самий день тижня, що і `dateStr`.
+ * Повертає Infinity, якщо такого чергування не було.
+ */
+export const daysSinceLastSameDowAssignment = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): number => {
+  const targetDow = new Date(dateStr).getDay();
+  let minDays = Infinity;
+  for (const [d, entry] of Object.entries(schedule)) {
+    if (d >= dateStr) continue;
+    const ids = toAssignedUserIds(entry.userId);
+    if (!ids.includes(userId)) continue;
+    const entryDow = new Date(d).getDay();
+    if (entryDow !== targetDow) continue;
+    const days = (new Date(dateStr).getTime() - new Date(d).getTime()) / MS_PER_DAY;
+    if (days < minDays) minDays = days;
+  }
+  return minDays;
+};
+
 /** Базова дата обліку для бійця (кожен рахується від своєї дати вступу) */
 export const getUserCompareFrom = (
   user: User,
