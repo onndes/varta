@@ -32,6 +32,10 @@
   --app-cell-past-locked-bg: #f0f0f0;
   --app-cell-past-locked-color: #999999;
 
+  --app-cell-assigned-past-bg: #e6f4ea;
+  --app-cell-assigned-past-color: #2f6b3a;
+  --app-cell-assigned-past-border: #b9e0c2;
+
   --app-cell-locked-bg: #fff9e6;
   --app-cell-locked-color: #7a5c00;
   --app-cell-locked-border: #ffc107;
@@ -124,6 +128,10 @@ html[data-bs-theme='dark'] {
 
   --app-cell-past-locked-bg: #2a2d31;
   --app-cell-past-locked-color: #7a8088; // raised from #5a5e62 for contrast
+
+  --app-cell-assigned-past-bg: #203328;
+  --app-cell-assigned-past-color: #6d9176;
+  --app-cell-assigned-past-border: #384d3d;
 
   --app-cell-locked-bg: #2e2b18;
   --app-cell-locked-color: #fde68a;

@@ -5,6 +5,7 @@ import { STATUSES } from '../../utils/constants';
 import { getUserAvailabilityStatus } from '../../services/userService';
 import { isAssignedInEntry } from '../../utils/assignment';
 import { getStatusPeriodAtDate } from '../../utils/userStatus';
+import { toLocalISO } from '../../utils/dateUtils';
 
 interface ScheduleTableRowProps {
   user: User;
@@ -13,6 +14,7 @@ interface ScheduleTableRowProps {
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
   historyMode?: boolean;
+  onUserClick?: (user: User) => void;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
@@ -26,6 +28,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   schedule,
   todayStr,
   historyMode = false,
+  onUserClick,
   onCellClick,
 }) => {
   // Split name: surname (CAPS) + first/middle (dimmer)
@@ -43,7 +46,9 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           maxWidth: '96px',
           paddingRight: 0,
           whiteSpace: 'nowrap',
+          cursor: onUserClick ? 'pointer' : 'default',
         }}
+        onClick={() => onUserClick?.(user)}
       >
         <small
           className="text-muted text-uppercase"
@@ -52,7 +57,11 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           {formatRank(user.rank)}
         </small>
       </td>
-      <td className="text-start px-2 col-user-screen">
+      <td
+        className="text-start px-2 col-user-screen"
+        style={{ cursor: onUserClick ? 'pointer' : 'default' }}
+        onClick={() => onUserClick?.(user)}
+      >
         <div
           className="fw-bold text-uppercase"
           style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
@@ -86,6 +95,10 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         const isAssigned = isAssignedInEntry(entry, user.id!);
         const availabilityStatus = getUserAvailabilityStatus(user, date);
         const available = availabilityStatus === 'AVAILABLE';
+        const prevDate = new Date(date);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const hadSundayDutyPreviousDay =
+          prevDate.getDay() === 0 && isAssignedInEntry(schedule[toLocalISO(prevDate)], user.id!);
         const isPast = new Date(date) < new Date(todayStr);
 
         let cellClass = 'compact-cell';
@@ -98,7 +111,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           } else {
             cellClass +=
               isPast && !historyMode
-                ? ' past-locked'
+                ? ' assigned-past'
                 : ' assigned' + (entry.isLocked ? ' locked' : '');
           }
 
@@ -127,6 +140,9 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             </>
           );
           printContent = '08:00';
+        } else if (hadSundayDutyPreviousDay) {
+          cellClass += ' unavailable';
+          screenContent = 'ВІДСИПНИЙ';
         } else if (!available) {
           cellClass += ' unavailable';
 

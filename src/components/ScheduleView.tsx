@@ -33,9 +33,10 @@ import PrintStatusList from './schedule/PrintStatusList';
 import AssignmentModal from './schedule/AssignmentModal';
 import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import ImportScheduleModal from './schedule/ImportScheduleModal';
+import EditUserModal from './users/EditUserModal';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
-import { getAssignedCount, toAssignedUserIds, getLogicSchedule } from '../utils/assignment';
-import { getStatusPeriodAtDate } from '../utils/userStatus';
+import { getAssignedCount, toAssignedUserIds, getLogicSchedule, getFirstDutyDate } from '../utils/assignment';
+import { getFutureStatusPeriods, getStatusPeriodAtDate, getUserStatusPeriods } from '../utils/userStatus';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,83 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   // ── UI state ────────────────────────────────────────────────────────────
   const [showImportModal, setShowImportModal] = useState(false);
   const [historyMode, setHistoryMode] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const editingUserRef = React.useRef<User | null>(null);
+
+  const saveEditedUser = useCallback(
+    async (user: User) => {
+      if (!user.id) return;
+      const todayStr = toLocalISO(new Date());
+      const normalizedPeriods = getUserStatusPeriods(user);
+      const currentPeriod = getStatusPeriodAtDate(user, todayStr);
+      const nextPeriod = getFutureStatusPeriods(user, todayStr)[0];
+      const legacyPeriod = currentPeriod || null;
+      const legacyRestBefore = legacyPeriod?.restBefore || false;
+      const legacyRestAfter = legacyPeriod?.restAfter || false;
+
+      await userService.updateUser(user.id, {
+        name: user.name,
+        rank: user.rank,
+        status: legacyPeriod ? legacyPeriod.status : 'ACTIVE',
+        statusFrom: legacyPeriod ? legacyPeriod.from : undefined,
+        statusTo: legacyPeriod ? legacyPeriod.to : undefined,
+        isActive: user.isActive,
+        excludeFromAuto: user.excludeFromAuto,
+        note: user.note,
+        restBeforeStatus: legacyRestBefore,
+        restAfterStatus: legacyRestAfter,
+        blockedDays: user.blockedDays,
+        blockedDaysFrom: user.blockedDaysFrom,
+        blockedDaysTo: user.blockedDaysTo,
+        blockedDaysComment: user.blockedDaysComment,
+        statusComment: legacyPeriod?.status === 'ABSENT' ? legacyPeriod.comment : undefined,
+        statusPeriods: normalizedPeriods,
+        dateAddedToAuto: user.dateAddedToAuto,
+      });
+      await userService.syncUserIncompatibility(user.id, user.incompatibleWith);
+
+      if (legacyPeriod?.from) {
+        await updateCascadeTrigger(legacyPeriod.from);
+      } else if (nextPeriod?.from) {
+        await updateCascadeTrigger(nextPeriod.from);
+      } else {
+        await updateCascadeTrigger(todayStr);
+      }
+
+      await refreshData();
+    },
+    [updateCascadeTrigger, refreshData]
+  );
+
+  useEffect(() => {
+    if (!editingUser?.id) {
+      editingUserRef.current = editingUser;
+      return;
+    }
+    if (!editingUserRef.current?.id) {
+      editingUserRef.current = editingUser;
+      return;
+    }
+    if (JSON.stringify(editingUser) === JSON.stringify(editingUserRef.current)) return;
+    editingUserRef.current = editingUser;
+
+    const t = setTimeout(() => {
+      void saveEditedUser(editingUser);
+      void logAction('EDIT', `Редаговано: ${editingUser.name}`);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [editingUser, saveEditedUser, logAction]);
+
+  const handleCloseEditModal = useCallback(async () => {
+    const draft = editingUser;
+    if (draft?.id) {
+      const persisted = users.find((u) => u.id === draft.id);
+      if (!persisted || JSON.stringify(draft) !== JSON.stringify(persisted)) {
+        await saveEditedUser(draft);
+      }
+    }
+    setEditingUser(null);
+  }, [editingUser, users, saveEditedUser]);
 
   // ── Core operations ─────────────────────────────────────────────────────
   const calculateEffectiveLoad = useCallback(
@@ -523,7 +601,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
           dutiesPerDay={dutiesPerDay}
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
+          onUserClick={(user) => setEditingUser(user)}
           onCellClick={(date, entry, assignedUserId) => {
+            setPendingAssignConfirm(null);
             setSelectedCell({ date, entry, assignedUserId });
             setSwapMode('replace');
           }}
@@ -554,32 +634,37 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
       {printMode !== 'status-list' && <PrintFooter signatories={signatories} />}
 
-      <AssignmentModal
-        show={!!selectedCell}
-        date={selectedCell?.date || ''}
-        assignedUserId={selectedCell?.assignedUserId}
-        users={users}
-        freeUsers={selectedCell ? getFreeUsers(selectedCell.date, true) : []}
-        swapUsers={selectedCell ? getWeekAssignedUsers(selectedCell.date) : []}
-        schedule={schedule}
-        weekDates={weekDates}
-        swapMode={swapMode}
-        onSetSwapMode={setSwapMode}
-        onAssign={(userId, penalize) => handleAssign(userId, penalize)}
-        onSwap={handleSwap}
-        onRemove={handleRemove}
-        onClose={() => setSelectedCell(null)}
-        isOnRestDay={(userId: number, dateStr: string) => {
-          const prevDate = new Date(dateStr);
-          prevDate.setDate(prevDate.getDate() - 1);
-          const prevEntry = schedule[toLocalISO(prevDate)];
-          return prevEntry ? toAssignedUserIds(prevEntry.userId).includes(userId) : false;
-        }}
-        calculateEffectiveLoad={calculateEffectiveLoad}
-        daysSinceLastDuty={daysSinceLastDuty}
-        hasEntry={!!selectedCell?.entry}
-        historyMode={historyMode}
-      />
+      {selectedCell && (
+        <AssignmentModal
+          show={true}
+          date={selectedCell.date}
+          assignedUserId={selectedCell.assignedUserId}
+          users={users}
+          freeUsers={getFreeUsers(selectedCell.date, true)}
+          swapUsers={getWeekAssignedUsers(selectedCell.date)}
+          schedule={schedule}
+          weekDates={weekDates}
+          swapMode={swapMode}
+          onSetSwapMode={setSwapMode}
+          onAssign={(userId, penalize) => handleAssign(userId, penalize)}
+          onSwap={handleSwap}
+          onRemove={handleRemove}
+          onClose={() => {
+            setPendingAssignConfirm(null);
+            setSelectedCell(null);
+          }}
+          isOnRestDay={(userId: number, dateStr: string) => {
+            const prevDate = new Date(dateStr);
+            prevDate.setDate(prevDate.getDate() - 1);
+            const prevEntry = schedule[toLocalISO(prevDate)];
+            return prevEntry ? toAssignedUserIds(prevEntry.userId).includes(userId) : false;
+          }}
+          calculateEffectiveLoad={calculateEffectiveLoad}
+          daysSinceLastDuty={daysSinceLastDuty}
+          hasEntry={!!selectedCell.entry}
+          historyMode={historyMode}
+        />
+      )}
 
       <ImportScheduleModal
         show={showImportModal}
@@ -599,6 +684,20 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onConfirm={(userId) => executeAssign(userId, pendingAssignConfirm?.penalizeReplaced)}
         onClose={() => setPendingAssignConfirm(null)}
       />
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onChange={setEditingUser}
+          onClose={handleCloseEditModal}
+          computedFairnessDate={(() => {
+            const dates = Object.keys(schedule).sort();
+            return dates[0] || toLocalISO(new Date());
+          })()}
+          firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
+          allUsers={users}
+        />
+      )}
     </div>
   );
 };

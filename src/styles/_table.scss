@@ -68,6 +68,14 @@
     cursor: not-allowed;
   }
 
+  &.assigned-past {
+    background-color: var(--app-cell-assigned-past-bg, #e6f4ea);
+    color: var(--app-cell-assigned-past-color, #2f6b3a);
+    border: 2px solid var(--app-cell-assigned-past-border, #b9e0c2);
+    font-weight: 700;
+    cursor: not-allowed;
+  }
+
   &.assigned.locked {
     border-color: var(--app-cell-locked-border, #ffc107);
     background-color: var(--app-cell-locked-bg, #fff9e6);

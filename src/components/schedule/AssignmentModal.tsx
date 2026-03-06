@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import Modal from '../Modal';
 import { formatDate } from '../../utils/dateUtils';
 import { formatRank, compareByRankAndName } from '../../utils/helpers';
 import { isAssignedInEntry, toAssignedUserIds } from '../../utils/assignment';
+import { countUserDaysOfWeek } from '../../services/scheduleService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,16 @@ const getUserWeekDates = (
   });
 };
 
+const WEEKDAY_COLUMNS = [
+  { day: 1, label: 'Пн' },
+  { day: 2, label: 'Вт' },
+  { day: 3, label: 'Ср' },
+  { day: 4, label: 'Чт' },
+  { day: 5, label: 'Пт' },
+  { day: 6, label: 'Сб' },
+  { day: 0, label: 'Нд' },
+] as const;
+
 // ─── UserListItem ─────────────────────────────────────────────────────────────
 
 const UserListItem: React.FC<{
@@ -83,6 +94,7 @@ const UserListItem: React.FC<{
   lastDutyWeekday?: string;
   effectiveLoad: number;
   daysSince: number;
+  weekdayCounts: Record<number, number>;
   onAction: (userId: number) => void;
   actionLabel?: string;
 }> = ({
@@ -93,6 +105,7 @@ const UserListItem: React.FC<{
   lastDutyWeekday,
   effectiveLoad,
   daysSince,
+  weekdayCounts,
   onAction,
   actionLabel,
 }) => {
@@ -108,10 +121,10 @@ const UserListItem: React.FC<{
 
   return (
     <button
-      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isRest ? 'list-group-item-warning' : ''}`}
+      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3 ${isRest ? 'list-group-item-warning' : ''}`}
       onClick={() => onAction(user.id!)}
     >
-      <div>
+      <div className="flex-grow-1">
         <div className="d-flex align-items-baseline gap-2">
           <small
             className="text-muted text-uppercase"
@@ -163,7 +176,35 @@ const UserListItem: React.FC<{
           </span>
         </div>
       </div>
-      {actionLabel && <span className="badge bg-primary">{actionLabel}</span>}
+      <div className="d-flex align-items-start gap-2 flex-shrink-0">
+        <div
+          className="d-grid text-center"
+          style={{
+            gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+            gap: '2px',
+            fontSize: '0.65rem',
+            minWidth: '224px',
+          }}
+        >
+          {WEEKDAY_COLUMNS.map(({ day, label }) => (
+            <div
+              key={label}
+              className={`rounded px-1 py-1 ${day === dayIdx ? 'bg-body-secondary text-body-secondary' : 'bg-light text-muted'}`}
+            >
+              {label}
+            </div>
+          ))}
+          {WEEKDAY_COLUMNS.map(({ day, label }) => (
+            <div
+              key={`${label}-count`}
+              className={`rounded px-1 py-1 fw-semibold ${day === dayIdx ? 'bg-secondary-subtle text-body' : 'bg-body-secondary'}`}
+            >
+              {weekdayCounts[day] || 0}
+            </div>
+          ))}
+        </div>
+        {actionLabel && <span className="badge bg-primary mt-1">{actionLabel}</span>}
+      </div>
     </button>
   );
 };
@@ -381,7 +422,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <div className="list-group" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+        <div className="list-group" style={{ maxHeight: 'min(58dvh, 560px)', overflowY: 'auto' }}>
           {filtered.length === 0 && (
             <div className="text-muted text-center py-3">
               {query ? 'Нічого не знайдено' : emptyMessage}
@@ -395,19 +436,21 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                   .replace('.', '')
                   .toUpperCase()
               : undefined;
+            const weekdayCounts = countUserDaysOfWeek(u.id!, schedule);
             return (
-            <UserListItem
-              key={u.id}
-              user={u}
-              date={date}
-              isRest={isOnRestDay(u.id!, date)}
-              hasNextDayShift={hasShiftNextDay(u.id!, date, schedule)}
-              lastDutyWeekday={lastDutyWeekday}
-              effectiveLoad={calculateEffectiveLoad(u)}
-              daysSince={daysSinceLastDuty(u.id!, date)}
-              onAction={action}
-              actionLabel={actionLabel}
-            />
+              <UserListItem
+                key={u.id}
+                user={u}
+                date={date}
+                isRest={isOnRestDay(u.id!, date)}
+                hasNextDayShift={hasShiftNextDay(u.id!, date, schedule)}
+                lastDutyWeekday={lastDutyWeekday}
+                effectiveLoad={calculateEffectiveLoad(u)}
+                daysSince={daysSinceLastDuty(u.id!, date)}
+                weekdayCounts={weekdayCounts}
+                onAction={action}
+                actionLabel={actionLabel}
+              />
             );
           })}
         </div>
@@ -590,7 +633,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
   return (
     <Modal show={show} onClose={handleClose} title={`Наряд на ${formatDate(date)}`}>
-      <div>{renderContent()}</div>
+      <div style={{ minHeight: '72dvh' }}>{renderContent()}</div>
     </Modal>
   );
 };

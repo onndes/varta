@@ -19,6 +19,7 @@ interface ScheduleTableProps {
   dutiesPerDay: number;
   historyMode?: boolean;
   deletedUserNames?: Record<number, DeletedUserInfo>;
+  onUserClick?: (user: User) => void;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
@@ -34,6 +35,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   dutiesPerDay,
   historyMode = false,
   deletedUserNames = {},
+  onUserClick,
   onCellClick,
 }) => {
   const activeUsers = users.filter((u) => u.isActive);
@@ -117,7 +119,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                             : isHistory
                               ? ' history-entry'
                               : isPast && !historyMode
-                                ? ' past-locked'
+                                ? ' assigned-past'
                                 : ' assigned' + (entry?.isLocked ? ' locked' : ''));
                         const displayName = user?.name ?? deletedInfo?.name ?? '?';
                         return (
@@ -281,6 +283,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   schedule={schedule}
                   todayStr={todayStr}
                   historyMode={historyMode}
+                  onUserClick={onUserClick}
                   onCellClick={onCellClick}
                 />
               ))
