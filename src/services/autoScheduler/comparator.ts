@@ -3,7 +3,7 @@
 
 import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
-import { calculateUserLoad, countUserDaysOfWeek, countUserAssignments } from '../scheduleService';
+import { calculateUserLoad, countUserAssignments, countUserDaysOfWeek } from '../scheduleService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import {
   buildEarliestHistoryMap,
@@ -68,6 +68,20 @@ export const buildUserComparator = (
     return v;
   };
 
+  // Cache raw DOW count per user for the current target day-of-week.
+  // Directly implements "fill zeros first" (1111111 → 2111111 → …):
+  // whoever has served this DOW fewer times gets priority.
+  const _dowCountCache = new Map<number, number>();
+  const getDowCount = (user: User): number => {
+    const uid = user.id!;
+    if (_dowCountCache.has(uid)) return _dowCountCache.get(uid)!;
+    const from = getUserCompareFrom(user, dateStr, fs, earliestHistoryByUser);
+    const dowCounts = countUserDaysOfWeek(uid, fs, from);
+    const v = dowCounts[dayIdx] ?? 0;
+    _dowCountCache.set(uid, v);
+    return v;
+  };
+
   return (a: User, b: User): number => {
     if (!a.id || !b.id) return 0;
 
@@ -75,6 +89,13 @@ export const buildUserComparator = (
     const fromB = getUserCompareFrom(b, dateStr, fs, earliestHistoryByUser);
     const offsetA = tempLoadOffset?.[a.id] ?? 0;
     const offsetB = tempLoadOffset?.[b.id] ?? 0;
+
+    // Flag: when P-1 tie-breaks are exhausted (all DOW metrics equal),
+    // replace P5 (wait time) with a deterministic week-based rotation.
+    // P5 biases against the most-recently-served user, which forces the
+    // same person onto Sunday every week. The rotation prevents this.
+    let useWeekRotation = false;
+    let weekRotationSeed = 0;
 
     // Пріоритет -1: Примусове використання всіх при малій кількості людей
     // Якщо людей 7 або менше — спочатку ставимо тих, хто ще не чергував цього тижня
@@ -86,21 +107,32 @@ export const buildUserComparator = (
       const week = getWeekWindow(dateStr);
       const weekA = countUserAssignmentsInRange(a.id!, fs, week.from, week.to);
       const weekB = countUserAssignmentsInRange(b.id!, fs, week.from, week.to);
+      // «Задіяти всіх»: користувач з меншою кількістю нарядів за тиждень
+      // ЗАВЖДИ має пріоритет. Ротація по днях тижня — нижче через getDowCount.
       if (weekA !== weekB) return weekA - weekB;
 
-      // Tie-break 1: DOW-recency — prefer the user who waited LONGER for this day-of-week.
-      // This prevents limited-availability users (e.g. Fri+Sat only) from sticking to
-      // the same DOW every week just because they always rank highest on remaining-avail.
+      // Tie-break 1: DOW count — fewer assignments on THIS day-of-week wins.
+      {
+        const dowA = getDowCount(a);
+        const dowB = getDowCount(b);
+        if (dowA !== dowB) return dowA - dowB;
+      }
+
+      // Tie-break 2: DOW-recency — prefer the user who waited LONGER for this day-of-week.
       const dowWaitA = getDowRecency(a.id!);
       const dowWaitB = getDowRecency(b.id!);
-      // Use a 12-hour threshold to avoid floating-point noise
       if (Math.abs(dowWaitA - dowWaitB) > 0.5) return dowWaitB - dowWaitA;
 
-      // Tie-break 2: "now-or-never" — prefer users with a narrower remaining
+      // Tie-break 3: "now-or-never" — prefer users with a narrower remaining
       // availability window, so we don't miss weekend-only users.
       const remainingAvailA = Math.max(1, countAvailableDaysInWindow(a, dateStr, week.to));
       const remainingAvailB = Math.max(1, countAvailableDaysInWindow(b, dateStr, week.to));
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
+
+      // All P-1 DOW tie-breaks exhausted — mark for week rotation at P5.
+      // DON'T return here: P0-P4 (debt, owed days, load) must still run.
+      useWeekRotation = true;
+      weekRotationSeed = new Date(week.from).getTime() / 86400000;
     }
 
     // Пріоритет 0: Агресивне балансування (override)
@@ -127,14 +159,28 @@ export const buildUserComparator = (
     }
 
     if (options.considerLoad) {
-      // Пріоритет 3: Рівномірний розподіл по днях тижня (нормалізовано до доступності)
-      const dowA = countUserDaysOfWeek(a.id, fs, fromA)[dayIdx] || 0;
-      const dowB = countUserDaysOfWeek(b.id, fs, fromB)[dayIdx] || 0;
-      const dowAvailA = Math.max(1, countAvailableDaysInWindow(a, fromA, compareTo, dayIdx));
-      const dowAvailB = Math.max(1, countAvailableDaysInWindow(b, fromB, compareTo, dayIdx));
-      const dowRateA = dowA / dowAvailA;
-      const dowRateB = dowB / dowAvailB;
-      if (!floatEq(dowRateA, dowRateB)) return dowRateA - dowRateB;
+      // Пріоритет 3: Рівномірний розподіл по днях тижня (raw count)
+      // Порівнюємо скільки разів кожен боєць вже чергував саме в цей день тижня.
+      // Хто чергував менше разів — іде першим. Це прямо реалізує política
+      // «спочатку 1111111, потім 2111111, 2211111 і т.д.»
+      // Нормалізація за доступністю зайва: недоступні бійці не потрапляють у пул.
+      {
+        const dowA = getDowCount(a);
+        const dowB = getDowCount(b);
+        if (dowA !== dowB) return dowA - dowB;
+      }
+
+      // Пріоритет 3.5: Заборона двох підряд однакових днів тижня
+      // Людина чергувала в цей же день тижня менше ніж 8 днів тому →
+      // знижуємо пріоритет НЕЗАЛЕЖНО від дефіциту. Раніше вимагали
+      // deficit ≤ 0 (перебраний), але це не працює коли тривала історія
+      // розмиває дефіцит (Хлівнюк: 1 Sun з 10 → deficit = +0.035,
+      // хоча щойно чергував у неділю). Самого факту «7 днів тому» достатньо.
+      {
+        const recentSameDowA = getDowRecency(a.id!) <= 7 ? 1 : 0;
+        const recentSameDowB = getDowRecency(b.id!) <= 7 ? 1 : 0;
+        if (recentSameDowA !== recentSameDowB) return recentSameDowA - recentSameDowB;
+      }
 
       // Пріоритет 4: Менше нарядів в поточному тижні
       const week = getWeekWindow(dateStr);
@@ -142,10 +188,22 @@ export const buildUserComparator = (
       const weekB = countUserAssignmentsInRange(b.id, fs, week.from, week.to);
       if (weekA !== weekB) return weekA - weekB;
 
-      // Пріоритет 5: Хто довше чекає з останнього наряду
-      const waitA = daysSinceLastAssignment(a.id, fs, dateStr);
-      const waitB = daysSinceLastAssignment(b.id, fs, dateStr);
-      if (waitA !== waitB) return waitB - waitA;
+      // Пріоритет 5: Хто довше чекає з останнього наряду.
+      // SKIP when forceUseAllWhenFew P-1 tie-breaks were exhausted:
+      // P5 biases against the most-recently-served user, which pushes
+      // the same person to the last day of the week (e.g. Sunday) every
+      // week because their wait time is the shortest on Monday.
+      // In that case, use a deterministic week-based rotation instead.
+      if (!useWeekRotation) {
+        const waitA = daysSinceLastAssignment(a.id, fs, dateStr);
+        const waitB = daysSinceLastAssignment(b.id, fs, dateStr);
+        if (waitA !== waitB) return waitB - waitA;
+      } else {
+        const hashA = Math.imul(a.id!, 0x9e3779b9) + Math.imul(weekRotationSeed | 0, 0x517cc1b7);
+        const hashB = Math.imul(b.id!, 0x9e3779b9) + Math.imul(weekRotationSeed | 0, 0x517cc1b7);
+        const diff = (hashA >>> 0) - (hashB >>> 0);
+        if (diff !== 0) return diff;
+      }
 
       // Пріоритет 6: Загальна кількість нарядів (нормалізовано)
       const totalA = countUserAssignments(a.id, fs, fromA) + offsetA;
@@ -269,5 +327,9 @@ export const filterByWeeklyCap = (
     const assignedInWeek = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
     return assignedInWeek < getWeeklyAssignmentCap(u, options);
   });
-  return filtered.length > 0 ? filtered : pool;
+  // Return filtered pool whenever at least 1 user passes the cap.
+  // Previously fell back to full pool when only 1 passed, which let the
+  // comparator (anti-stickiness) override the weekly cap — causing users
+  // with 0 weekly duties to be skipped entirely.
+  return filtered.length >= 1 ? filtered : pool;
 };

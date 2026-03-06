@@ -6,6 +6,7 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { getUserFairnessFrom } from '../../utils/fairness';
 import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isHistoryType } from '../../utils/assignment';
+import { countUserDaysOfWeek } from '../scheduleService';
 
 // ─── Константи ──────────────────────────────────────────────────────
 
@@ -246,6 +247,56 @@ export const daysSinceLastSameDowAssignment = (
     if (days < minDays) minDays = days;
   }
   return minDays;
+};
+
+/**
+ * Особистий дефіцит дня тижня для конкретного бійця.
+ *
+ * Показує наскільки dayIdx «недобраний» у цієї людини відносно
+ * середнього по її інших доступних днях тижня.
+ *
+ * Формула:
+ *   normalizedCount(d) = assignments_on_d / max(1, availableDays_of_d)
+ *   avgOtherDays = середнє normalizedCount по всіх днях тижня КРІМ dayIdx,
+ *                  де availableDays > 0
+ *   deficit = avgOtherDays - normalizedCount(dayIdx)
+ *
+ * Чим вище значення — тим більше «недобраний» цей день у людини.
+ * Від'ємне значення = день перебраний.
+ *
+ * Граничні випадки:
+ * - Якщо доступний лише 1 день тижня — повертає 0
+ * - Якщо availableDays для dayIdx = 0 — повертає 0
+ */
+export const getPersonalDowDeficit = (
+  user: User,
+  dayIdx: number,
+  schedule: Record<string, ScheduleEntry>,
+  fromDate: string,
+  toDate: string
+): number => {
+  const targetAvail = countAvailableDaysInWindow(user, fromDate, toDate, dayIdx);
+  if (targetAvail === 0 || !user.id) return 0;
+
+  const dowCounts = countUserDaysOfWeek(user.id, schedule, fromDate);
+  const targetCount = dowCounts[dayIdx] || 0;
+  const targetRate = targetCount / targetAvail;
+
+  let otherSum = 0;
+  let otherDays = 0;
+  for (let d = 0; d < 7; d++) {
+    if (d === dayIdx) continue;
+    const avail = countAvailableDaysInWindow(user, fromDate, toDate, d);
+    if (avail === 0) continue;
+    const count = dowCounts[d] || 0;
+    otherSum += count / avail;
+    otherDays++;
+  }
+
+  if (otherDays === 0) return 0;
+
+  const avgOther = otherSum / otherDays;
+  return avgOther - targetRate;
 };
 
 /** Базова дата обліку для бійця (кожен рахується від своєї дати вступу) */
