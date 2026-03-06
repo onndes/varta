@@ -5,7 +5,7 @@ import type { User, ScheduleEntry, AutoScheduleOptions } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getUserFairnessFrom } from '../../utils/fairness';
 import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
-import { toAssignedUserIds, isHistoryType } from '../../utils/assignment';
+import { toAssignedUserIds, isAssignedInEntry, isHistoryType } from '../../utils/assignment';
 import { countUserDaysOfWeek } from '../scheduleService';
 
 // ─── Константи ──────────────────────────────────────────────────────
@@ -62,6 +62,13 @@ export const getPrevDateStr = (dateStr: string): string => {
   const prev = new Date(dateStr);
   prev.setDate(prev.getDate() - 1);
   return toLocalISO(prev);
+};
+
+/** Дата мінус N днів */
+export const getDateMinusDays = (dateStr: string, days: number): string => {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() - days);
+  return toLocalISO(d);
 };
 
 /** Понеділок–неділя тижня, до якого належить дата */
@@ -247,6 +254,61 @@ export const daysSinceLastSameDowAssignment = (
     if (days < minDays) minDays = days;
   }
   return minDays;
+};
+
+/**
+ * Заборона «той самий день тижня два тижні поспіль»:
+ * якщо боєць чергував рівно 7 днів тому, він недоступний.
+ */
+export const didUserServeSameWeekdayLastWeek = (
+  userId: number,
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>
+): boolean => {
+  const prevWeekDate = getDateMinusDays(dateStr, 7);
+  return isAssignedInEntry(schedule[prevWeekDate], userId);
+};
+
+/** Останній день тижня (0..6) попереднього наряду користувача */
+export const getLastAssignedDayIdx = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  beforeDate: string
+): number | null => {
+  let lastDate: string | null = null;
+  for (const [date, entry] of Object.entries(schedule)) {
+    if (date >= beforeDate) continue;
+    if (!isAssignedInEntry(entry, userId)) continue;
+    if (!lastDate || date > lastDate) lastDate = date;
+  }
+  return lastDate ? new Date(lastDate).getDay() : null;
+};
+
+/**
+ * Цільова функція fairness для конкретного дня тижня:
+ * сума квадратів відхилень від середнього після гіпотетичного призначення candidateId.
+ * Менше значення = кращий баланс.
+ */
+export const computeDowFairnessObjective = (
+  dayIdx: number,
+  userIds: number[],
+  schedule: Record<string, ScheduleEntry>,
+  candidateId: number
+): number => {
+  if (userIds.length === 0) return 0;
+
+  const counts = userIds.map((id) => countUserDaysOfWeek(id, schedule)[dayIdx] || 0);
+  const sum = counts.reduce((acc, v) => acc + v, 0);
+  const n = userIds.length;
+  const mean = (sum + 1) / n;
+
+  let sse = 0;
+  for (let i = 0; i < userIds.length; i++) {
+    const assigned = userIds[i] === candidateId ? 1 : 0;
+    const diff = counts[i] + assigned - mean;
+    sse += diff * diff;
+  }
+  return sse;
 };
 
 /**

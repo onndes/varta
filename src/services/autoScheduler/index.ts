@@ -7,7 +7,11 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { repayOwedDay, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isManualType, getLogicSchedule } from '../../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
-import { buildUserComparator, filterByIncompatiblePairs, filterByWeeklyCap } from './comparator';
+import {
+  buildUserComparator,
+  filterByIncompatiblePairs,
+  filterByWeeklyCap,
+} from './comparator';
 import { countEligibleUsersForDate } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
@@ -84,7 +88,9 @@ export const getFreeUsersForDate = (
       options,
       undefined,
       fairnessSched,
-      totalEligibleCount
+      totalEligibleCount,
+      candidatePool,
+      users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto)
     )
   );
 };
@@ -186,7 +192,9 @@ export const calculateOptimalAssignment = (
       options,
       undefined,
       fairnessSched,
-      totalEligibleCount
+      totalEligibleCount,
+      available,
+      users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto)
     )
   );
   return available[0];
