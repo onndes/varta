@@ -21,24 +21,30 @@ import {
   didUserServeSameWeekdayLastWeek,
   floatEq,
   getDebtRepaymentScore,
+  getUserMaxDowCount,
+  getUserMinDowCount,
 } from './helpers';
 
 /**
  * Comparator for candidate ranking on a specific date.
  *
  * Priority order:
+ * -2. Cross-DOW zero guard: if user has max DOW count ≥ 2 while min DOW count = 0
+ *     AND this DOW is their max → deprioritize (prevent 2+ in one DOW while 0 in another).
  * -1. forceUseAllWhenFew: absolute priority for zero-assignment users (hard switch).
  *     Users with 0 duties this week beat all others unconditionally.
  * 0.  getDowCount — FIRST regular criterion (strict DOW fairness account).
  * 1.  Lower post-assignment SSE objective for this day-of-week.
- * 2.  Heavy penalty for serving the same weekday last week (SOFT — not a hard block).
- * 3.  Fewer duties in current week (normal mode / tie-break).
- * 4.  DOW recency (longer gap since same DOW = higher priority).
- * 5.  Soft +1 shift preference (last duty day + 1) / remaining availability for forceUse.
- * 6.  Fewer total duties.
- * 7.  Load balancing (if enabled).
- * 8.  Longer time since last duty.
- * 9.  Stable tie-break by id.
+ * 2.  Exponential penalty for serving the same weekday recently
+ *     (7d ago = 100, 14d ago = 25, 21d ago = 6.25). Soft, not a hard block.
+ * 3.  Soft +1 shift preference (high weight: last duty DOW + 1).
+ * 4.  Fewer duties in current week (normal mode / tie-break).
+ * 5.  DOW recency (longer gap since same DOW = higher priority).
+ * 6.  Remaining availability for forceUse mode.
+ * 7.  Fewer total duties.
+ * 8.  Load balancing (if enabled).
+ * 9.  Longer time since last duty.
+ * 10. Stable tie-break by id.
  */
 export const buildUserComparator = (
   dateStr: string,
@@ -71,7 +77,8 @@ export const buildUserComparator = (
   const dowRecencyCache = new Map<number, number>();
   const loadCache = new Map<number, number>();
   const remainingForceUseAvailCache = new Map<number, number>();
-  const sameDowLastWeekPenaltyCache = new Map<number, number>();
+  const sameDowPenaltyCache = new Map<number, number>();
+  const crossDowGuardCache = new Map<number, number>();
 
   const getDowCount = (userId: number): number => {
     if (dowCountCache.has(userId)) return dowCountCache.get(userId)!;
@@ -153,10 +160,43 @@ export const buildUserComparator = (
     return count;
   };
 
-  const getSameDowLastWeekPenalty = (userId: number): number => {
-    if (sameDowLastWeekPenaltyCache.has(userId)) return sameDowLastWeekPenaltyCache.get(userId)!;
-    const penalty = didUserServeSameWeekdayLastWeek(userId, dateStr, schedule) ? 1 : 0;
-    sameDowLastWeekPenaltyCache.set(userId, penalty);
+  /**
+   * Exponential penalty for serving the same DOW recently.
+   * 7 days ago → 100, 14d → 25, 21d → 6.25, >28d → 0.
+   * This is much stronger than a binary flag, making the scheduler
+   * work very hard to avoid same-DOW repeats across weeks.
+   */
+  const getSameDowPenalty = (userId: number): number => {
+    if (sameDowPenaltyCache.has(userId)) return sameDowPenaltyCache.get(userId)!;
+    const daysSince = daysSinceLastSameDowAssignment(userId, fs, dateStr);
+    let penalty = 0;
+    if (daysSince <= 7) {
+      penalty = 100; // Last week — extreme penalty
+    } else if (daysSince <= 14) {
+      penalty = 25; // Two weeks ago — strong penalty
+    } else if (daysSince <= 21) {
+      penalty = 6.25; // Three weeks ago — moderate
+    }
+    sameDowPenaltyCache.set(userId, penalty);
+    return penalty;
+  };
+
+  /**
+   * Cross-DOW zero guard: penalizes getting more of a DOW where
+   * the user is already at max, while having 0 in another DOW.
+   * Prevents patterns like [0,2,0,1,0,0,0] — user should fill zeroes first.
+   */
+  const getCrossDowGuard = (userId: number): number => {
+    if (crossDowGuardCache.has(userId)) return crossDowGuardCache.get(userId)!;
+    const maxDow = getUserMaxDowCount(userId, fs);
+    const minDow = getUserMinDowCount(userId, fs);
+    const thisDowCount = getDowCount(userId);
+    let penalty = 0;
+    // If user has 0 in some DOW but is about to get more in THIS DOW (already at max)
+    if (minDow === 0 && maxDow >= 1 && thisDowCount >= maxDow) {
+      penalty = 1; // Deprioritize: should fill zero-DOWs instead
+    }
+    crossDowGuardCache.set(userId, penalty);
     return penalty;
   };
 
@@ -168,6 +208,13 @@ export const buildUserComparator = (
       totalEligibleCount !== undefined &&
       totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT;
 
+    // -2. Cross-DOW zero guard: prevent accumulating duties on one DOW
+    //     while another DOW remains at 0. Must come before forceUseAll
+    //     so that DOW diversity is respected even when forcing all users.
+    const guardA = getCrossDowGuard(a.id);
+    const guardB = getCrossDowGuard(b.id);
+    if (guardA !== guardB) return guardA - guardB;
+
     // -1. forceUseAllWhenFew: absolute priority for zero-assignment users.
     //     Zero-duty user this week always beats a non-zero user, regardless of DOW history.
     if (isForceUseFew) {
@@ -178,7 +225,7 @@ export const buildUserComparator = (
       if (aIsZero !== bIsZero) return bIsZero - aIsZero;
     }
 
-    // 0. DOW counter — FIRST regular criterion (strict fairness account).
+    // 0. DOW counter — strict DOW fairness account.
     const dowA = getDowCount(a.id);
     const dowB = getDowCount(b.id);
     if (dowA !== dowB) return dowA - dowB;
@@ -211,14 +258,23 @@ export const buildUserComparator = (
     const objectiveB = getObjective(b.id);
     if (!floatEq(objectiveA, objectiveB)) return objectiveA - objectiveB;
 
-    // 2. Heavy penalty for same weekday as last week (SOFT — not a hard block).
-    //    This must come AFTER objectiveA/B so that DOW balance is not broken,
-    //    but still discourages repeating same-DOW assignments across weeks.
-    const recentSameDowA = getSameDowLastWeekPenalty(a.id);
-    const recentSameDowB = getSameDowLastWeekPenalty(b.id);
-    if (recentSameDowA !== recentSameDowB) return recentSameDowA - recentSameDowB;
+    // 2. Exponential penalty for same DOW recently (SOFT — not a hard block).
+    //    Much stronger than a binary flag: 100 for last week, 25 for 2 weeks ago.
+    //    Makes the scheduler strongly prefer rotating through different DOWs.
+    const sameDowA = getSameDowPenalty(a.id);
+    const sameDowB = getSameDowPenalty(b.id);
+    if (!floatEq(sameDowA, sameDowB)) return sameDowA - sameDowB;
 
-    // 3. Weekly cap tie-break (normal mode).
+    // 3. Soft +1 shift preference (high priority).
+    //    Encourages pattern: Mon → Tue → Wed → ... → Sun → Mon.
+    //    Placed BEFORE weekly cap to give it strong influence.
+    if (!isForceUseFew) {
+      const plusOneA = getPlusOnePenalty(a.id);
+      const plusOneB = getPlusOnePenalty(b.id);
+      if (plusOneA !== plusOneB) return plusOneA - plusOneB;
+    }
+
+    // 4. Weekly cap tie-break (normal mode).
     if (
       options.limitOneDutyPerWeekWhenSevenPlus &&
       (totalEligibleCount ?? 0) >= MIN_USERS_FOR_WEEKLY_LIMIT
@@ -228,40 +284,36 @@ export const buildUserComparator = (
       if (weekA !== weekB) return weekA - weekB;
     }
 
-    // 4. DOW recency.
+    // 5. DOW recency.
     const dowRecencyA = getDowRecency(a.id);
     const dowRecencyB = getDowRecency(b.id);
     if (dowRecencyA !== dowRecencyB) return dowRecencyB - dowRecencyA;
 
-    // 5. Soft +1 preference / remaining availability in forceUse mode.
-    if (!isForceUseFew) {
-      const plusOneA = getPlusOnePenalty(a.id);
-      const plusOneB = getPlusOnePenalty(b.id);
-      if (plusOneA !== plusOneB) return plusOneA - plusOneB;
-    } else {
+    // 6. Remaining availability in forceUse mode.
+    if (isForceUseFew) {
       const remainingAvailA = Math.max(1, getForceUseRemainingAvailability(a));
       const remainingAvailB = Math.max(1, getForceUseRemainingAvailability(b));
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
     }
 
-    // 6. Fewer total duties.
+    // 7. Fewer total duties.
     const totalA = getTotalCount(a.id);
     const totalB = getTotalCount(b.id);
     if (totalA !== totalB) return totalA - totalB;
 
-    // 7. Load balancing.
+    // 8. Load balancing.
     if (options.considerLoad) {
       const loadA = getEffectiveLoad(a);
       const loadB = getEffectiveLoad(b);
       if (!floatEq(loadA, loadB)) return loadA - loadB;
     }
 
-    // 8. Longer time since last duty.
+    // 9. Longer time since last duty.
     const waitA = getWaitDays(a.id);
     const waitB = getWaitDays(b.id);
     if (waitA !== waitB) return waitB - waitA;
 
-    // 9. Stable tie-break.
+    // 10. Stable tie-break.
     return a.id - b.id;
   };
 };

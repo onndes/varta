@@ -958,5 +958,227 @@ describe('autoScheduler', () => {
         ).toBeLessThanOrEqual(1);
       }
     }, 15_000);
+
+    it('7pe scenario: load range ≤ 1.5 after 49 days with weighted DOWs', async () => {
+      // Simulates the "7pe" case: 7 users, 49 days (7 complete weeks).
+      // With weighted DOWs (Sun=1.5, Sat=1.5, others=1.0), the load range
+      // between most and least loaded users should be ≤ 1.5 (target: 0.5).
+      const mkUser = (id: number): User => ({
+        id,
+        name: `U${id}`,
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+      const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
+
+      const baseDate = new Date('2099-01-06T12:00:00Z'); // Monday
+      const dates = Array.from({ length: 49 }, (_, i) => {
+        const d = new Date(baseDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: true,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: true,
+        forceUseAllWhenFew: true,
+      };
+
+      const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
+
+      // Compute load per user
+      const loads: Record<number, number> = {};
+      for (const user of users) loads[user.id!] = 0;
+      for (const entry of entries) {
+        const ids = Array.isArray(entry.userId)
+          ? entry.userId
+          : entry.userId != null
+            ? [entry.userId]
+            : [];
+        for (const id of ids) {
+          if (loads[id] !== undefined) {
+            const dow = new Date(entry.date).getDay();
+            loads[id] += dayWeights[dow] || 1;
+          }
+        }
+      }
+
+      const loadValues = Object.values(loads);
+      const maxLoad = Math.max(...loadValues);
+      const minLoad = Math.min(...loadValues);
+      const loadRange = maxLoad - minLoad;
+
+      expect(
+        loadRange,
+        `Load range ${loadRange.toFixed(2)} exceeds 1.5 — loads: ${JSON.stringify(loads)}`
+      ).toBeLessThanOrEqual(1.5);
+    }, 30_000);
+
+    it('Khlivnyuk 12-week scenario: user returning from trip should rotate DOWs', async () => {
+      // User 1 (Khlivnyuk) has a TRIP in week 1 (Mon-Thu), restAfter blocks Fri.
+      // Available only Sat+Sun in week 1 → gets assigned Sunday.
+      // Over weeks 2-12 the scheduler must rotate him through different DOWs,
+      // NOT repeat Sunday over and over.
+      const mkUser = (id: number, overrides: Partial<User> = {}): User => ({
+        id,
+        name: `U${id}`,
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+        ...overrides,
+      });
+
+      const users = [
+        mkUser(1, {
+          statusPeriods: [
+            {
+              status: 'TRIP',
+              from: '2099-01-06', // Mon
+              to: '2099-01-09', // Thu
+              restBefore: false,
+              restAfter: true, // Fri blocked
+            },
+          ],
+        }),
+        mkUser(2),
+        mkUser(3),
+        mkUser(4),
+        mkUser(5),
+        mkUser(6),
+        mkUser(7),
+      ];
+
+      // 12 weeks = 84 days
+      const baseDate = new Date('2099-01-06T12:00:00Z');
+      const dates = Array.from({ length: 84 }, (_, i) => {
+        const d = new Date(baseDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: true,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: true,
+        forceUseAllWhenFew: true,
+      };
+
+      const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
+
+      // Check user 1's DOW distribution — they should NOT have Sunday ≥ 3 times
+      const user1Dows = Array(7).fill(0) as number[];
+      for (const entry of entries) {
+        const ids = Array.isArray(entry.userId)
+          ? entry.userId
+          : entry.userId != null
+            ? [entry.userId]
+            : [];
+        if (ids.includes(1)) {
+          user1Dows[new Date(entry.date).getDay()]++;
+        }
+      }
+
+      // With 12 weeks, user 1 should have ~12 duties.
+      // Even accounting for trip week, max any single DOW ≤ 3
+      expect(
+        Math.max(...user1Dows),
+        `User 1 (Khlivnyuk) stuck on DOW: ${user1Dows}`
+      ).toBeLessThanOrEqual(3);
+
+      // User 1 should have at least 4 distinct DOWs covered
+      const distinctDows = user1Dows.filter((c) => c > 0).length;
+      expect(
+        distinctDows,
+        `User 1 only covers ${distinctDows} distinct DOWs: ${user1Dows}`
+      ).toBeGreaterThanOrEqual(4);
+    }, 30_000);
+
+    it('global SSE quality: system-wide DOW SSE ≤ N after 49 days', async () => {
+      // Quality gate: after 7×7 = 49 days with 7 users, the system-wide
+      // DOW SSE (variance of per-DOW assignment counts across users)
+      // should be very low. Ideal = 0.0 (perfect 1-1-1-1-1-1-1).
+      const mkUser = (id: number): User => ({
+        id,
+        name: `U${id}`,
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+      const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
+
+      const baseDate = new Date('2099-01-06T12:00:00Z');
+      const dates = Array.from({ length: 49 }, (_, i) => {
+        const d = new Date(baseDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: true,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: true,
+        allowDebtUsersExtraWeeklyAssignments: true,
+        debtUsersWeeklyLimit: 3,
+        prioritizeFasterDebtRepayment: true,
+        forceUseAllWhenFew: true,
+      };
+
+      const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
+
+      // Build schedule map
+      const sched: Record<string, ScheduleEntry> = {};
+      for (const e of entries) sched[e.date] = e;
+
+      // Compute system-wide DOW SSE
+      let sse = 0;
+      const userIds = users.map((u) => u.id!);
+      for (let d = 0; d < 7; d++) {
+        const counts = userIds.map((uid) => {
+          let cnt = 0;
+          for (const e of entries) {
+            const ids = Array.isArray(e.userId) ? e.userId : e.userId != null ? [e.userId] : [];
+            if (ids.includes(uid) && new Date(e.date).getDay() === d) cnt++;
+          }
+          return cnt;
+        });
+        const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+        sse += counts.reduce((acc, v) => acc + (v - mean) ** 2, 0);
+      }
+
+      // With perfect distribution SSE = 0. Allow small tolerance.
+      expect(
+        sse,
+        `System DOW SSE = ${sse.toFixed(2)} — too high for 7 users × 49 days`
+      ).toBeLessThanOrEqual(7);
+    }, 30_000);
   });
 });

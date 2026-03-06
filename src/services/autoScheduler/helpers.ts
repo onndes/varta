@@ -1,12 +1,12 @@
 // src/services/autoScheduler/helpers.ts
 // Константи, допоміжні функції дат, метрики бійця та обмеження
 
-import type { User, ScheduleEntry, AutoScheduleOptions } from '../../types';
+import type { User, ScheduleEntry, AutoScheduleOptions, DayWeights } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getUserFairnessFrom } from '../../utils/fairness';
 import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isAssignedInEntry, isHistoryType } from '../../utils/assignment';
-import { countUserDaysOfWeek } from '../scheduleService';
+import { countUserDaysOfWeek, calculateUserLoad } from '../scheduleService';
 
 // ─── Константи ──────────────────────────────────────────────────────
 
@@ -374,4 +374,228 @@ export const getUserCompareFrom = (
     if (historyFrom && historyFrom < from) from = historyFrom;
   }
   return from;
+};
+
+// ─── Global Objective Helpers ───────────────────────────────────────
+
+/**
+ * Count back-to-back same-DOW assignments (exactly 7 days apart) across users.
+ * Each such pair adds 1 to the penalty total.
+ */
+export const computeSameDowConsecutivePenalty = (
+  userIds: number[],
+  schedule: Record<string, ScheduleEntry>
+): number => {
+  let penalty = 0;
+  for (const uid of userIds) {
+    // Gather all assignment dates for this user, sorted
+    const dates: string[] = [];
+    for (const [d, entry] of Object.entries(schedule)) {
+      if (toAssignedUserIds(entry.userId).includes(uid)) dates.push(d);
+    }
+    dates.sort();
+
+    // For each pair of dates: if same DOW and exactly 7 days apart → penalty
+    for (let i = 0; i < dates.length; i++) {
+      const d1 = new Date(dates[i]);
+      const dow1 = d1.getDay();
+      for (let j = i + 1; j < dates.length; j++) {
+        const d2 = new Date(dates[j]);
+        const gap = (d2.getTime() - d1.getTime()) / MS_PER_DAY;
+        if (gap > 7) break; // dates sorted, no point checking further
+        if (gap === 7 && d2.getDay() === dow1) {
+          penalty += 1;
+        }
+      }
+    }
+  }
+  return penalty;
+};
+
+/**
+ * Load range: max(totalPoints) − min(totalPoints) across users.
+ * A lower value means more balanced workload.
+ */
+export const computeLoadRange = (
+  userIds: number[],
+  schedule: Record<string, ScheduleEntry>,
+  dayWeights: DayWeights
+): number => {
+  if (userIds.length === 0) return 0;
+  const loads = userIds.map((uid) => calculateUserLoad(uid, schedule, dayWeights));
+  return Math.max(...loads) - Math.min(...loads);
+};
+
+/**
+ * Within-user DOW variance: measures how unevenly each user's duties
+ * are spread across days of the week.
+ *
+ * ∑_u  ∑_d  (count_{u,d} − mean_u)²
+ *
+ * A user with [0,2,0,1,0,0,0] has high variance → bad DOW diversity.
+ * A user with [1,1,1,1,1,1,1] has 0 variance → perfect.
+ */
+export const computeWithinUserDowVariance = (
+  userIds: number[],
+  schedule: Record<string, ScheduleEntry>
+): number => {
+  let total = 0;
+  for (const uid of userIds) {
+    const counts = countUserDaysOfWeek(uid, schedule);
+    const vals = Object.values(counts);
+    const sum = vals.reduce((a, b) => a + b, 0);
+    if (sum === 0) continue;
+    const mean = sum / 7;
+    total += vals.reduce((acc, v) => acc + (v - mean) ** 2, 0);
+  }
+  return total;
+};
+
+/**
+ * Combined global objective for swap optimization (OPTIMISED single-pass).
+ *
+ * Gathers all metrics in ONE iteration over schedule entries,
+ * then computes the weighted sum.
+ *
+ * Weights:
+ *   W_SAME_DOW = 50   (highest: avoid back-to-back same DOW weeks)
+ *   W_SYSTEM_SSE = 5   (cross-user DOW fairness)
+ *   W_WITHIN_USER = 2  (within-user DOW diversity)
+ *   W_LOAD_RANGE = 1   (workload balance)
+ *
+ * Lower Z → better schedule.
+ */
+export const computeGlobalObjective = (
+  userIds: number[],
+  schedule: Record<string, ScheduleEntry>,
+  dayWeights: DayWeights
+): number => {
+  const N = userIds.length;
+  if (N === 0) return 0;
+
+  // Pre-allocate per-user data
+  const uidSet = new Set(userIds);
+  const dowCountsMap = new Map<number, number[]>();
+  const loadsMap = new Map<number, number>();
+  const datesMap = new Map<number, string[]>();
+
+  for (const uid of userIds) {
+    dowCountsMap.set(uid, [0, 0, 0, 0, 0, 0, 0]);
+    loadsMap.set(uid, 0);
+    datesMap.set(uid, []);
+  }
+
+  // DOW cache by date string to avoid repeated Date construction
+  const dowCache = new Map<string, number>();
+  const getDow = (dateStr: string): number => {
+    let d = dowCache.get(dateStr);
+    if (d === undefined) {
+      d = new Date(dateStr).getDay();
+      dowCache.set(dateStr, d);
+    }
+    return d;
+  };
+
+  // ── Single pass over schedule ──────────────────────────────────────
+  for (const entry of Object.values(schedule)) {
+    const ids = toAssignedUserIds(entry.userId);
+    if (ids.length === 0) continue;
+    const dow = getDow(entry.date);
+    const weight = dayWeights[dow] || 1;
+    for (const id of ids) {
+      if (!uidSet.has(id)) continue;
+      dowCountsMap.get(id)![dow]++;
+      loadsMap.set(id, loadsMap.get(id)! + weight);
+      datesMap.get(id)!.push(entry.date);
+    }
+  }
+
+  // ── 1. System-wide DOW SSE ─────────────────────────────────────────
+  let systemSSE = 0;
+  for (let d = 0; d < 7; d++) {
+    let sum = 0;
+    const vals: number[] = [];
+    for (const uid of userIds) {
+      const v = dowCountsMap.get(uid)![d];
+      vals.push(v);
+      sum += v;
+    }
+    const mean = sum / N;
+    for (const v of vals) systemSSE += (v - mean) ** 2;
+  }
+
+  // ── 2. Same-DOW consecutive penalty ────────────────────────────────
+  let sameDowPenalty = 0;
+  for (const uid of userIds) {
+    const dates = datesMap.get(uid)!;
+    if (dates.length < 2) continue;
+    dates.sort();
+    for (let i = 0; i < dates.length; i++) {
+      const dow1 = getDow(dates[i]);
+      const t1 = new Date(dates[i]).getTime();
+      for (let j = i + 1; j < dates.length; j++) {
+        const gap = (new Date(dates[j]).getTime() - t1) / MS_PER_DAY;
+        if (gap > 7) break;
+        if (gap === 7 && getDow(dates[j]) === dow1) {
+          sameDowPenalty++;
+        }
+      }
+    }
+  }
+
+  // ── 3. Within-user DOW variance ────────────────────────────────────
+  let withinUserVar = 0;
+  for (const uid of userIds) {
+    const counts = dowCountsMap.get(uid)!;
+    let sum = 0;
+    for (let d = 0; d < 7; d++) sum += counts[d];
+    if (sum === 0) continue;
+    const mean = sum / 7;
+    for (let d = 0; d < 7; d++) withinUserVar += (counts[d] - mean) ** 2;
+  }
+
+  // ── 4. Load range ──────────────────────────────────────────────────
+  let minLoad = Infinity;
+  let maxLoad = -Infinity;
+  for (const uid of userIds) {
+    const l = loadsMap.get(uid)!;
+    if (l < minLoad) minLoad = l;
+    if (l > maxLoad) maxLoad = l;
+  }
+  const loadRange = maxLoad - minLoad;
+
+  // ── Weighted combination ───────────────────────────────────────────
+  const W_SAME_DOW = 50.0;
+  const W_SYSTEM_SSE = 5.0;
+  const W_WITHIN_USER = 2.0;
+  const W_LOAD_RANGE = 1.0;
+
+  return (
+    W_SAME_DOW * sameDowPenalty +
+    W_SYSTEM_SSE * systemSSE +
+    W_WITHIN_USER * withinUserVar +
+    W_LOAD_RANGE * loadRange
+  );
+};
+
+/**
+ * User's max DOW count across all 7 days.
+ */
+export const getUserMaxDowCount = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>
+): number => {
+  const counts = countUserDaysOfWeek(userId, schedule);
+  return Math.max(...Object.values(counts));
+};
+
+/**
+ * User's min DOW count across all 7 days.
+ */
+export const getUserMinDowCount = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>
+): number => {
+  const counts = countUserDaysOfWeek(userId, schedule);
+  return Math.min(...Object.values(counts));
 };

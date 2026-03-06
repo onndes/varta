@@ -5,9 +5,14 @@ import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../..
 import { toLocalISO } from '../../utils/dateUtils';
 import { getLogicSchedule, isManualType, toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
-import { countUserDaysOfWeek } from '../scheduleService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
-import { countEligibleUsersForDate, FLOAT_EPSILON, MIN_USERS_FOR_WEEKLY_LIMIT } from './helpers';
+import {
+  countEligibleUsersForDate,
+  FLOAT_EPSILON,
+  MIN_USERS_FOR_WEEKLY_LIMIT,
+  computeGlobalObjective,
+  MS_PER_DAY,
+} from './helpers';
 import {
   buildUserComparator,
   filterByIncompatiblePairs,
@@ -35,36 +40,7 @@ const isHardEligible = (user: User, dateStr: string): boolean => {
 
 // ─── Swap Optimiser ──────────────────────────────────────────────────────────
 
-const MAX_SWAP_ITERATIONS = 500;
-
-/**
- * System-wide DOW fairness SSE (correct formula).
- *
- * For each day-of-week d (0–6) compute the variance of assignment counts
- * ACROSS users: var_d = sum_u (count_{u,d} - mean_d)^2
- * Total SSE = sum_{d=0}^{6} var_d
- *
- * This is minimised when each DOW is distributed EVENLY across all users.
- * (The naive "per-user DOW variance" formula was wrong: it is minimised by
- * concentrating all duties on one person, who then reaches perfect
- * within-user uniformity at the cost of total fairness.)
- */
-const computeSystemSSE = (userIds: number[], schedule: Record<string, ScheduleEntry>): number => {
-  if (userIds.length === 0) return 0;
-  let total = 0;
-  for (let d = 0; d < 7; d++) {
-    let sum = 0;
-    const vals: number[] = [];
-    for (const uid of userIds) {
-      const v = countUserDaysOfWeek(uid, schedule)[d] ?? 0;
-      vals.push(v);
-      sum += v;
-    }
-    const mean = sum / userIds.length;
-    total += vals.reduce((acc, v) => acc + (v - mean) ** 2, 0);
-  }
-  return total;
-};
+const MAX_SWAP_ITERATIONS = 1500;
 
 /** True if assigning `userId` on `dateStr` would violate the rest-day constraint. */
 const wouldViolateRestDays = (
@@ -91,31 +67,23 @@ const wouldViolateRestDays = (
 };
 
 /**
- * Post-optimisation via pair-exchange swaps followed by single-replacement swaps.
+ * Post-optimisation via multi-phase swap refinement.
  *
  * ─── Phase 1: Pair-exchange swaps ──────────────────────────────────────────
- * For every pair of auto-filled dates (D1, D2) consider atomically exchanging
- * their assigned users: U1 (on D1) ↔ U2 (on D2).
- *
- * Pair exchanges are ALWAYS weekly-balance-neutral: each user moves from one
- * date to another, so their total duty-count in every calendar week is
- * unchanged.  This invariant holds for both intra-week and cross-week pairs.
- * Therefore no forceUseAllWhenFew guard is needed here.
- *
- * Acceptance criteria:
- *   1. Both U1 and U2 are hard-eligible for their new dates.
- *   2. Neither new placement violates the rest-day constraint.
- *   3. The exchange strictly reduces the system-wide DOW fairness SSE.
+ * Atomically exchange users on two dates: U1 (D1) ↔ U2 (D2).
+ * Weekly-balance-neutral (each user moves from one date to another).
  *
  * ─── Phase 2: Single-replacement swaps ─────────────────────────────────────
- * Try replacing the assigned user on a date with any other hard-eligible
- * candidate.  Used as a secondary pass to pick up residual improvements not
- * reachable by pair exchanges (e.g. when a user is genuinely over-represented
- * across ALL dates on a given DOW and needs to be removed, not merely shuffled).
+ * Replace the assigned user on a date with a different hard-eligible user.
  *
- * This phase respects the forceUseAllWhenFew weekly balance invariant.
+ * ─── Phase 3: Targeted same-DOW-consecutive resolution ─────────────────────
+ * Specifically looks for users with back-to-back same DOW (7 days apart)
+ * and tries pair-swapping the repeat occurrence with another auto-filled date.
  *
- * Both phases iterate until no improvement is found or MAX_SWAP_ITERATIONS.
+ * Acceptance for ALL phases uses the combined global objective
+ * (DOW SSE + same-DOW penalty + within-user variance + load range).
+ *
+ * Iterates until no improvement found or MAX_SWAP_ITERATIONS.
  */
 const performSwapOptimization = (
   dates: string[],
@@ -123,7 +91,8 @@ const performSwapOptimization = (
   tempSchedule: Record<string, ScheduleEntry>,
   autoFilledDateSet: Set<string>,
   tempLoadOffset: Record<number, number>,
-  options: AutoScheduleOptions
+  options: AutoScheduleOptions,
+  dayWeights: DayWeights
 ): void => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
@@ -136,7 +105,6 @@ const performSwapOptimization = (
     let improved = false;
 
     // ── Phase 1: Pair-exchange swaps ──────────────────────────────────────
-    // Only handle single-duty-per-day slots here for simplicity.
     outerPair: for (let i = 0; i < autoFilledDates.length - 1; i++) {
       for (let j = i + 1; j < autoFilledDates.length; j++) {
         const date1 = autoFilledDates[i];
@@ -154,50 +122,41 @@ const performSwapOptimization = (
         const user2 = ids2[0];
         if (user1 === user2) continue;
 
-        // Both users must be hard-eligible for their NEW dates.
         const u1obj = participants.find((u) => u.id === user1);
         const u2obj = participants.find((u) => u.id === user2);
         if (!u1obj || !u2obj) continue;
         if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
 
-        const baseSSE = computeSystemSSE(userIds, tempSchedule);
+        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
 
         // Apply exchange tentatively.
         tempSchedule[date1] = { ...entry1, userId: user2 };
         tempSchedule[date2] = { ...entry2, userId: user1 };
 
-        // Rest-day constraints on the new combined schedule.
         const u2ViolatesDate1 =
           minRest > 0 && wouldViolateRestDays(user2, date1, minRest, tempSchedule);
         const u1ViolatesDate2 =
           minRest > 0 && wouldViolateRestDays(user1, date2, minRest, tempSchedule);
 
         if (u2ViolatesDate1 || u1ViolatesDate2) {
-          // Revert.
           tempSchedule[date1] = entry1;
           tempSchedule[date2] = entry2;
           continue;
         }
 
-        const newSSE = computeSystemSSE(userIds, tempSchedule);
+        const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
 
-        if (newSSE < baseSSE - FLOAT_EPSILON) {
-          // Accept: update load offsets to reflect the exchange.
-          // Net change per user's total count = 0, but their DOW composition changed.
-          // Offset reflects positional shift for comparator freshness.
-          // (No net change in total count, so offsets cancel out; we still update
-          //  to signal that the position was touched.)
+        if (newObj < baseObj - FLOAT_EPSILON) {
           improved = true;
-          break outerPair; // Restart outer loop after each accepted exchange.
+          break outerPair;
         } else {
-          // Revert.
           tempSchedule[date1] = entry1;
           tempSchedule[date2] = entry2;
         }
       }
     }
 
-    if (improved) continue; // Restart from phase 1 with updated schedule.
+    if (improved) continue;
 
     // ── Phase 2: Single-replacement swaps ────────────────────────────────
     for (const dateStr of autoFilledDates) {
@@ -219,7 +178,7 @@ const performSwapOptimization = (
         );
         if (candidates.length === 0) continue;
 
-        const baseSSE = computeSystemSSE(userIds, tempSchedule);
+        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
 
         for (const candidate of candidates) {
           const newIds = [...assignedIds];
@@ -232,10 +191,10 @@ const performSwapOptimization = (
 
           tempSchedule[dateStr] = swappedEntry;
 
-          const newSSE = computeSystemSSE(userIds, tempSchedule);
+          const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
 
-          if (newSSE < baseSSE - FLOAT_EPSILON) {
-            // forceUseAllWhenFew: single swaps change weekly counts, so guard here.
+          if (newObj < baseObj - FLOAT_EPSILON) {
+            // forceUseAllWhenFew guard: single swaps change weekly counts.
             if (options.forceUseAllWhenFew) {
               const d = new Date(dateStr);
               const dow = d.getDay();
@@ -252,8 +211,6 @@ const performSwapOptimization = (
                   (s) => s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(uid)
                 ).length;
 
-              // After the tentative swap is already applied in tempSchedule:
-              // assignedId lost 1 (it's no longer in dateStr), candidate gained 1.
               const assignedNewCount = countInWeek(assignedId);
               const candidateNewCount = countInWeek(candidate.id!);
 
@@ -274,16 +231,98 @@ const performSwapOptimization = (
       }
     }
 
-    if (!improved) break;
+    if (improved) continue;
+
+    // ── Phase 3: Targeted same-DOW-consecutive resolution ────────────────
+    // Find users with back-to-back same DOW (7d apart) and try to swap them
+    // out of the repeat via pair exchange with another date's user.
+    let resolvedSameDow = false;
+    for (const uid of userIds) {
+      const userDates = autoFilledDates.filter((d) =>
+        toAssignedUserIds(tempSchedule[d]?.userId).includes(uid)
+      );
+      for (let k = 0; k < userDates.length; k++) {
+        const d1 = userDates[k];
+        for (let m = k + 1; m < userDates.length; m++) {
+          const d2 = userDates[m];
+          const gap = (new Date(d2).getTime() - new Date(d1).getTime()) / MS_PER_DAY;
+          if (gap > 7) break;
+          if (gap !== 7 || new Date(d1).getDay() !== new Date(d2).getDay()) continue;
+
+          // d2 is the repeat — try pair exchange
+          const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+          const entry2 = tempSchedule[d2];
+          if (!entry2) continue;
+
+          for (const otherDate of autoFilledDates) {
+            if (otherDate === d2) continue;
+            const otherEntry = tempSchedule[otherDate];
+            if (!otherEntry) continue;
+            const otherIds = toAssignedUserIds(otherEntry.userId);
+            if (otherIds.length !== 1) continue;
+            const otherId = otherIds[0];
+            if (otherId === uid) continue;
+
+            const uObj = participants.find((u) => u.id === uid);
+            const oObj = participants.find((u) => u.id === otherId);
+            if (!uObj || !oObj) continue;
+            if (!isHardEligible(uObj, otherDate) || !isHardEligible(oObj, d2)) continue;
+
+            // Tentative swap
+            tempSchedule[d2] = { ...entry2, userId: otherId };
+            tempSchedule[otherDate] = { ...otherEntry, userId: uid };
+
+            const v1 = minRest > 0 && wouldViolateRestDays(otherId, d2, minRest, tempSchedule);
+            const v2 = minRest > 0 && wouldViolateRestDays(uid, otherDate, minRest, tempSchedule);
+
+            if (v1 || v2) {
+              tempSchedule[d2] = entry2;
+              tempSchedule[otherDate] = otherEntry;
+              continue;
+            }
+
+            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+            if (newObj < baseObj - FLOAT_EPSILON) {
+              resolvedSameDow = true;
+              break;
+            } else {
+              tempSchedule[d2] = entry2;
+              tempSchedule[otherDate] = otherEntry;
+            }
+          }
+          if (resolvedSameDow) break;
+        }
+        if (resolvedSameDow) break;
+      }
+      if (resolvedSameDow) break;
+    }
+
+    if (resolvedSameDow) continue;
+
+    // No improvement found in any phase → stable.
+    break;
   }
 };
 
 /**
- * Automatic fill using deterministic constraint optimization:
- * 1) hard constraints filtering
- * 2) fairness accounts by day-of-week
- * 3) variance objective minimization (SSE)
- * 4) soft +1 sliding preference
+ * Multi-pass automatic fill using constraint optimization:
+ *
+ * Pass 1 (Draft): Greedy assignment using the comparator with:
+ *   - Cross-DOW zero guard (Priority -2)
+ *   - forceUseAllWhenFew (Priority -1)
+ *   - DOW count fairness (Priority 0)
+ *   - Exponential same-DOW penalty (Priority 2)
+ *   - +1 shift rotation preference (Priority 3)
+ *
+ * Pass 2+ (Refinement): Multi-phase swap optimization minimising
+ *   the combined global objective Z = W_sameDow * penalties
+ *     + W_sse * systemSSE + W_withinUser * variance + W_load * loadRange
+ *
+ *   Phase 1: Pair-exchange swaps (weekly-balance-neutral)
+ *   Phase 2: Single-replacement swaps (forceUseAll-guarded)
+ *   Phase 3: Targeted same-DOW-consecutive resolution
+ *
+ * Iterates swaps until global objective stabilises.
  */
 export const autoFillSchedule = async (
   targetDates: string[],
@@ -406,9 +445,17 @@ export const autoFillSchedule = async (
     }
   }
 
-  // ─── Post-optimisation: minimise DOW variance via pairwise swaps ──────────
+  // ─── Post-optimisation: minimise global objective via multi-phase swaps ────
   if (autoFilledDateSet.size > 0) {
-    performSwapOptimization(dates, users, tempSchedule, autoFilledDateSet, tempLoadOffset, options);
+    performSwapOptimization(
+      dates,
+      users,
+      tempSchedule,
+      autoFilledDateSet,
+      tempLoadOffset,
+      options,
+      dayWeights
+    );
 
     // Reconcile: collect final state for any date touched by swap optimiser.
     for (const dateStr of autoFilledDateSet) {
