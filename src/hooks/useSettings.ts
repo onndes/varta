@@ -7,6 +7,7 @@ import {
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
   DEFAULT_MAX_DEBT,
   DEFAULT_PRINT_MAX_ROWS,
+  DEFAULT_SIGNATORIES,
 } from '../utils/constants';
 
 /**
@@ -14,17 +15,7 @@ import {
  */
 export const useSettings = () => {
   const [dayWeights, setDayWeights] = useState<DayWeights>({});
-  const [signatories, setSignatories] = useState<Signatories>({
-    approverPos: '',
-    approverRank: '',
-    approverName: '',
-    creatorPos: '',
-    creatorRank: '',
-    creatorName: '',
-    scheduleTitle: '',
-    scheduleSubtitle: '',
-    scheduleLine3: '',
-  });
+  const [signatories, setSignatories] = useState<Signatories>({ ...DEFAULT_SIGNATORIES });
   const [cascadeStartDate, setCascadeStartDate] = useState<string | null>(null);
   const [dutiesPerDay, setDutiesPerDay] = useState<number>(1);
   const [autoScheduleOptions, setAutoScheduleOptions] = useState<AutoScheduleOptions>(

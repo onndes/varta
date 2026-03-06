@@ -16,6 +16,7 @@ export interface Signatories {
   approverName?: string;
   commanderRank?: string;
   commanderName?: string;
+  showCreatorFooter?: boolean;
   creatorPos?: string;
   creatorRank?: string;
   creatorName?: string;

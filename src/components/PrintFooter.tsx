@@ -10,6 +10,10 @@ interface PrintFooterProps {
  * Shows who created the schedule
  */
 const PrintFooter: React.FC<PrintFooterProps> = ({ signatories }) => {
+  if (signatories.showCreatorFooter === false) {
+    return null;
+  }
+
   const rankLower = (r: string) => (r ? r.charAt(0).toLowerCase() + r.slice(1) : '');
   const hasFilled = signatories.creatorPos || signatories.creatorRank || signatories.creatorName;
 

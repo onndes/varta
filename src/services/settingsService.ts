@@ -50,8 +50,10 @@ export const saveDayWeights = async (weights: DayWeights): Promise<void> =>
 
 // ── Signatories ───────────────────────────────────────────────────────
 
-export const getSignatories = async (): Promise<Signatories> =>
-  getJsonSetting('signatories', DEFAULT_SIGNATORIES);
+export const getSignatories = async (): Promise<Signatories> => {
+  const partial = await getJsonSetting<Partial<Signatories>>('signatories', {});
+  return { ...DEFAULT_SIGNATORIES, ...partial };
+};
 
 export const saveSignatories = async (signatories: Signatories): Promise<void> =>
   saveSetting('signatories', signatories);

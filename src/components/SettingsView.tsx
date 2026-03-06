@@ -776,6 +776,23 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               <h6 className="fw-bold text-primary border-bottom pb-2">
                 ГРАФІК СКЛАВ (Низ сторінки)
               </h6>
+              <div className="form-check form-switch mb-3">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="showCreatorFooter"
+                  checked={sigs.showCreatorFooter !== false}
+                  onChange={(e) =>
+                    setSigs({ ...sigs, showCreatorFooter: e.target.checked })
+                  }
+                />
+                <label className="form-check-label" htmlFor="showCreatorFooter">
+                  <strong>Показувати поле при друці</strong>
+                  <div className="text-muted small">
+                    Вимкніть, якщо підпис «Графік склав» не потрібен у друкованому графіку.
+                  </div>
+                </label>
+              </div>
               <div className="mb-2">
                 <label className="small text-muted">Посада</label>
                 <input
