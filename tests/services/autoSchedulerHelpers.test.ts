@@ -9,6 +9,9 @@ import {
   hasDebtBacklog,
   shouldEnforceOneDutyPerWeek,
   getDebtRepaymentScore,
+  computeDaysActive,
+  computeUserLoadRate,
+  calculateUserFairnessIndex,
 } from '@/services/autoScheduler/helpers';
 
 // ─── Фабрика користувачів ──────────────────────────────────────────
@@ -463,5 +466,104 @@ describe('getDebtRepaymentScore', () => {
   it('debt:-5, owedToday:1, weight:2.0 → min(5, 1*2.0) = 2', () => {
     const user = makeUser({ debt: -5, owedDays: { 0: 1 } });
     expect(getDebtRepaymentScore(user, 0, 2.0)).toBe(2);
+  });
+});
+
+// ─── computeDaysActive ─────────────────────────────────────────────
+
+describe('computeDaysActive', () => {
+  it('uses dateAddedToAuto when present', () => {
+    const user = makeUser({ dateAddedToAuto: '2026-01-01' });
+    const days = computeDaysActive(user, '2026-01-11', {});
+    expect(days).toBe(10);
+  });
+
+  it('falls back to earliest schedule assignment if no dateAddedToAuto', () => {
+    const user = makeUser({ id: 1 });
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-01-05': { date: '2026-01-05', userId: 1, type: 'auto' },
+      '2026-01-10': { date: '2026-01-10', userId: 1, type: 'auto' },
+    };
+    const days = computeDaysActive(user, '2026-01-15', schedule);
+    expect(days).toBe(10); // from Jan 5 to Jan 15
+  });
+
+  it('returns at least 1 for brand-new user', () => {
+    const user = makeUser({ id: 99 });
+    expect(computeDaysActive(user, '2026-03-01', {})).toBe(1);
+  });
+});
+
+// ─── computeUserLoadRate ───────────────────────────────────────────
+
+describe('computeUserLoadRate', () => {
+  it('rate = assignments / daysActive', () => {
+    const users = [makeUser({ id: 1, dateAddedToAuto: '2026-01-01' })];
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-01-02': { date: '2026-01-02', userId: 1, type: 'auto' },
+      '2026-01-04': { date: '2026-01-04', userId: 1, type: 'auto' },
+      '2026-01-06': { date: '2026-01-06', userId: 1, type: 'auto' },
+    };
+    // 3 assignments / 10 days active = 0.3
+    const rate = computeUserLoadRate(1, schedule, '2026-01-11', users);
+    expect(rate).toBeCloseTo(0.3, 5);
+  });
+
+  it('newcomer with few days has higher rate appropriately', () => {
+    const veteran = makeUser({ id: 1, dateAddedToAuto: '2026-01-01' });
+    const newcomer = makeUser({ id: 2, dateAddedToAuto: '2026-01-08' });
+    const users = [veteran, newcomer];
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-01-02': { date: '2026-01-02', userId: 1, type: 'auto' },
+      '2026-01-04': { date: '2026-01-04', userId: 1, type: 'auto' },
+      '2026-01-09': { date: '2026-01-09', userId: 2, type: 'auto' },
+    };
+    const vetRate = computeUserLoadRate(1, schedule, '2026-01-11', users);
+    const newRate = computeUserLoadRate(2, schedule, '2026-01-11', users);
+    // veteran: 2/10 = 0.2, newcomer: 1/3 = 0.333
+    expect(vetRate).toBeCloseTo(0.2, 5);
+    expect(newRate).toBeCloseTo(1 / 3, 5);
+  });
+});
+
+// ─── calculateUserFairnessIndex ────────────────────────────────────
+
+describe('calculateUserFairnessIndex', () => {
+  it('returns 1.0 for perfectly balanced users', () => {
+    const users = [
+      makeUser({ id: 1, dateAddedToAuto: '2026-01-01' }),
+      makeUser({ id: 2, dateAddedToAuto: '2026-01-01' }),
+    ];
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-01-02': { date: '2026-01-02', userId: 1, type: 'auto' },
+      '2026-01-04': { date: '2026-01-04', userId: 2, type: 'auto' },
+    };
+    const dayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+    const idx1 = calculateUserFairnessIndex(1, users, schedule, dayWeights, '2026-01-11');
+    const idx2 = calculateUserFairnessIndex(2, users, schedule, dayWeights, '2026-01-11');
+    // Both have same rate (1/10), so fairness = 1
+    expect(idx1).toBeCloseTo(1.0, 5);
+    expect(idx2).toBeCloseTo(1.0, 5);
+  });
+
+  it('returns < 1 for heavily overloaded user', () => {
+    const users = [
+      makeUser({ id: 1, dateAddedToAuto: '2026-01-01' }),
+      makeUser({ id: 2, dateAddedToAuto: '2026-01-01' }),
+    ];
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-01-02': { date: '2026-01-02', userId: 1, type: 'auto' },
+      '2026-01-04': { date: '2026-01-04', userId: 1, type: 'auto' },
+      '2026-01-06': { date: '2026-01-06', userId: 1, type: 'auto' },
+      '2026-01-08': { date: '2026-01-08', userId: 1, type: 'auto' },
+    };
+    const dayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+    // User 1 has rate 4/10=0.4, user 2 has rate 0/10=0. Avg=0.2.
+    // User 1 deviation = 0.2/0.2 = 1.0 → fairness = 0.0
+    const idx1 = calculateUserFairnessIndex(1, users, schedule, dayWeights, '2026-01-11');
+    expect(idx1).toBeLessThan(0.5);
+    // User 2 deviation = 0.2/0.2 = 1.0 → fairness = 0.0
+    const idx2 = calculateUserFairnessIndex(2, users, schedule, dayWeights, '2026-01-11');
+    expect(idx2).toBeLessThan(0.5);
   });
 });

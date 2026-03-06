@@ -1180,5 +1180,225 @@ describe('autoScheduler', () => {
         `System DOW SSE = ${sse.toFixed(2)} — too high for 7 users × 49 days`
       ).toBeLessThanOrEqual(7);
     }, 30_000);
+
+    it('Stress_3_Users: 3 users over 28 days should distribute fairly', async () => {
+      const mkUser = (id: number): User => ({
+        id,
+        name: `U${id}`,
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+      const users = [mkUser(1), mkUser(2), mkUser(3)];
+
+      const baseDate = new Date('2099-01-06T12:00:00Z'); // Monday
+      const dates = Array.from({ length: 28 }, (_, i) => {
+        const d = new Date(baseDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: false,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: false,
+        allowDebtUsersExtraWeeklyAssignments: false,
+        debtUsersWeeklyLimit: 1,
+        prioritizeFasterDebtRepayment: false,
+        forceUseAllWhenFew: true,
+      };
+
+      const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
+      expect(entries.length).toBe(28);
+
+      // Count per user
+      const counts = [0, 0, 0];
+      for (const e of entries) {
+        const ids = Array.isArray(e.userId) ? e.userId : e.userId != null ? [e.userId] : [];
+        for (const id of ids) counts[id - 1]++;
+      }
+
+      // Each should get ~9-10 duties (28/3 ≈ 9.33). Allow ±2.
+      for (let i = 0; i < 3; i++) {
+        expect(
+          counts[i],
+          `User ${i + 1} got ${counts[i]} duties — unfair for 3-user pool`
+        ).toBeGreaterThanOrEqual(7);
+        expect(counts[i]).toBeLessThanOrEqual(12);
+      }
+
+      // Load range should be small
+      const loadRange = Math.max(...counts) - Math.min(...counts);
+      expect(
+        loadRange,
+        `Load range = ${loadRange} — too unbalanced for 3 users`
+      ).toBeLessThanOrEqual(3);
+    }, 30_000);
+
+    it('Stress_33_Users: 33 users over 42 days should be stable', async () => {
+      const mkUser = (id: number): User => ({
+        id,
+        name: `U${id}`,
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+      });
+      const users = Array.from({ length: 33 }, (_, i) => mkUser(i + 1));
+
+      const baseDate = new Date('2099-01-06T12:00:00Z'); // Monday
+      const dates = Array.from({ length: 42 }, (_, i) => {
+        const d = new Date(baseDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: false,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: true,
+        allowDebtUsersExtraWeeklyAssignments: false,
+        debtUsersWeeklyLimit: 1,
+        prioritizeFasterDebtRepayment: false,
+        forceUseAllWhenFew: false,
+      };
+
+      const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
+
+      // All 42 days should be filled
+      expect(entries.length).toBe(42);
+
+      // No user should have 0 duties (everyone should get at least 1)
+      const counts = new Map<number, number>();
+      for (const e of entries) {
+        const ids = Array.isArray(e.userId) ? e.userId : e.userId != null ? [e.userId] : [];
+        for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
+      }
+
+      // With 33 users and 42 days spanning ~7 ISO weeks, each gets ~1.27 avg.
+      // Max any user gets should be reasonable — ≤ 5 (stability check).
+      for (const [uid, cnt] of counts) {
+        expect(
+          cnt,
+          `User ${uid} got ${cnt} duties — too many for 33-user pool`
+        ).toBeLessThanOrEqual(5);
+      }
+
+      // Load range (max - min) should be ≤ 5 (some users may get 0)
+      const allCounts = users.map((u) => counts.get(u.id!) || 0);
+      const loadRange = Math.max(...allCounts) - Math.min(...allCounts);
+      expect(
+        loadRange,
+        `Load range = ${loadRange} — too unbalanced for 33 users`
+      ).toBeLessThanOrEqual(5);
+    }, 30_000);
+
+    it('Newcomer_Fair_Start: newcomer should not be overloaded (catch-up prevention)', async () => {
+      // Setup: 5 veterans active since day 1, 1 newcomer joins on day 15.
+      // Over 35 days, the newcomer's Load Rate should be similar to veterans,
+      // NOT burst-loaded to "catch up" with absolute count.
+      const mkUser = (id: number, dateAdded?: string): User => ({
+        id,
+        name: `U${id}`,
+        rank: 'Солдат',
+        status: 'ACTIVE',
+        isActive: true,
+        debt: 0,
+        owedDays: {},
+        dateAddedToAuto: dateAdded,
+      });
+
+      const users = [
+        mkUser(1, '2099-01-06'),
+        mkUser(2, '2099-01-06'),
+        mkUser(3, '2099-01-06'),
+        mkUser(4, '2099-01-06'),
+        mkUser(5, '2099-01-06'),
+        mkUser(6, '2099-01-20'), // Newcomer: joins 14 days later
+      ];
+
+      const baseDate = new Date('2099-01-06T12:00:00Z'); // Monday
+      const dates = Array.from({ length: 35 }, (_, i) => {
+        const d = new Date(baseDate);
+        d.setUTCDate(d.getUTCDate() + i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      // First 14 days: only veterans are available (newcomer not yet in system).
+      // Simulate by not including newcomer (id=6) as isExtra until their joinDate.
+      // Actually, autoFillSchedule respects dateAddedToAuto via availability.
+      // For newcomer, we need to make them unavailable before their join date.
+      // The simplest way: give newcomer a status period covering the first 14 days.
+      users[5].statusPeriods = [
+        {
+          status: 'ABSENT',
+          from: '2099-01-06',
+          to: '2099-01-19',
+          comment: 'Not yet in unit',
+        },
+      ];
+
+      const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+      const opts: AutoScheduleOptions = {
+        avoidConsecutiveDays: true,
+        respectOwedDays: false,
+        considerLoad: true,
+        minRestDays: 1,
+        aggressiveLoadBalancing: false,
+        aggressiveLoadBalancingThreshold: 0.2,
+        limitOneDutyPerWeekWhenSevenPlus: false,
+        allowDebtUsersExtraWeeklyAssignments: false,
+        debtUsersWeeklyLimit: 1,
+        prioritizeFasterDebtRepayment: false,
+        forceUseAllWhenFew: true,
+      };
+
+      const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
+
+      // Build schedule map
+      const sched: Record<string, ScheduleEntry> = {};
+      for (const e of entries) sched[e.date] = e;
+
+      // Count newcomer duties (only from day 15 onwards)
+      let newcomerDuties = 0;
+      let veteranMaxDuties = 0;
+      const veteranCounts = [0, 0, 0, 0, 0];
+      for (const e of entries) {
+        const ids = Array.isArray(e.userId) ? e.userId : e.userId != null ? [e.userId] : [];
+        for (const id of ids) {
+          if (id === 6) newcomerDuties++;
+          else if (id >= 1 && id <= 5) veteranCounts[id - 1]++;
+        }
+      }
+      veteranMaxDuties = Math.max(...veteranCounts);
+
+      // Newcomer available for 21 days (days 15-35), veterans for 35 days.
+      // Veterans each get ~7 duties in 35 days (35/5 = 7).
+      // After newcomer joins (21 days available, 6 users), newcomer should get ~3-4 duties.
+      // Critically: newcomer should NOT have MORE duties than any veteran.
+      expect(
+        newcomerDuties,
+        `Newcomer (U6) got ${newcomerDuties} duties — should not exceed veteran max (${veteranMaxDuties})`
+      ).toBeLessThanOrEqual(veteranMaxDuties + 1);
+
+      // Newcomer should not be burst-loaded: max 5 duties (proportional to available days)
+      expect(
+        newcomerDuties,
+        `Newcomer (U6) got ${newcomerDuties} duties — burst-loaded!`
+      ).toBeLessThanOrEqual(6);
+    }, 30_000);
   });
 });

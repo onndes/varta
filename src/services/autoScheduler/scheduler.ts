@@ -42,6 +42,37 @@ const isHardEligible = (user: User, dateStr: string): boolean => {
 
 const MAX_SWAP_ITERATIONS = 1500;
 
+/**
+ * Check if placing userId on dateStr would violate incompatible-pair constraints.
+ * Looks at neighbours (day before / day after) and checks bidirectional incompatibility.
+ */
+const wouldViolateIncompatiblePairs = (
+  userId: number,
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>,
+  allUsers: User[]
+): boolean => {
+  const user = allUsers.find((u) => u.id === userId);
+  if (!user) return false;
+
+  const target = new Date(dateStr);
+  for (const offset of [-1, 1]) {
+    const neighbour = new Date(target);
+    neighbour.setDate(target.getDate() + offset);
+    const nStr = toLocalISO(neighbour);
+    const nEntry = schedule[nStr];
+    if (!nEntry) continue;
+    const nIds = toAssignedUserIds(nEntry.userId);
+    for (const nId of nIds) {
+      // Check bidirectional: user→neighbour and neighbour→user
+      if (user.incompatibleWith?.includes(nId)) return true;
+      const nUser = allUsers.find((u) => u.id === nId);
+      if (nUser?.incompatibleWith?.includes(userId)) return true;
+    }
+  }
+  return false;
+};
+
 /** True if assigning `userId` on `dateStr` would violate the rest-day constraint. */
 const wouldViolateRestDays = (
   userId: number,
@@ -127,6 +158,13 @@ const performSwapOptimization = (
         if (!u1obj || !u2obj) continue;
         if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
 
+        // Hard constraint: incompatible pairs on neighbouring days
+        if (
+          wouldViolateIncompatiblePairs(user1, date2, tempSchedule, users) ||
+          wouldViolateIncompatiblePairs(user2, date1, tempSchedule, users)
+        )
+          continue;
+
         const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
 
         // Apply exchange tentatively.
@@ -174,7 +212,8 @@ const performSwapOptimization = (
             u.id !== assignedId &&
             !assignedIds.includes(u.id) &&
             isHardEligible(u, dateStr) &&
-            (minRest === 0 || !wouldViolateRestDays(u.id, dateStr, minRest, tempSchedule))
+            (minRest === 0 || !wouldViolateRestDays(u.id, dateStr, minRest, tempSchedule)) &&
+            !wouldViolateIncompatiblePairs(u.id, dateStr, tempSchedule, users)
         );
         if (candidates.length === 0) continue;
 
@@ -267,6 +306,13 @@ const performSwapOptimization = (
             const oObj = participants.find((u) => u.id === otherId);
             if (!uObj || !oObj) continue;
             if (!isHardEligible(uObj, otherDate) || !isHardEligible(oObj, d2)) continue;
+
+            // Hard constraint: incompatible pairs
+            if (
+              wouldViolateIncompatiblePairs(uid, otherDate, tempSchedule, users) ||
+              wouldViolateIncompatiblePairs(otherId, d2, tempSchedule, users)
+            )
+              continue;
 
             // Tentative swap
             tempSchedule[d2] = { ...entry2, userId: otherId };

@@ -12,11 +12,12 @@ import {
   filterByIncompatiblePairs,
   filterByWeeklyCap,
 } from './comparator';
-import { countEligibleUsersForDate } from './helpers';
+import { countEligibleUsersForDate, calculateUserFairnessIndex, computeUserLoadRate } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
 // Re-export головного алгоритму
 export { autoFillSchedule } from './scheduler';
+export { calculateUserFairnessIndex, computeUserLoadRate } from './helpers';
 
 /**
  * Зберегти авто-розклад та погасити борги (owedDays + карма).

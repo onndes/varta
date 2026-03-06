@@ -6,7 +6,7 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { getUserFairnessFrom } from '../../utils/fairness';
 import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isAssignedInEntry, isHistoryType } from '../../utils/assignment';
-import { countUserDaysOfWeek, calculateUserLoad } from '../scheduleService';
+import { countUserDaysOfWeek, calculateUserLoad, countUserAssignments } from '../scheduleService';
 
 // ─── Константи ──────────────────────────────────────────────────────
 
@@ -376,6 +376,83 @@ export const getUserCompareFrom = (
   return from;
 };
 
+// ─── Load Rate & Fairness ───────────────────────────────────────────
+
+/**
+ * Number of calendar days a user has been "in the system" up to `dateStr`.
+ * Uses `dateAddedToAuto` if set, otherwise earliest history/schedule date.
+ * Returns at least 1 to avoid division by zero.
+ */
+export const computeDaysActive = (
+  user: User,
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>
+): number => {
+  let from = user.dateAddedToAuto;
+  if (!from) {
+    // Fallback: earliest assignment in schedule
+    if (user.id) {
+      for (const entry of Object.values(schedule)) {
+        if (toAssignedUserIds(entry.userId).includes(user.id)) {
+          if (!from || entry.date < from) from = entry.date;
+        }
+      }
+    }
+  }
+  if (!from) from = dateStr; // brand-new user with no history
+  if (from > dateStr) return 1;
+  const days = Math.floor((new Date(dateStr).getTime() - new Date(from).getTime()) / MS_PER_DAY);
+  return Math.max(1, days);
+};
+
+/**
+ * Load Rate (intensity) = totalAssignments / daysActive.
+ * Normalises workload so newcomers are compared fairly with veterans.
+ */
+export const computeUserLoadRate = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string,
+  users: User[]
+): number => {
+  const user = users.find((u) => u.id === userId);
+  if (!user) return 0;
+  const total = countUserAssignments(userId, schedule);
+  const daysActive = computeDaysActive(user, dateStr, schedule);
+  return total / daysActive;
+};
+
+/**
+ * Fairness Index for a single user (0..1, where 1 = perfectly fair).
+ *
+ * Compares the user's Load Rate to the group average Rate.
+ * Accounts for individual blocked days / unavailability by normalising
+ * against the user's available-day ratio.
+ *
+ * Formula:
+ *   groupAvgRate   = Σ(Rate_u) / N
+ *   deviation       = |userRate − groupAvgRate|
+ *   fairnessIndex  = max(0, 1 − deviation / max(groupAvgRate, ε))
+ */
+export const calculateUserFairnessIndex = (
+  userId: number,
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  dayWeights: DayWeights,
+  dateStr: string
+): number => {
+  const participants = users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);
+  if (participants.length === 0) return 1;
+
+  const rates = participants.map((u) => computeUserLoadRate(u.id!, schedule, dateStr, users));
+  const groupAvg = rates.reduce((a, b) => a + b, 0) / rates.length;
+
+  const userRate = computeUserLoadRate(userId, schedule, dateStr, users);
+  const deviation = Math.abs(userRate - groupAvg);
+  const epsilon = 1e-9;
+  return Math.max(0, 1 - deviation / Math.max(groupAvg, epsilon));
+};
+
 // ─── Global Objective Helpers ───────────────────────────────────────
 
 /**
@@ -564,17 +641,60 @@ export const computeGlobalObjective = (
   }
   const loadRange = maxLoad - minLoad;
 
+  // ── 4b. Total assignment SSE (cross-user total fairness) ──────────
+  // Prevents optimizer from concentrating duties on one user to improve
+  // their DOW variance while starving others.
+  let totalAssignmentSSE = 0;
+  {
+    let sumTotal = 0;
+    const totals: number[] = [];
+    for (const uid of userIds) {
+      let t = 0;
+      const counts = dowCountsMap.get(uid)!;
+      for (let d = 0; d < 7; d++) t += counts[d];
+      totals.push(t);
+      sumTotal += t;
+    }
+    const meanTotal = sumTotal / N;
+    for (const t of totals) totalAssignmentSSE += (t - meanTotal) ** 2;
+  }
+
+  // ── 5. Zero-guard penalty (ASTRONOMICAL) ──────────────────────────
+  // If ANY user has minDow = 0 while maxDow ≥ 2 → huge penalty.
+  // Personal pattern 1-1-1-1-1-1-1 is LAW — system must not assign a 2nd
+  // duty on one DOW while another DOW remains at 0 for the same person.
+  let zeroGuardPenalty = 0;
+  for (const uid of userIds) {
+    const counts = dowCountsMap.get(uid)!;
+    let uMin = Infinity;
+    let uMax = -Infinity;
+    for (let d = 0; d < 7; d++) {
+      if (counts[d] < uMin) uMin = counts[d];
+      if (counts[d] > uMax) uMax = counts[d];
+    }
+    if (uMin === 0 && uMax >= 2) {
+      // Penalty proportional to how bad the imbalance is
+      zeroGuardPenalty += 1000 * (uMax - uMin);
+    }
+  }
+
   // ── Weighted combination ───────────────────────────────────────────
+  // Individual DOW balance (within-user + zero-guard) outweighs system SSE,
+  // but total assignment fairness prevents concentration on one user.
   const W_SAME_DOW = 50.0;
-  const W_SYSTEM_SSE = 5.0;
-  const W_WITHIN_USER = 2.0;
+  const W_SYSTEM_SSE = 3.0;
+  const W_WITHIN_USER = 8.0;
   const W_LOAD_RANGE = 1.0;
+  const W_ZERO_GUARD = 1.0; // Already scaled inside (×1000)
+  const W_TOTAL_SSE = 10.0; // Strong: prevents one user getting all duties
 
   return (
     W_SAME_DOW * sameDowPenalty +
     W_SYSTEM_SSE * systemSSE +
     W_WITHIN_USER * withinUserVar +
-    W_LOAD_RANGE * loadRange
+    W_LOAD_RANGE * loadRange +
+    W_ZERO_GUARD * zeroGuardPenalty +
+    W_TOTAL_SSE * totalAssignmentSSE
   );
 };
 

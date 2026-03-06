@@ -23,6 +23,7 @@ import {
   getDebtRepaymentScore,
   getUserMaxDowCount,
   getUserMinDowCount,
+  computeUserLoadRate,
 } from './helpers';
 
 /**
@@ -79,6 +80,7 @@ export const buildUserComparator = (
   const remainingForceUseAvailCache = new Map<number, number>();
   const sameDowPenaltyCache = new Map<number, number>();
   const crossDowGuardCache = new Map<number, number>();
+  const loadRateCache = new Map<number, number>();
 
   const getDowCount = (userId: number): number => {
     if (dowCountCache.has(userId)) return dowCountCache.get(userId)!;
@@ -194,7 +196,7 @@ export const buildUserComparator = (
     let penalty = 0;
     // If user has 0 in some DOW but is about to get more in THIS DOW (already at max)
     if (minDow === 0 && maxDow >= 1 && thisDowCount >= maxDow) {
-      penalty = 1; // Deprioritize: should fill zero-DOWs instead
+      penalty = 1000; // Astronomical: personal DOW balance is LAW
     }
     crossDowGuardCache.set(userId, penalty);
     return penalty;
@@ -296,10 +298,22 @@ export const buildUserComparator = (
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
     }
 
-    // 7. Fewer total duties.
-    const totalA = getTotalCount(a.id);
-    const totalB = getTotalCount(b.id);
-    if (totalA !== totalB) return totalA - totalB;
+    // 7. Fewer total duties — normalised by Load Rate (anti-catch-up).
+    //    Rate = assignments / days_active. Prevents newcomers from being overloaded.
+    const allUsers = fairnessUsers?.length ? fairnessUsers : candidatePool || [];
+    const rateA = (() => {
+      if (loadRateCache.has(a.id!)) return loadRateCache.get(a.id!)!;
+      const v = computeUserLoadRate(a.id!, fs, dateStr, allUsers);
+      loadRateCache.set(a.id!, v);
+      return v;
+    })();
+    const rateB = (() => {
+      if (loadRateCache.has(b.id!)) return loadRateCache.get(b.id!)!;
+      const v = computeUserLoadRate(b.id!, fs, dateStr, allUsers);
+      loadRateCache.set(b.id!, v);
+      return v;
+    })();
+    if (!floatEq(rateA, rateB)) return rateA - rateB;
 
     // 8. Load balancing.
     if (options.considerLoad) {
