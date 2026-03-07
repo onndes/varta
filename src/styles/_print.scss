@@ -91,6 +91,7 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+  ;
   }
 
   .print-logo-block {
@@ -118,7 +119,8 @@
   .approval-title {
     font-weight: bold;
     font-size: 12pt;
-    margin-bottom: 2px;
+    margin-bottom: 0px;
+    line-height: 1.2;
   }
 
   .approval-text {
@@ -205,7 +207,7 @@
 
   .print-creator-block {
     font-size: 11pt;
-    line-height: 1.6;
+    line-height: 1.2;
   }
 
   .creator-label {

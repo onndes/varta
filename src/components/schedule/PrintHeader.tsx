@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Signatories } from '../../types';
-import shieldIcon from '../../assets/shield-x512.png';
+// import shieldIcon from '../../assets/shield-x512.png';
 
 interface PrintHeaderProps {
   signatories: Signatories;
@@ -24,7 +24,7 @@ const PrintHeader: React.FC<PrintHeaderProps> = ({ signatories, weekDates }) => 
       <div className="print-top-row">
         {/* Logo - left */}
         <div className="d-flex justify-content-between align-items-center">
-          <div className="d-flex align-items-center">
+          {/* <div className="d-flex align-items-center">
             <div
               className="bg-white text-white rounded p-2 me-2 d-flex align-items-center justify-content-center"
               style={{ width: 60, height: 60 }}
@@ -35,7 +35,7 @@ const PrintHeader: React.FC<PrintHeaderProps> = ({ signatories, weekDates }) => 
               <h4 className="m-0 fw-bold text-dark">ВАРТА</h4>
               <small className="text-muted">Система розподілу чергувань</small>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* ЗАТВЕРДЖУЮ - right */}
