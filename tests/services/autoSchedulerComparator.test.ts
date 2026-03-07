@@ -4,6 +4,7 @@ import {
   filterByRestDays,
   filterByIncompatiblePairs,
   filterByWeeklyCap,
+  filterForceUseAllWhenFew,
   buildUserComparator,
 } from '@/services/autoScheduler/comparator';
 
@@ -319,5 +320,57 @@ describe('buildUserComparator', () => {
     const compare = buildUserComparator('2026-03-10', schedule, defaultDayWeights, defaultOptions);
     const sorted = [userA, userB].sort(compare);
     expect(sorted[0].id).toBe(2);
+  });
+});
+
+// ─── filterForceUseAllWhenFew ──────────────────────────────────────
+
+describe('filterForceUseAllWhenFew', () => {
+  // 2026-03-22 is a Sunday (DOW=0); 7 days prior is 2026-03-15 (same DOW).
+  const DATE = '2026-03-22';
+
+  it('повертає нульових користувачів навіть якщо вони повторять той самий день тижня', () => {
+    // User1: 0 duties this week (Mar 16-22), but served last Sunday Mar 15.
+    // User2: 1 duty this week.
+    // The filter always enforces "everyone must have a duty", DOW repeat is handled elsewhere.
+    const user1 = makeUser({ id: 1 });
+    const user2 = makeUser({ id: 2 });
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-03-15': { date: '2026-03-15', userId: 1, type: 'auto' }, // last Sunday
+      '2026-03-17': { date: '2026-03-17', userId: 2, type: 'auto' }, // this week
+    };
+    const result = filterForceUseAllWhenFew([user1, user2], DATE, schedule);
+    // Zero-duty guarantee: user1 must be in the restricted pool.
+    expect(result.map((u) => u.id)).toEqual([1]);
+  });
+
+  it('обмежує пул нульовими користувачами, коли вони НЕ повторюють той самий день тижня', () => {
+    // User1: 0 duties this week, last duty was on a different day (not Mar 15).
+    // User2: 1 duty this week.
+    const user1 = makeUser({ id: 1 });
+    const user2 = makeUser({ id: 2 });
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-03-10': { date: '2026-03-10', userId: 1, type: 'auto' }, // Tue, not same DOW
+      '2026-03-17': { date: '2026-03-17', userId: 2, type: 'auto' }, // this week
+    };
+    const result = filterForceUseAllWhenFew([user1, user2], DATE, schedule);
+    // User1 would not repeat DOW → filter to zero-duty users only.
+    expect(result.map((u) => u.id)).toEqual([1]);
+  });
+
+  it('обмежує до нульових, коли ЛИШЕ ЧАСТИНА нульових повторює день тижня', () => {
+    // User1: 0 duties this week, served last Sunday Mar 15 → would repeat.
+    // User2: 0 duties this week, no prior Sunday → would NOT repeat.
+    // User3: 1 duty this week.
+    const user1 = makeUser({ id: 1 });
+    const user2 = makeUser({ id: 2 });
+    const user3 = makeUser({ id: 3 });
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-03-15': { date: '2026-03-15', userId: 1, type: 'auto' }, // last Sunday
+      '2026-03-17': { date: '2026-03-17', userId: 3, type: 'auto' }, // this week
+    };
+    const result = filterForceUseAllWhenFew([user1, user2, user3], DATE, schedule);
+    // NOT all zero-duty users would repeat (user2 wouldn't) → filter to zero-duty subset.
+    expect(result.map((u) => u.id).sort()).toEqual([1, 2]);
   });
 });
