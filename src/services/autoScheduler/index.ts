@@ -7,12 +7,8 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { repayOwedDay, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isManualType, getLogicSchedule } from '../../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
-import {
-  buildUserComparator,
-  filterByIncompatiblePairs,
-  filterByWeeklyCap,
-} from './comparator';
-import { countEligibleUsersForDate, calculateUserFairnessIndex, computeUserLoadRate } from './helpers';
+import { buildUserComparator, filterByIncompatiblePairs, filterByWeeklyCap } from './comparator';
+import { countEligibleUsersForDate } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
 // Re-export головного алгоритму
@@ -173,14 +169,7 @@ export const calculateOptimalAssignment = (
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    available = filterByWeeklyCap(
-      available,
-      users,
-      dateStr,
-      schedule,
-      options,
-      totalEligibleCount
-    );
+    available = filterByWeeklyCap(available, users, dateStr, schedule, options, totalEligibleCount);
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
 

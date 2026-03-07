@@ -438,7 +438,7 @@ export const calculateUserFairnessIndex = (
   userId: number,
   users: User[],
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights,
+  _dayWeights: DayWeights,
   dateStr: string
 ): number => {
   const participants = users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);

@@ -3,7 +3,7 @@
 
 import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
-import { calculateUserLoad, countUserAssignments, countUserDaysOfWeek } from '../scheduleService';
+import { calculateUserLoad, countUserDaysOfWeek } from '../scheduleService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
 import {
@@ -73,7 +73,6 @@ export const buildUserComparator = (
   const objectiveCache = new Map<number, number>();
   const plusOnePenaltyCache = new Map<number, number>();
   const weekCountCache = new Map<number, number>();
-  const totalCountCache = new Map<number, number>();
   const waitCache = new Map<number, number>();
   const dowRecencyCache = new Map<number, number>();
   const loadCache = new Map<number, number>();
@@ -115,13 +114,6 @@ export const buildUserComparator = (
     if (weekCountCache.has(userId)) return weekCountCache.get(userId)!;
     const val = countUserAssignmentsInRange(userId, fs, week.from, week.to);
     weekCountCache.set(userId, val);
-    return val;
-  };
-
-  const getTotalCount = (userId: number): number => {
-    if (totalCountCache.has(userId)) return totalCountCache.get(userId)!;
-    const val = countUserAssignments(userId, fs);
-    totalCountCache.set(userId, val);
     return val;
   };
 
