@@ -21,6 +21,7 @@ interface ScheduleTableProps {
   deletedUserNames?: Record<number, DeletedUserInfo>;
   onUserClick?: (user: User) => void;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
+  onQuickAssignClick: (date: string, user: User) => void;
 }
 
 /**
@@ -37,6 +38,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   deletedUserNames = {},
   onUserClick,
   onCellClick,
+  onQuickAssignClick,
 }) => {
   const activeUsers = users.filter((u) => u.isActive);
   const usersById = Object.fromEntries(activeUsers.map((u) => [u.id!, u]));
@@ -58,6 +60,21 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
     if (sortKey) return sortUsersBy(activeUsers, sortKey, sortDir);
     return [...activeUsers].sort(compareByRankAndName);
   }, [activeUsers, sortKey, sortDir]);
+
+  const deletedUsersInWeek = useMemo(() => {
+    const found = new Map<number, DeletedUserInfo>();
+    for (const date of weekDates) {
+      const entry = schedule[date];
+      if (!entry?.userId) continue;
+      const ids = toAssignedUserIds(entry.userId);
+      for (const id of ids) {
+        if (!usersById[id] && deletedUserNames[id]) {
+          found.set(id, deletedUserNames[id]);
+        }
+      }
+    }
+    return found;
+  }, [weekDates, schedule, usersById, deletedUserNames]);
 
   // ── Day-centric compact view for large teams (> 20) ──────────────────
   if (activeUsers.length > 20) {
@@ -181,22 +198,6 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
     );
   }
 
-  // Find deleted users that have assignments in current week dates
-  const deletedUsersInWeek = useMemo(() => {
-    const found = new Map<number, DeletedUserInfo>();
-    for (const date of weekDates) {
-      const entry = schedule[date];
-      if (!entry?.userId) continue;
-      const ids = toAssignedUserIds(entry.userId);
-      for (const id of ids) {
-        if (!usersById[id] && deletedUserNames[id]) {
-          found.set(id, deletedUserNames[id]);
-        }
-      }
-    }
-    return found;
-  }, [weekDates, schedule, usersById, deletedUserNames]);
-
   // ── Standard user-row view for small teams (≤ 20) ────────────────────
   return (
     <div className="view-table">
@@ -252,13 +253,16 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 return (
                   <th
                     key={date}
+                    onClick={() => onCellClick(date, null, undefined)}
                     style={{
                       width: '10%',
                       backgroundColor: isWeekend
                         ? 'var(--app-table-weekend-bg, #e9ecef)'
                         : 'var(--app-table-header-bg, #f8f9fa)',
                       color: 'var(--bs-body-color)',
+                      cursor: 'pointer',
                     }}
+                    title="Відкрити список осіб на цю дату"
                   >
                     {dayMonth}
                   </th>
@@ -285,6 +289,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   historyMode={historyMode}
                   onUserClick={onUserClick}
                   onCellClick={onCellClick}
+                  onQuickAssignClick={onQuickAssignClick}
                 />
               ))
             )}

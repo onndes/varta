@@ -73,6 +73,7 @@ interface ScheduleTableRowProps {
   historyMode?: boolean;
   onUserClick?: (user: User) => void;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
+  onQuickAssignClick: (date: string, user: User) => void;
 }
 
 /**
@@ -87,6 +88,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   historyMode = false,
   onUserClick,
   onCellClick,
+  onQuickAssignClick,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
 
@@ -243,7 +245,14 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               className={cellClass}
               onClick={() => {
                 if (isPast && !historyMode) return;
-                onCellClick(date, isAssigned ? entry : null, isAssigned ? user.id : undefined);
+                if (isAssigned) {
+                  onCellClick(date, entry, user.id);
+                  return;
+                }
+
+                if (availabilityStatus === 'AVAILABLE' || hadSundayDutyPreviousDay) {
+                  onQuickAssignClick(date, user);
+                }
               }}
             >
               <span className="no-print">{screenContent}</span>

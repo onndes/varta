@@ -639,6 +639,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
             setSelectedCell({ date, entry, assignedUserId });
             setSwapMode('replace');
           }}
+          onQuickAssignClick={(date, user) => {
+            setPendingAssignConfirm(null);
+            setSwapMode('replace');
+            const targetCell = { date, entry: null, assignedUserId: undefined };
+            setSelectedCell(targetCell);
+            void handleAssign(user.id, false, targetCell);
+          }}
         />
       </div>
 

@@ -96,22 +96,26 @@ export const useAssignmentModal = ({
   );
 
   const executeAssign = useCallback(
-    async (userId: number, penalizeReplaced = false) => {
-      if (!selectedCell) return;
+    async (
+      userId: number,
+      penalizeReplaced = false,
+      targetCell: SelectedCell | null = selectedCell
+    ) => {
+      if (!targetCell) return;
 
       try {
         pushHistory(schedule, 'Призначення');
 
-        await assignUser(selectedCell.date, userId, true, {
+        await assignUser(targetCell.date, userId, true, {
           maxPerDay: dutiesPerDay,
-          replaceUserId: selectedCell.assignedUserId,
+          replaceUserId: targetCell.assignedUserId,
           penalizeReplaced,
           historyMode,
         });
-        await updateCascadeTrigger(selectedCell.date);
+        await updateCascadeTrigger(targetCell.date);
 
         const u = users.find((user) => user.id === userId);
-        const dayIdx = new Date(selectedCell.date).getDay();
+        const dayIdx = new Date(targetCell.date).getDay();
         const weight = dayWeights[dayIdx] || 1.0;
         if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
 
@@ -139,17 +143,21 @@ export const useAssignmentModal = ({
   );
 
   const handleAssign = useCallback(
-    async (userId: number | undefined, penalizeReplaced = false) => {
-      if (!userId || !selectedCell) return;
+    async (
+      userId: number | undefined,
+      penalizeReplaced = false,
+      targetCell: SelectedCell | null = selectedCell
+    ) => {
+      if (!userId || !targetCell) return;
 
       // In history mode — assign directly, no confirmations
       if (historyMode) {
-        await executeAssign(userId, false);
+        await executeAssign(userId, false, targetCell);
         return;
       }
 
-      const isReplaceMode = Boolean(selectedCell.assignedUserId);
-      const isRestDay = isOnRestDay(userId, selectedCell.date);
+      const isReplaceMode = Boolean(targetCell.assignedUserId);
+      const isRestDay = isOnRestDay(userId, targetCell.date);
 
       if (isReplaceMode) {
         if (isRestDay) {
@@ -159,17 +167,18 @@ export const useAssignmentModal = ({
           );
           if (!ok) return;
         }
-        await executeAssign(userId, penalizeReplaced);
+        await executeAssign(userId, penalizeReplaced, targetCell);
         return;
       }
 
       // Fresh assignment mode: always ask for confirmation with last duty info
-      const lastDutyDate = getLastDutyDateBeforeTarget(userId, selectedCell.date);
+      const lastDutyDate = getLastDutyDateBeforeTarget(userId, targetCell.date);
       const daysSinceLastDuty = lastDutyDate
         ? Math.floor(
-            (new Date(selectedCell.date).getTime() - new Date(lastDutyDate).getTime()) / 86400000
+            (new Date(targetCell.date).getTime() - new Date(lastDutyDate).getTime()) / 86400000
           )
         : undefined;
+      setSelectedCell(targetCell);
       setPendingAssignConfirm({ userId, lastDutyDate, daysSinceLastDuty, isRestDay, penalizeReplaced });
     },
     [
@@ -180,6 +189,7 @@ export const useAssignmentModal = ({
       users,
       showConfirm,
       getLastDutyDateBeforeTarget,
+      setSelectedCell,
     ]
   );
 
