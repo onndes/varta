@@ -34,9 +34,11 @@ import AssignmentModal from './schedule/AssignmentModal';
 import ConfirmAssignModal from './schedule/ConfirmAssignModal';
 import ImportScheduleModal from './schedule/ImportScheduleModal';
 import EditUserModal from './users/EditUserModal';
+import UserChangesReviewModal from './users/UserChangesReviewModal';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 import { getAssignedCount, toAssignedUserIds, getLogicSchedule, getFirstDutyDate } from '../utils/assignment';
 import { getFutureStatusPeriods, getStatusPeriodAtDate, getUserStatusPeriods } from '../utils/userStatus';
+import { cloneUserDraft, getUserChangeSummary } from '../utils/userEditDiff';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -96,7 +98,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const [showImportModal, setShowImportModal] = useState(false);
   const [historyMode, setHistoryMode] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const editingUserRef = React.useRef<User | null>(null);
+  const [editBaseUser, setEditBaseUser] = useState<User | null>(null);
+  const [pendingEditReview, setPendingEditReview] = useState<{
+    draft: User;
+    changes: ReturnType<typeof getUserChangeSummary>;
+  } | null>(null);
+  const [isApplyingEdit, setIsApplyingEdit] = useState(false);
 
   const saveEditedUser = useCallback(
     async (user: User) => {
@@ -143,35 +150,60 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     [updateCascadeTrigger, refreshData]
   );
 
-  useEffect(() => {
-    if (!editingUser?.id) {
-      editingUserRef.current = editingUser;
-      return;
-    }
-    if (!editingUserRef.current?.id) {
-      editingUserRef.current = editingUser;
-      return;
-    }
-    if (JSON.stringify(editingUser) === JSON.stringify(editingUserRef.current)) return;
-    editingUserRef.current = editingUser;
-
-    const t = setTimeout(() => {
-      void saveEditedUser(editingUser);
-      void logAction('EDIT', `Редаговано: ${editingUser.name}`);
-    }, 600);
-    return () => clearTimeout(t);
-  }, [editingUser, saveEditedUser, logAction]);
-
-  const handleCloseEditModal = useCallback(async () => {
-    const draft = editingUser;
-    if (draft?.id) {
-      const persisted = users.find((u) => u.id === draft.id);
-      if (!persisted || JSON.stringify(draft) !== JSON.stringify(persisted)) {
-        await saveEditedUser(draft);
-      }
-    }
+  const resetEditState = useCallback(() => {
     setEditingUser(null);
-  }, [editingUser, users, saveEditedUser]);
+    setEditBaseUser(null);
+    setPendingEditReview(null);
+    setIsApplyingEdit(false);
+  }, []);
+
+  const handleStartEdit = useCallback((user: User) => {
+    setEditBaseUser(cloneUserDraft(user));
+    setEditingUser(cloneUserDraft(user));
+  }, []);
+
+  const handleCloseEditModal = useCallback(() => {
+    if (!editingUser || !editBaseUser) {
+      resetEditState();
+      return;
+    }
+
+    const changes = getUserChangeSummary(editBaseUser, editingUser, users);
+    if (changes.length === 0) {
+      resetEditState();
+      return;
+    }
+
+    setPendingEditReview({
+      draft: cloneUserDraft(editingUser),
+      changes,
+    });
+  }, [editBaseUser, editingUser, resetEditState, users]);
+
+  const handleCancelEditReview = useCallback(() => {
+    setPendingEditReview(null);
+  }, []);
+
+  const handleDiscardEditChanges = useCallback(() => {
+    resetEditState();
+  }, [resetEditState]);
+
+  const handleApplyEditChanges = useCallback(async () => {
+    const draft = pendingEditReview?.draft;
+    if (!draft?.id) {
+      resetEditState();
+      return;
+    }
+
+    setIsApplyingEdit(true);
+    try {
+      await saveEditedUser(draft);
+      await logAction('EDIT', `Редаговано: ${draft.name}`);
+      resetEditState();
+    } finally {
+      setIsApplyingEdit(false);
+    }
+  }, [logAction, pendingEditReview, resetEditState, saveEditedUser]);
 
   // ── Core operations ─────────────────────────────────────────────────────
   const calculateEffectiveLoad = useCallback(
@@ -601,7 +633,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
           dutiesPerDay={dutiesPerDay}
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
-          onUserClick={(user) => setEditingUser(user)}
+          onUserClick={handleStartEdit}
           onCellClick={(date, entry, assignedUserId) => {
             setPendingAssignConfirm(null);
             setSelectedCell({ date, entry, assignedUserId });
@@ -685,7 +717,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
         onClose={() => setPendingAssignConfirm(null)}
       />
 
-      {editingUser && (
+      {editingUser && !pendingEditReview && (
         <EditUserModal
           user={editingUser}
           onChange={setEditingUser}
@@ -696,6 +728,18 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
           })()}
           firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
           allUsers={users}
+        />
+      )}
+
+      {pendingEditReview && (
+        <UserChangesReviewModal
+          show={true}
+          userName={pendingEditReview.draft.name}
+          changes={pendingEditReview.changes}
+          isApplying={isApplyingEdit}
+          onApply={() => void handleApplyEditChanges()}
+          onDiscard={handleDiscardEditChanges}
+          onCancel={handleCancelEditReview}
         />
       )}
     </div>

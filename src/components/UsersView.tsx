@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { useUsers } from '../hooks';
 import AddUserForm from './users/AddUserForm';
 import UserRow from './users/UserRow';
 import EditUserModal from './users/EditUserModal';
+import UserChangesReviewModal from './users/UserChangesReviewModal';
 import UserStatsModal from './users/UserStatsModal';
 import Modal from './Modal';
 import { useDialog } from './useDialog';
 import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
+import { cloneUserDraft, getUserChangeSummary } from '../utils/userEditDiff';
 import { getFirstDutyDate } from '../utils/assignment';
 import {
   getFutureStatusPeriods,
@@ -37,9 +39,14 @@ const UsersView: React.FC<UsersViewProps> = ({
   const { createUser, updateUser, deleteUser: deleteUserHook } = useUsers();
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editBaseUser, setEditBaseUser] = useState<User | null>(null);
+  const [pendingEditReview, setPendingEditReview] = useState<{
+    draft: User;
+    changes: ReturnType<typeof getUserChangeSummary>;
+  } | null>(null);
+  const [isApplyingEdit, setIsApplyingEdit] = useState(false);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const editingUserRef = useRef<User | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -64,7 +71,7 @@ const UsersView: React.FC<UsersViewProps> = ({
     return sortKey ? sortUsersBy(inactive, sortKey, sortDir) : inactive;
   }, [users, sortKey, sortDir]);
 
-  // ─── Auto-save: зберігати зміни бійця автоматично (debounce 600ms) ───
+  // ─── Persist user draft after explicit confirmation ─────────────────────
   const saveUser = useCallback(
     async (user: User) => {
       if (!user.id) return;
@@ -110,26 +117,17 @@ const UsersView: React.FC<UsersViewProps> = ({
     [updateUser, updateCascadeTrigger, refreshData]
   );
 
-  useEffect(() => {
-    // Пропустити перший рендер (відкриття модалки)
-    if (!editingUser?.id) {
-      editingUserRef.current = editingUser;
-      return;
-    }
-    if (!editingUserRef.current?.id) {
-      editingUserRef.current = editingUser;
-      return;
-    }
-    // Пропустити якщо нічого не змінилось
-    if (JSON.stringify(editingUser) === JSON.stringify(editingUserRef.current)) return;
-    editingUserRef.current = editingUser;
+  const resetEditState = useCallback(() => {
+    setEditingUser(null);
+    setEditBaseUser(null);
+    setPendingEditReview(null);
+    setIsApplyingEdit(false);
+  }, []);
 
-    const t = setTimeout(() => {
-      saveUser(editingUser);
-      logAction('EDIT', `Редаговано: ${editingUser.name}`);
-    }, 600);
-    return () => clearTimeout(t);
-  }, [editingUser, saveUser, logAction]);
+  const handleStartEdit = useCallback((user: User) => {
+    setEditBaseUser(cloneUserDraft(user));
+    setEditingUser(cloneUserDraft(user));
+  }, []);
 
   const handleAdd = async (name: string, rank: string, note: string) => {
     const scheduleDates = Object.keys(schedule).sort();
@@ -174,19 +172,48 @@ const UsersView: React.FC<UsersViewProps> = ({
     await refreshData();
   };
 
-  const handleCloseEditModal = useCallback(async () => {
-    const draft = editingUser;
-
-    if (draft?.id) {
-      // Flush pending draft on close and wait for sync to finish.
-      const persisted = users.find((u) => u.id === draft.id);
-      if (!persisted || JSON.stringify(draft) !== JSON.stringify(persisted)) {
-        await saveUser(draft);
-      }
+  const handleCloseEditModal = useCallback(() => {
+    if (!editingUser || !editBaseUser) {
+      resetEditState();
+      return;
     }
 
-    setEditingUser(null);
-  }, [editingUser, users, saveUser]);
+    const changes = getUserChangeSummary(editBaseUser, editingUser, users);
+    if (changes.length === 0) {
+      resetEditState();
+      return;
+    }
+
+    setPendingEditReview({
+      draft: cloneUserDraft(editingUser),
+      changes,
+    });
+  }, [editBaseUser, editingUser, resetEditState, users]);
+
+  const handleCancelEditReview = useCallback(() => {
+    setPendingEditReview(null);
+  }, []);
+
+  const handleDiscardEditChanges = useCallback(() => {
+    resetEditState();
+  }, [resetEditState]);
+
+  const handleApplyEditChanges = useCallback(async () => {
+    const draft = pendingEditReview?.draft;
+    if (!draft?.id) {
+      resetEditState();
+      return;
+    }
+
+    setIsApplyingEdit(true);
+    try {
+      await saveUser(draft);
+      await logAction('EDIT', `Редаговано: ${draft.name}`);
+      resetEditState();
+    } finally {
+      setIsApplyingEdit(false);
+    }
+  }, [logAction, pendingEditReview, resetEditState, saveUser]);
 
   const activeCount = sortedActiveUsers.length;
   const inactiveCount = sortedInactiveUsers.length;
@@ -287,7 +314,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                     user={u}
                     allUsers={users}
                     rowNumber={idx + 1}
-                    onEdit={setEditingUser}
+                    onEdit={handleStartEdit}
                     onDelete={handleDelete}
                     onViewStats={setViewStatsUser}
                   />
@@ -320,7 +347,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                     user={u}
                     allUsers={users}
                     rowNumber={idx + 1}
-                    onEdit={setEditingUser}
+                    onEdit={handleStartEdit}
                     onDelete={handleDelete}
                     onViewStats={setViewStatsUser}
                   />
@@ -341,7 +368,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         <AddUserForm onAdd={handleAdd} />
       </Modal>
 
-      {editingUser && (
+      {editingUser && !pendingEditReview && (
         <EditUserModal
           user={editingUser}
           onChange={setEditingUser}
@@ -352,6 +379,18 @@ const UsersView: React.FC<UsersViewProps> = ({
           })()}
           firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
           allUsers={users}
+        />
+      )}
+
+      {pendingEditReview && (
+        <UserChangesReviewModal
+          show={true}
+          userName={pendingEditReview.draft.name}
+          changes={pendingEditReview.changes}
+          isApplying={isApplyingEdit}
+          onApply={() => void handleApplyEditChanges()}
+          onDiscard={handleDiscardEditChanges}
+          onCancel={handleCancelEditReview}
         />
       )}
 
