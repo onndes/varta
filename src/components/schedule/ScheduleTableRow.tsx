@@ -18,32 +18,44 @@ const buildStaticLog = (entry: ScheduleEntry): DecisionLog | undefined => {
 
   switch (entry.type) {
     case 'manual':
-      userText = 'Призначено адміністратором вручну.';
+      userText = 'Призначено вручну — це рішення прийняв адміністратор, не система.';
       sections.push({ icon: '✋', title: 'Ручне призначення', items: [userText] });
       break;
     case 'swap':
-      userText = 'Цей наряд отримано внаслідок обміну між бійцями.';
+      userText = 'Цей наряд отримано в результаті обміну нарядами між бійцями.';
       sections.push({
         icon: '🔄',
-        title: 'Обмін',
-        items: [userText, 'Початково система або адміністратор призначили іншого бійця.'],
+        title: 'Обмін нарядами',
+        items: [
+          userText,
+          'Після обміну наряди помінялися місцями.',
+          'Це рішення прийняв адміністратор, не система.',
+        ],
       });
       break;
     case 'replace':
-      userText = 'Цей наряд — результат заміни чергового.';
+      userText = 'Цей боєць замінив попереднього чергового на цю дату.';
       sections.push({
         icon: '🔄',
-        title: 'Заміна',
+        title: 'Заміна чергового',
         items: [userText, 'Попередній черговий був замінений адміністратором.'],
       });
       break;
     case 'history':
-      userText = 'Імпортовано з історичних даних.';
-      sections.push({ icon: '📜', title: 'Історія', items: [userText] });
+      userText = 'Перенесено з попереднього розкладу.';
+      sections.push({
+        icon: '📜',
+        title: 'Перенесено з архіву',
+        items: [userText, 'Система не розраховувала це призначення автоматично.'],
+      });
       break;
     case 'import':
-      userText = 'Імпортовано з зовнішнього джерела.';
-      sections.push({ icon: '📥', title: 'Імпорт', items: [userText] });
+      userText = 'Завантажено з зовнішнього файлу.';
+      sections.push({
+        icon: '📥',
+        title: 'Імпортовано',
+        items: [userText, 'Система не розраховувала це призначення автоматично.'],
+      });
       break;
     default:
       return undefined;

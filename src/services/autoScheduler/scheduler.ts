@@ -53,7 +53,7 @@ const isHardEligible = (user: User, dateStr: string): boolean => {
   return true;
 };
 
-// ─── Swap Optimiser ──────────────────────────────────────────────────────────
+// ─── Swap Optimizer ──────────────────────────────────────────────────────────
 
 const BASE_SWAP_ITERATIONS = 1500;
 
@@ -69,7 +69,7 @@ const getAdaptiveMaxIterations = (userCount: number, dateCount: number): number 
 
 /**
  * Check if placing userId on dateStr would violate incompatible-pair constraints.
- * Looks at neighbours (day before / day after) and checks bidirectional incompatibility.
+ * Looks at neighbors (day before / day after) and checks bidirectional incompatibility.
  */
 const wouldViolateIncompatiblePairs = (
   userId: number,
@@ -82,14 +82,14 @@ const wouldViolateIncompatiblePairs = (
 
   const target = new Date(dateStr);
   for (const offset of [-1, 1]) {
-    const neighbour = new Date(target);
-    neighbour.setDate(target.getDate() + offset);
-    const nStr = toLocalISO(neighbour);
+    const neighbor = new Date(target);
+    neighbor.setDate(target.getDate() + offset);
+    const nStr = toLocalISO(neighbor);
     const nEntry = schedule[nStr];
     if (!nEntry) continue;
     const nIds = toAssignedUserIds(nEntry.userId);
     for (const nId of nIds) {
-      // Check bidirectional: user→neighbour and neighbour→user
+      // Check bidirectional: user→neighbor and neighbor→user
       if (user.incompatibleWith?.includes(nId)) return true;
       const nUser = allUsers.find((u) => u.id === nId);
       if (nUser?.incompatibleWith?.includes(userId)) return true;
@@ -123,7 +123,7 @@ const wouldViolateRestDays = (
 };
 
 /**
- * Post-optimisation via multi-phase swap refinement.
+ * Post-optimization via multi-phase swap refinement.
  *
  * ─── Phase 1: Pair-exchange swaps ──────────────────────────────────────────
  * Atomically exchange users on two dates: U1 (D1) ↔ U2 (D2).
@@ -184,7 +184,7 @@ const performSwapOptimization = (
         if (!u1obj || !u2obj) continue;
         if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
 
-        // Hard constraint: incompatible pairs on neighbouring days
+        // Hard constraint: incompatible pairs on neighboring days
         if (
           wouldViolateIncompatiblePairs(user1, date2, tempSchedule, users) ||
           wouldViolateIncompatiblePairs(user2, date1, tempSchedule, users)
@@ -398,16 +398,6 @@ const DOW_NAMES_NOMINATIVE: Record<number, string> = {
   6: 'субота',
 };
 
-const DOW_NAMES_GENITIVE_PLURAL: Record<number, string> = {
-  0: 'неділь',
-  1: 'понеділків',
-  2: 'вівторків',
-  3: 'серед',
-  4: 'четвергів',
-  5: "п'ятниць",
-  6: 'субот',
-};
-
 const DOW_SHORT: Record<number, string> = {
   0: 'Нд',
   1: 'Пн',
@@ -467,16 +457,6 @@ const translateReason = (reason: string): string => {
   return reason;
 };
 
-/** Human-friendly load rate label. */
-const loadRateLabel = (rate: number, avgRate: number): string => {
-  const ratio = avgRate > 0 ? rate / avgRate : 1;
-  if (ratio < 0.7) return 'дуже низька';
-  if (ratio < 0.9) return 'низька';
-  if (ratio < 1.1) return 'середня';
-  if (ratio < 1.3) return 'вище середньої';
-  return 'висока';
-};
-
 /**
  * Build a DecisionLog explaining why a specific user was assigned to a date.
  *
@@ -484,11 +464,9 @@ const loadRateLabel = (rate: number, avgRate: number): string => {
  */
 const buildDecisionLog = (
   assignedId: number,
-  assignedName: string,
   dateStr: string,
   dayIdx: number,
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights,
   allUsers: User[],
   population: number[],
   poolSizes: DecisionLog['debug']['poolSizes'],
@@ -551,16 +529,32 @@ const buildDecisionLog = (
   }
 
   const ratio = avgRate > 0 ? loadRate / avgRate : 1;
-  if (ratio < 0.85) {
+  if (ratio < 0.7) {
     whyYou.push(
-      `Ваше загальне навантаження помітно нижче за середнє — ви чергували рідше за інших.`
+      `Ви чергуєте значно рідше за середнє по групі — частота нарядів: ` +
+        `${loadRate.toFixed(3)} (середнє по групі: ${avgRate.toFixed(3)}).`
+    );
+  } else if (ratio < 0.9) {
+    whyYou.push(
+      `Ви чергуєте трохи рідше за середнє — частота нарядів: ` +
+        `${loadRate.toFixed(3)} (середнє по групі: ${avgRate.toFixed(3)}).`
     );
   } else if (ratio < 1.1) {
-    whyYou.push(`Ваше загальне навантаження приблизно на рівні інших колег.`);
+    whyYou.push(
+      `Навантаження приблизно як у всіх — частота нарядів: ` +
+        `${loadRate.toFixed(3)} (середнє по групі: ${avgRate.toFixed(3)}).`
+    );
+  } else if (ratio < 1.3) {
+    whyYou.push(
+      `Навантаження трохи вище за середнє — частота нарядів: ` +
+        `${loadRate.toFixed(3)} (середнє по групі: ${avgRate.toFixed(3)}), ` +
+        `але серед доступних кандидатів саме ви мали найкращий баланс днів тижня.`
+    );
   } else {
     whyYou.push(
-      `Ваше навантаження дещо вище за середнє, але серед доступних кандидатів ` +
-        `саме ви мали найкращий баланс днів тижня.`
+      `Навантаження помітно вище за середнє — частота нарядів: ` +
+        `${loadRate.toFixed(3)} (середнє по групі: ${avgRate.toFixed(3)}), ` +
+        `але серед доступних колег тільки ви мали найкращий баланс.`
     );
   }
 
@@ -582,6 +576,15 @@ const buildDecisionLog = (
       weeklyCount === 0
         ? `Цього тижня у вас ще жодного наряду — є запас.`
         : `Цього тижня у вас поки лише 1 наряд.`
+    );
+  }
+
+  // Debt info
+  if (user && (user.debt || 0) < 0) {
+    const debtAbs = Math.abs(user.debt || 0);
+    whyYou.push(
+      `Також враховано борг з попередніх місяців — ${debtAbs} пропущених ` +
+        `нарядів, які система поступово відпрацьовує.`
     );
   }
 
@@ -690,7 +693,7 @@ const buildDecisionLog = (
 
   // Check unavailable DOWs in upcoming dates for context
   if (user) {
-    const unavailDows = new Map<number, string>();
+    const unavailableDows = new Map<number, string>();
     const futureDates = allDates.filter(
       (d) =>
         d >= dateStr &&
@@ -699,12 +702,12 @@ const buildDecisionLog = (
     );
     for (const d of futureDates.slice(0, 28)) {
       const status = getUserAvailabilityStatus(user, d);
-      if (status !== 'AVAILABLE' && !unavailDows.has(new Date(d).getDay())) {
-        unavailDows.set(new Date(d).getDay(), translateReason(status));
+      if (status !== 'AVAILABLE' && !unavailableDows.has(new Date(d).getDay())) {
+        unavailableDows.set(new Date(d).getDay(), translateReason(status));
       }
     }
-    if (unavailDows.size >= 3) {
-      const dowList = [...unavailDows.entries()]
+    if (unavailableDows.size >= 3) {
+      const dowList = [...unavailableDows.entries()]
         .map(([d, reason]) => `${DOW_NAMES_NOMINATIVE[d]} (${reason})`)
         .slice(0, 4)
         .join(', ');
@@ -725,41 +728,54 @@ const buildDecisionLog = (
 
   // ─── ⚠️ Section: Warnings ──────────────────────────────────────────
   const warnings: string[] = [];
+  const isWeekend = dayIdx === 0 || dayIdx === 6;
+  const hasDebt = user && (user.debt || 0) < 0;
+  const debtAmount = hasDebt ? Math.abs(user!.debt || 0) : 0;
 
   if (weeklyCount >= 2) {
+    const weekLabel = weeklyCount === 2 ? 'другий' : `${weeklyCount}-й`;
     if (poolSizes.final <= 2) {
       warnings.push(
-        `Це вже ваш ${weeklyCount}-й наряд цього тижня. Причина: на цю дату ` +
-          `було доступно лише ${poolSizes.final} кандидат(-ів) — більшість ` +
-          `колег недоступні через відпустки, відрядження або блокування.`
+        `Це вже ${weekLabel} наряд цього тижня. Причина: мало доступних — ` +
+          `лише ${poolSizes.final} кандидат(-ів) з ${poolSizes.initial}.`
+      );
+    } else if (hasDebt) {
+      warnings.push(
+        `Це ${weekLabel} наряд цього тижня. Причина: є борг з попередніх ` +
+          `місяців — система відпрацьовує ${debtAmount} пропущених нарядів.`
       );
     } else {
       warnings.push(
-        `Це ваш ${weeklyCount}-й наряд цього тижня. Причина: ви маєте борг ` +
-          `або серед доступних колег саме ви мали найменше навантаження.`
+        `Це ${weekLabel} наряд цього тижня. Причина: серед доступних ` +
+          `колег саме ви мали найкраще навантаження і баланс.`
+      );
+    }
+    if (isWeekend) {
+      warnings.push(
+        `Призначено на вихідний (${dowNom.toLowerCase()}), і це не перший наряд цього тижня.`
       );
     }
   }
 
   if (sameDowPenalty >= 100) {
     warnings.push(
-      `Ви знову чергуєте у ${dowName}, хоча минулого тижня вже чергували в цей ` +
-        `самий день. Це допущено, бо інші колеги мали критичні обмеження або були відсутні.`
+      `Ви вже чергували у ${dowName} минулого тижня (${sameDow} дн. тому). ` +
+        `Система намагалась уникнути цього, але серед доступних кандидатів ` +
+        `це був єдиний або найкращий варіант.`
     );
-  } else if (sameDowPenalty > 0) {
-    const interval = sameDow <= 14 ? '2 тижні' : '3 тижні';
+  } else if (sameDowPenalty >= 25) {
     warnings.push(
-      `${dowNom} повторюється з невеликим інтервалом (менше ніж ${interval}). ` +
-        `Система намагалась уникнути цього, але серед доступних варіантів це був найкращий.`
+      `${dowNom} повторюється з невеликим інтервалом — останній раз ${sameDow} дн. тому ` +
+        `(менш ніж ${sameDow <= 14 ? '2 тижні' : '3 тижні'}). ` +
+        `Система намагалась уникнути, але це був найкращий варіант.`
     );
   }
 
   if (dowCount > 0 && zeroDowsAvailable.length > 0) {
     const avNames = zeroDowsAvailable.map((d) => DOW_NAMES_NOMINATIVE[d]).join(', ');
     warnings.push(
-      `У вас 0 чергувань у «${avNames}», але систему призначено на ${dowName} ` +
-        `(де вже ${dowCount}). Баланс буде вирівняно в наступних ітераціях або ` +
-        `при оптимізації розкладу.`
+      `У вас 0 чергувань у «${avNames}», але призначено на ${dowName} ` +
+        `(де вже ${dowCount}). Баланс буде вирівняно поступово.`
     );
   }
 
@@ -803,7 +819,7 @@ const buildDecisionLog = (
  *   - Exponential same-DOW penalty (Priority 2)
  *   - +1 shift rotation preference (Priority 3)
  *
- * Pass 2+ (Refinement): Multi-phase swap optimization minimising
+ * Pass 2+ (Refinement): Multi-phase swap optimization minimizing
  *   the combined global objective Z = W_sameDow * penalties
  *     + W_sse * systemSSE + W_withinUser * variance + W_load * loadRange
  *
@@ -811,7 +827,7 @@ const buildDecisionLog = (
  *   Phase 2: Single-replacement swaps (forceUseAll-guarded)
  *   Phase 3: Targeted same-DOW-consecutive resolution
  *
- * Iterates swaps until global objective stabilises.
+ * Iterates swaps until global objective stabilizes.
  */
 export const autoFillSchedule = async (
   targetDates: string[],
@@ -982,7 +998,6 @@ export const autoFillSchedule = async (
 
     // Build decision log for this entry
     const assignedId = selectedIds[selectedIds.length - 1]; // last assigned by this slot
-    const assignedUser = users.find((u) => u.id === assignedId);
     const fairnessSchedule = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
     const dayIdx = new Date(dateStr).getDay();
     const week = getWeekWindow(dateStr);
@@ -990,11 +1005,9 @@ export const autoFillSchedule = async (
 
     const decisionLog: DecisionLog = buildDecisionLog(
       assignedId,
-      assignedUser?.name || '?',
       dateStr,
       dayIdx,
       fairnessSchedule,
-      dayWeights,
       fairnessUsers,
       pop,
       logPoolSizes,
@@ -1024,7 +1037,7 @@ export const autoFillSchedule = async (
     }
   }
 
-  // ─── Post-optimisation: minimise global objective via multi-phase swaps ────
+  // ─── Post-optimization: minimize global objective via multi-phase swaps ────
   if (autoFilledDateSet.size > 0) {
     performSwapOptimization(
       dates,
@@ -1036,13 +1049,13 @@ export const autoFillSchedule = async (
       dayWeights
     );
 
-    // Reconcile: collect final state for any date touched by swap optimiser.
+    // Reconcile: collect final state for any date touched by swap optimizer.
     for (const dateStr of autoFilledDateSet) {
       const finalEntry = tempSchedule[dateStr];
       if (!finalEntry) continue;
       const existingUpdate = updates.find((u) => u.date === dateStr);
       if (existingUpdate) {
-        // Update in-place so the caller sees the optimised assignment.
+        // Update in-place so the caller sees the optimized assignment.
         existingUpdate.userId = finalEntry.userId;
       }
     }
