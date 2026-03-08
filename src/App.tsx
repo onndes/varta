@@ -253,6 +253,7 @@ const App = () => {
         <main className={`app-content ${activeTab === 'schedule' ? 'app-content--schedule' : ''}`}>
           {activeTab === 'schedule' && (
             <ScheduleView
+              key={workspaceVersion}
               users={users}
               schedule={schedule}
               refreshData={refreshData}

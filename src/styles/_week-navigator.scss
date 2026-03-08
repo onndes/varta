@@ -1,3 +1,4 @@
+
 // ─── Two-column layout: WeekNavigator (left) + ScheduleControls (right) ─────
 .schedule-top-row {
   display: grid;
@@ -109,11 +110,21 @@
   }
 
   &.selected {
-    border: 2px solid #000;
-    font-weight: bold;
+    background-color: var(--app-week-square-selected-bg, #fff1c2);
+    border: 2px solid var(--app-week-square-selected-border, #f0ad00);
+    color: var(--app-week-square-selected-color, #7a5600);
+    font-weight: 700;
+    box-shadow: 0 6px 14px rgba(240, 173, 0, 0.18);
   }
 
-  &.has-schedule:not(.current) {
+  &.selected.current {
+    background: linear-gradient(135deg, #0d6efd 0%, #4f46e5 100%);
+    border-color: #ffd166;
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.35);
+  }
+
+  &.has-schedule:not(.current):not(.selected) {
     background-color: var(--app-week-square-has-schedule-bg, #e8f5e9);
     border-color: var(--app-week-square-has-schedule-border, #28a745);
     color: var(--app-week-square-has-schedule-color, #198754);

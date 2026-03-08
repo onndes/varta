@@ -558,13 +558,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       if (selectedCell || pendingAssignConfirm || showImportModal) return;
 
       const key = e.key.toLowerCase();
-      if (key === 'c') {
+      const matchesKey = (code: string, latin: string, cyrillic: string) =>
+        e.code === code || key === latin || key === cyrillic;
+
+      if (matchesKey('KeyC', 'c', 'с')) {
         e.preventDefault();
         void runClearWeek();
-      } else if (key === 'f') {
+      } else if (matchesKey('KeyF', 'f', 'а')) {
         e.preventDefault();
         void runFillGaps();
-      } else if (key === 'g') {
+      } else if (matchesKey('KeyG', 'g', 'п')) {
         e.preventDefault();
         void runFullAutoSchedule();
       }
