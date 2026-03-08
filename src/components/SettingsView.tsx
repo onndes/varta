@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { DayWeights, Signatories, AutoScheduleOptions, User, ScheduleEntry } from '../types';
 import { DAY_NAMES_FULL, RANKS } from '../utils/constants';
 import * as performanceService from '../services/performanceService';
@@ -65,7 +65,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [autoOpts, setAutoOpts] = useState<AutoScheduleOptions>(autoScheduleOptions);
   const [debt, setDebt] = useState<number>(maxDebt);
   const [maxRows, setMaxRows] = useState<number>(printMaxRows);
+  const [ignoreHistory, setIgnoreHistory] = useState<boolean>(ignoreHistoryInLogic);
   const [scale, setScale] = useState<number>(uiScale);
+  const [isSaving, setIsSaving] = useState(false);
 
   // DB maintenance modal
   const [showDbModal, setShowDbModal] = useState(false);
@@ -97,95 +99,120 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   }, [printMaxRows]);
 
   useEffect(() => {
+    setIgnoreHistory(ignoreHistoryInLogic);
+  }, [ignoreHistoryInLogic]);
+
+  useEffect(() => {
     setScale(uiScale);
   }, [uiScale]);
 
-  // ─── Auto-save effects (debounced) ──────────────────────
-  const mountedRef = useRef(false);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (JSON.stringify(weights) === JSON.stringify(dayWeights)) return;
-    const t = setTimeout(() => {
-      onSave(weights);
-      logAction('SETTINGS', 'Вага днів змінено');
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weights]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (perDay === dutiesPerDay) return;
-    const t = setTimeout(() => {
-      onSaveDutiesPerDay(perDay);
-      logAction('SETTINGS', `Чергових на добу: ${perDay}`);
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perDay]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (JSON.stringify(autoOpts) === JSON.stringify(autoScheduleOptions)) return;
-    const t = setTimeout(() => {
-      onSaveAutoScheduleOptions(autoOpts);
-      logAction('SETTINGS', 'Параметри алгоритму змінено');
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpts]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (debt === maxDebt) return;
-    const t = setTimeout(() => {
-      onSaveMaxDebt(debt);
-      logAction('SETTINGS', `Макс. борг: ${debt}`);
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debt]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (maxRows === printMaxRows) return;
-    const t = setTimeout(() => {
-      onSavePrintMaxRows(maxRows);
-      logAction('SETTINGS', `Рядків на сторінці (друк): ${maxRows}`);
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maxRows]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (scale === uiScale) return;
-    const t = setTimeout(() => {
-      onSaveUiScale(scale);
-      logAction('SETTINGS', `Масштаб інтерфейсу: ${scale}%`);
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scale]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    if (JSON.stringify(sigs) === JSON.stringify(signatories)) return;
-    const t = setTimeout(() => {
-      onSaveSignatories(sigs);
-      logAction('SETTINGS', 'Підписи/заголовок змінено');
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sigs]);
-
-  // Mark mounted LAST so the above effects skip on initial render
-  useEffect(() => {
-    mountedRef.current = true;
-  }, []);
-
   const { showAlert, showConfirm } = useDialog();
+
+  const weightsChanged = useMemo(
+    () => JSON.stringify(weights) !== JSON.stringify(dayWeights),
+    [weights, dayWeights]
+  );
+  const signatoriesChanged = useMemo(
+    () => JSON.stringify(sigs) !== JSON.stringify(signatories),
+    [sigs, signatories]
+  );
+  const dutiesChanged = perDay !== dutiesPerDay;
+  const autoOptionsChanged = useMemo(
+    () => JSON.stringify(autoOpts) !== JSON.stringify(autoScheduleOptions),
+    [autoOpts, autoScheduleOptions]
+  );
+  const debtChanged = debt !== maxDebt;
+  const maxRowsChanged = maxRows !== printMaxRows;
+  const ignoreHistoryChanged = ignoreHistory !== ignoreHistoryInLogic;
+  const scaleChanged = scale !== uiScale;
+  const hasUnsavedChanges =
+    weightsChanged ||
+    signatoriesChanged ||
+    dutiesChanged ||
+    autoOptionsChanged ||
+    debtChanged ||
+    maxRowsChanged ||
+    ignoreHistoryChanged ||
+    scaleChanged;
+
+  const handleSaveSettings = useCallback(async () => {
+    if (!hasUnsavedChanges) {
+      await showAlert('Немає змін для збереження');
+      return;
+    }
+
+    const changedSections: string[] = [];
+    setIsSaving(true);
+    try {
+      if (weightsChanged) {
+        await onSave(weights);
+        changedSections.push('вага днів');
+      }
+      if (dutiesChanged) {
+        await onSaveDutiesPerDay(perDay);
+        changedSections.push('чергові на добу');
+      }
+      if (autoOptionsChanged) {
+        await onSaveAutoScheduleOptions(autoOpts);
+        changedSections.push('алгоритм автозаповнення');
+      }
+      if (debtChanged) {
+        await onSaveMaxDebt(debt);
+        changedSections.push('ліміт боргу');
+      }
+      if (ignoreHistoryChanged) {
+        await onSaveIgnoreHistoryInLogic(ignoreHistory);
+        changedSections.push('режим історії');
+      }
+      if (scaleChanged) {
+        await onSaveUiScale(scale);
+        changedSections.push('масштаб інтерфейсу');
+      }
+      if (signatoriesChanged) {
+        await onSaveSignatories(sigs);
+        changedSections.push('підписи та заголовок');
+      }
+      if (maxRowsChanged) {
+        await onSavePrintMaxRows(maxRows);
+        changedSections.push('параметри друку');
+      }
+
+      await refreshData();
+      await logAction('SETTINGS', `Збережено налаштування: ${changedSections.join(', ')}`);
+      await showAlert('Налаштування збережено');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    autoOptionsChanged,
+    autoOpts,
+    debt,
+    debtChanged,
+    dutiesChanged,
+    hasUnsavedChanges,
+    ignoreHistory,
+    ignoreHistoryChanged,
+    logAction,
+    maxRows,
+    maxRowsChanged,
+    onSave,
+    onSaveAutoScheduleOptions,
+    onSaveDutiesPerDay,
+    onSaveIgnoreHistoryInLogic,
+    onSaveMaxDebt,
+    onSavePrintMaxRows,
+    onSaveSignatories,
+    onSaveUiScale,
+    perDay,
+    refreshData,
+    scale,
+    scaleChanged,
+    showAlert,
+    signatoriesChanged,
+    sigs,
+    weights,
+    weightsChanged,
+  ]);
 
   const applyFirstDutyDates = async () => {
     if (!(await showConfirm('Проставити "З дати" як перше чергування для всіх?'))) return;
@@ -280,20 +307,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             ))}
           </div>
 
-          <div className="mt-3 d-flex align-items-center gap-2">
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={async () => {
-                await onSave(weights);
-                await logAction('SETTINGS', 'Ваги днів перезбережено, навантаження перераховано');
-                await showAlert(
-                  'Навантаження (бали) перераховано.\n\nУсі бали в статистиці та генерації тепер використовують нові ваги.'
-                );
-              }}
-            >
-              <i className="fas fa-calculator me-1"></i>Перерахувати навантаження
-            </button>
-            <span className="text-muted small">Зберігає ваги та оновлює бали в статистиці</span>
+          <div className="mt-3 text-muted small">
+            Нові ваги будуть застосовані після натискання загальної кнопки збереження внизу
+            сторінки.
           </div>
         </div>
       </div>
@@ -655,14 +671,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               className="form-check-input"
               type="checkbox"
               id="ignoreHistoryInLogic"
-              checked={ignoreHistoryInLogic}
-              onChange={async (e) => {
-                await onSaveIgnoreHistoryInLogic(e.target.checked);
-                await logAction(
-                  'SETTINGS',
-                  e.target.checked ? 'Історія виключена з логіки' : 'Історія включена в логіку'
-                );
-              }}
+              checked={ignoreHistory}
+              onChange={(e) => setIgnoreHistory(e.target.checked)}
             />
             <label className="form-check-label" htmlFor="ignoreHistoryInLogic">
               <strong>Ігнорувати історію в логіці генерації та статистиці</strong>
@@ -999,6 +1009,27 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       {subTab === 'logic' && renderLogicTab()}
       {subTab === 'interface' && renderInterfaceTab()}
       {subTab === 'print' && renderPrintTab()}
+
+      <div className="card shadow-sm border-0 mt-4">
+        <div className="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div>
+            <div className="fw-bold">Збереження налаштувань</div>
+            <div className="text-muted small">
+              {hasUnsavedChanges
+                ? 'Є незбережені зміни. Вони застосуються тільки після натискання кнопки.'
+                : 'Змін немає. Поточні налаштування вже збережені.'}
+            </div>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={() => void handleSaveSettings()}
+            disabled={!hasUnsavedChanges || isSaving}
+          >
+            <i className={`fas ${isSaving ? 'fa-spinner fa-spin' : 'fa-save'} me-2`}></i>
+            {isSaving ? 'Збереження...' : 'Зберегти налаштування'}
+          </button>
+        </div>
+      </div>
 
       {/* DB Maintenance Modal */}
       <Modal
