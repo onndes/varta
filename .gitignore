@@ -23,3 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 project-all.md
+docs/VARTA-2.0-Scheduler-Spec.md

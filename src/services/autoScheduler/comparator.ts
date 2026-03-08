@@ -176,9 +176,12 @@ export const buildUserComparator = (
   };
 
   /**
-   * Cross-DOW zero guard: penalizes getting more of a DOW where
-   * the user is already at max, while having 0 in another DOW.
-   * Prevents patterns like [0,2,0,1,0,0,0] — user should fill zeroes first.
+   * Cross-DOW zero guard (ABSOLUTE LAW): penalizes adding duties to any DOW
+   * where count > minDow, while the user still has 0 in some other DOW.
+   * Prevents patterns like [0,2,0,1,0,0,0] AND [0,1,0,0,0,0,0] stacking.
+   * Previous bug: only checked thisDowCount >= maxDow, allowing [2,1,0,...]
+   * to keep piling on Tuesday (count=1 < max=2). Now checks > minDow.
+   * Penalty > 5000 to dominate all other soft constraints.
    */
   const getCrossDowGuard = (userId: number): number => {
     if (crossDowGuardCache.has(userId)) return crossDowGuardCache.get(userId)!;
@@ -186,9 +189,9 @@ export const buildUserComparator = (
     const minDow = getUserMinDowCount(userId, fs);
     const thisDowCount = getDowCount(userId);
     let penalty = 0;
-    // If user has 0 in some DOW but is about to get more in THIS DOW (already at max)
-    if (minDow === 0 && maxDow >= 1 && thisDowCount >= maxDow) {
-      penalty = 1000; // Astronomical: personal DOW balance is LAW
+    // If user has 0 in some DOW but is about to get more in a non-zero DOW
+    if (minDow === 0 && maxDow >= 1 && thisDowCount > minDow) {
+      penalty = 5000 + 2500 * (thisDowCount - minDow + 1); // ABSOLUTE LAW
     }
     crossDowGuardCache.set(userId, penalty);
     return penalty;

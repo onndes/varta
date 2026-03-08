@@ -119,6 +119,30 @@
   vertical-align: middle;
 }
 
+.decision-log-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15em;
+  height: 1.15em;
+  margin-left: 0.25em;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.88em;
+  line-height: 1;
+  vertical-align: middle;
+  opacity: 0.55;
+  cursor: pointer;
+  color: inherit;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
 .view-table {
   height: 100%;
   overflow: auto;

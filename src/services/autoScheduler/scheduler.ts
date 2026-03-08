@@ -1,7 +1,15 @@
 // src/services/autoScheduler/scheduler.ts
 // Constraint-optimization auto scheduler (fairness accounts + hard constraints).
+// VARTA 2.0: Decision logging, adaptive iterations, strengthened zero-guard.
 
-import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../../types';
+import type {
+  User,
+  ScheduleEntry,
+  DayWeights,
+  AutoScheduleOptions,
+  DecisionLog,
+  CandidateSnapshot,
+} from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getLogicSchedule, isManualType, toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
@@ -12,7 +20,14 @@ import {
   MIN_USERS_FOR_WEEKLY_LIMIT,
   computeGlobalObjective,
   MS_PER_DAY,
+  computeUserLoadRate,
+  daysSinceLastAssignment,
+  daysSinceLastSameDowAssignment,
+  computeDowFairnessObjective,
+  countUserAssignmentsInRange,
+  getWeekWindow,
 } from './helpers';
+import { countUserDaysOfWeek } from '../scheduleService';
 import {
   buildUserComparator,
   filterByIncompatiblePairs,
@@ -40,7 +55,17 @@ const isHardEligible = (user: User, dateStr: string): boolean => {
 
 // ─── Swap Optimiser ──────────────────────────────────────────────────────────
 
-const MAX_SWAP_ITERATIONS = 1500;
+const BASE_SWAP_ITERATIONS = 1500;
+
+/**
+ * Adaptive iteration cap: scales with pool size and date count for stability.
+ * Small pools (3 users) → fewer iterations needed for convergence.
+ * Large pools (33 users) → more iterations to explore swap space.
+ */
+const getAdaptiveMaxIterations = (userCount: number, dateCount: number): number => {
+  const base = Math.min(BASE_SWAP_ITERATIONS, Math.max(200, userCount * dateCount * 2));
+  return Math.min(3000, base);
+};
 
 /**
  * Check if placing userId on dateStr would violate incompatible-pair constraints.
@@ -131,8 +156,9 @@ const performSwapOptimization = (
 
   // Work with a stable, sorted list of auto-filled dates.
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
+  const maxIter = getAdaptiveMaxIterations(participants.length, autoFilledDates.length);
 
-  for (let iter = 0; iter < MAX_SWAP_ITERATIONS; iter++) {
+  for (let iter = 0; iter < maxIter; iter++) {
     let improved = false;
 
     // ── Phase 1: Pair-exchange swaps ──────────────────────────────────────
@@ -350,6 +376,423 @@ const performSwapOptimization = (
   }
 };
 
+// ─── Decision Log Builder (Info Button «i») ──────────────────────────────────
+
+const DOW_NAMES: Record<number, string> = {
+  0: 'неділю',
+  1: 'понеділок',
+  2: 'вівторок',
+  3: 'середу',
+  4: 'четвер',
+  5: "п'ятницю",
+  6: 'суботу',
+};
+
+const DOW_NAMES_NOMINATIVE: Record<number, string> = {
+  0: 'неділя',
+  1: 'понеділок',
+  2: 'вівторок',
+  3: 'середа',
+  4: 'четвер',
+  5: "п'ятниця",
+  6: 'субота',
+};
+
+const DOW_NAMES_GENITIVE_PLURAL: Record<number, string> = {
+  0: 'неділь',
+  1: 'понеділків',
+  2: 'вівторків',
+  3: 'серед',
+  4: 'четвергів',
+  5: "п'ятниць",
+  6: 'субот',
+};
+
+const DOW_SHORT: Record<number, string> = {
+  0: 'Нд',
+  1: 'Пн',
+  2: 'Вт',
+  3: 'Ср',
+  4: 'Чт',
+  5: 'Пт',
+  6: 'Сб',
+};
+
+/** Відмінювання слова «раз»: 1 раз, 2 рази, 5 разів. */
+const timesWord = (n: number): string => {
+  if (n === 1) return '1 раз';
+  if (n >= 2 && n <= 4) return `${n} рази`;
+  return `${n} разів`;
+};
+
+/** JS DOW → ISO DOW (1=Mon…7=Sun) for blockedDays check. */
+const toIsoDow = (jsDow: number): number => (jsDow === 0 ? 7 : jsDow);
+
+/** Check if a specific JS DOW is blocked for the user. */
+const isDowBlockedForUser = (user: User, jsDow: number): boolean =>
+  user.blockedDays?.includes(toIsoDow(jsDow)) ?? false;
+
+// ─── Human-First reason code translator ──────────────────────────────────────
+const REASON_UA: Record<string, string> = {
+  // Hard constraints
+  hard_inactive: 'Не в строю (неактивний)',
+  hard_excluded: 'Виключений з автоматичного розподілу',
+  hard_status_busy: 'Має заплановану відсутність або інше завдання',
+  hard_day_blocked: 'Цей день тижня заблоковано у профілі',
+  hard_rest_day: 'Відпочинок до/після відрядження чи відпустки',
+  hard_incompatible_pair: 'Несумісна пара з сусіднім черговим',
+  // Filters
+  filter_rest_days: 'Потрібен відпочинок між нарядами (мін. перерва)',
+  filter_weekly_cap: 'Досягнуто тижневий ліміт нарядів',
+  filter_force_use_all: 'Є колеги, які ще не чергували цього тижня',
+  outranked: 'Доступний, але має нижчий пріоритет',
+  // Availability statuses
+  STATUS_BUSY: 'Має заплановану відсутність або інше завдання (STATUS_BUSY)',
+  DAY_BLOCKED: 'День тижня заблоковано у профілі (DAY_BLOCKED)',
+  REST_DAY: 'Відпочинок після відрядження (rest_after)',
+  PRE_STATUS_DAY: 'Відпочинок перед відрядженням/відпусткою (rest_before)',
+  UNAVAILABLE: 'Недоступний (UNAVAILABLE)',
+  AVAILABLE: 'Доступний',
+};
+
+/** Translate a technical reason code to a Ukrainian human-readable phrase. */
+const translateReason = (reason: string): string => {
+  // Try exact match first
+  if (REASON_UA[reason]) return REASON_UA[reason];
+  // Try compound format "hard_status_busy (STATUS_BUSY)"
+  const match = reason.match(/^(\w+)\s*\((\w+)\)$/);
+  if (match) {
+    return REASON_UA[match[1]] || REASON_UA[match[2]] || reason;
+  }
+  return reason;
+};
+
+/** Human-friendly load rate label. */
+const loadRateLabel = (rate: number, avgRate: number): string => {
+  const ratio = avgRate > 0 ? rate / avgRate : 1;
+  if (ratio < 0.7) return 'дуже низька';
+  if (ratio < 0.9) return 'низька';
+  if (ratio < 1.1) return 'середня';
+  if (ratio < 1.3) return 'вище середньої';
+  return 'висока';
+};
+
+/**
+ * Build a DecisionLog explaining why a specific user was assigned to a date.
+ *
+ * VARTA 2.0 Human-First: structured sections (✅ / ❌ / 📅 / ⚠️) + flat userText.
+ */
+const buildDecisionLog = (
+  assignedId: number,
+  assignedName: string,
+  dateStr: string,
+  dayIdx: number,
+  schedule: Record<string, ScheduleEntry>,
+  dayWeights: DayWeights,
+  allUsers: User[],
+  population: number[],
+  poolSizes: DecisionLog['debug']['poolSizes'],
+  alternatives: CandidateSnapshot[],
+  week: { from: string; to: string },
+  allDates: string[]
+): DecisionLog => {
+  const dowCount = countUserDaysOfWeek(assignedId, schedule)[dayIdx] || 0;
+  const dowSSE = computeDowFairnessObjective(dayIdx, population, schedule, assignedId);
+  const sameDow = daysSinceLastSameDowAssignment(assignedId, schedule, dateStr);
+  const sameDowPenalty = sameDow <= 7 ? 100 : sameDow <= 14 ? 25 : sameDow <= 21 ? 6.25 : 0;
+  const loadRate = computeUserLoadRate(assignedId, schedule, dateStr, allUsers);
+  const waitDays = daysSinceLastAssignment(assignedId, schedule, dateStr);
+  const weeklyCount = countUserAssignmentsInRange(assignedId, schedule, week.from, week.to);
+
+  // Group averages
+  const rates = allUsers.map((u) => computeUserLoadRate(u.id!, schedule, dateStr, allUsers));
+  const avgRate = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+  const dowCounts = allUsers.map((u) => countUserDaysOfWeek(u.id!, schedule)[dayIdx] || 0);
+  const avgDow = dowCounts.length > 0 ? dowCounts.reduce((a, b) => a + b, 0) / dowCounts.length : 0;
+
+  // Winning criterion
+  let winningCriterion = 'dowCount';
+  if (alternatives.length > 0) {
+    const top = alternatives.find((a) => a.rejectPhase === 'comparator');
+    if (top?.metrics) {
+      if (dowCount < top.metrics.dowCount) winningCriterion = 'dowCount';
+      else if (sameDowPenalty < top.metrics.sameDowPenalty) winningCriterion = 'sameDowPenalty';
+      else if (loadRate < top.metrics.loadRate) winningCriterion = 'loadRate';
+      else if (waitDays > top.metrics.waitDays) winningCriterion = 'waitDays';
+    }
+  }
+
+  const dowName = DOW_NAMES[dayIdx] || `день ${dayIdx}`;
+  const dowNom = DOW_NAMES_NOMINATIVE[dayIdx] || `день ${dayIdx}`;
+  const sections: import('../../types').DecisionLogSection[] = [];
+  const user = allUsers.find((u) => u.id === assignedId);
+
+  // Full per-DOW counts for this user
+  const userAllDowCounts = countUserDaysOfWeek(assignedId, schedule);
+
+  // ─── 📋 Section: Why you? ──────────────────────────────────────────
+  const whyYou: string[] = [];
+
+  if (dowCount === 0) {
+    whyYou.push(
+      `У вас ще жодного чергування у ${dowName}, тоді як в середньому по групі — ` +
+        `${avgDow.toFixed(1)}. Тому ваша черга прийшла.`
+    );
+  } else if (dowCount <= avgDow) {
+    whyYou.push(
+      `У вас лише ${timesWord(dowCount)} у ${dowName} — це менше або на рівні ` +
+        `середнього по групі (${avgDow.toFixed(1)}).`
+    );
+  } else {
+    whyYou.push(
+      `У вас ${timesWord(dowCount)} у ${dowName} (середнє по групі — ` +
+        `${avgDow.toFixed(1)}). Серед доступних колег саме ви мали найкращий загальний баланс.`
+    );
+  }
+
+  const ratio = avgRate > 0 ? loadRate / avgRate : 1;
+  if (ratio < 0.85) {
+    whyYou.push(
+      `Ваше загальне навантаження помітно нижче за середнє — ви чергували рідше за інших.`
+    );
+  } else if (ratio < 1.1) {
+    whyYou.push(`Ваше загальне навантаження приблизно на рівні інших колег.`);
+  } else {
+    whyYou.push(
+      `Ваше навантаження дещо вище за середнє, але серед доступних кандидатів ` +
+        `саме ви мали найкращий баланс днів тижня.`
+    );
+  }
+
+  if (waitDays !== Infinity && waitDays > 0 && waitDays <= 3) {
+    whyYou.push(
+      `Останнє чергування було лише ${waitDays} дн. тому, але інші колеги ` +
+        `або недоступні, або мають гірший баланс.`
+    );
+  } else if (waitDays !== Infinity && waitDays > 0) {
+    whyYou.push(
+      `Ви відпочивали ${waitDays} дн. з моменту останнього чергування — достатня перерва.`
+    );
+  } else if (waitDays === Infinity || waitDays < 0) {
+    whyYou.push(`Ви ще не чергували в цьому періоді — тому маєте пріоритет.`);
+  }
+
+  if (weeklyCount <= 1) {
+    whyYou.push(
+      weeklyCount === 0
+        ? `Цього тижня у вас ще жодного наряду — є запас.`
+        : `Цього тижня у вас поки лише 1 наряд.`
+    );
+  }
+
+  sections.push({ icon: '📋', title: 'Чому саме ви?', items: whyYou });
+
+  // ─── 👥 Section: Why not others? ──────────────────────────────────
+  const whyNotOthers: string[] = [];
+  const hardBlocked = alternatives.filter((a) => a.rejectPhase === 'hardConstraint');
+  const softOutranked = alternatives.filter((a) => a.rejectPhase === 'comparator');
+  const filterBlocked = alternatives.filter((a) => a.rejectPhase === 'filter');
+
+  if (hardBlocked.length > 0) {
+    whyNotOthers.push(`Недоступні на цю дату (${hardBlocked.length}):`);
+    for (const alt of hardBlocked.slice(0, 5)) {
+      whyNotOthers.push(`  ${alt.userName} — ${translateReason(alt.rejectReason as string)}`);
+    }
+    if (hardBlocked.length > 5) {
+      whyNotOthers.push(`  …та ще ${hardBlocked.length - 5}`);
+    }
+  }
+
+  if (filterBlocked.length > 0) {
+    whyNotOthers.push(`Відфільтровані за правилами (${filterBlocked.length}):`);
+    for (const alt of filterBlocked.slice(0, 3)) {
+      whyNotOthers.push(`  ${alt.userName} — ${translateReason(alt.rejectReason as string)}`);
+    }
+  }
+
+  if (softOutranked.length > 0) {
+    whyNotOthers.push(`Доступні, але ви мали вищий пріоритет (${softOutranked.length}):`);
+    for (const alt of softOutranked.slice(0, 4)) {
+      const m = alt.metrics;
+      if (m) {
+        const cmpParts: string[] = [];
+        if (m.dowCount > dowCount) {
+          cmpParts.push(
+            `уже чергував(-ла) у ${dowName} ${timesWord(m.dowCount)} (ви — ${dowCount})`
+          );
+        }
+        if (m.loadRate > loadRate + 0.005 && cmpParts.length === 0) {
+          cmpParts.push(`має вище загальне навантаження`);
+        }
+        if (m.waitDays < waitDays && cmpParts.length === 0) {
+          cmpParts.push(`менший перепочинок між нарядами (${m.waitDays} дн.)`);
+        }
+        if (cmpParts.length === 0) {
+          cmpParts.push(`має гірший сукупний баланс навантаження та днів тижня`);
+        }
+        whyNotOthers.push(`  ${alt.userName} — ${cmpParts.join('; ')}`);
+      } else {
+        whyNotOthers.push(`  ${alt.userName} — ${translateReason(alt.rejectReason as string)}`);
+      }
+    }
+  }
+
+  if (poolSizes.final === 1 && poolSizes.initial > 1) {
+    whyNotOthers.push(
+      `Увага: з ${poolSizes.initial} осіб після перевірки доступності ` +
+        `залишився лише 1 кандидат — вибору фактично не було.`
+    );
+  }
+
+  if (whyNotOthers.length > 0) {
+    sections.push({ icon: '👥', title: 'Чому не хтось інший?', items: whyNotOthers });
+  }
+
+  // ─── 📅 Section: Why this day of week? ─────────────────────────────
+  const whyThisDay: string[] = [];
+
+  // Show DOW distribution (Mon-Sun)
+  const dowOrder = [1, 2, 3, 4, 5, 6, 0];
+  const distParts = dowOrder.map((d) => `${DOW_SHORT[d]}—${userAllDowCounts[d] || 0}`);
+  whyThisDay.push(`Ваші чергування по днях: ${distParts.join(', ')}`);
+
+  // Find zero-count DOWs (excluding the current DOW)
+  const zeroDows = dowOrder.filter((d) => (userAllDowCounts[d] || 0) === 0 && d !== dayIdx);
+  const zeroDowsBlocked = zeroDows.filter((d) => user && isDowBlockedForUser(user, d));
+  const zeroDowsAvailable = zeroDows.filter((d) => !(user && isDowBlockedForUser(user, d)));
+
+  if (dowCount === 0) {
+    whyThisDay.push(
+      `${dowNom} — оптимальний вибір: у вас тут ще жодного чергування. ` +
+        `Система розподіляє навантаження рівномірно по всіх днях тижня.`
+    );
+  } else if (zeroDows.length === 0) {
+    whyThisDay.push(
+      `У вас є чергування в кожному дні тижня. ${dowNom} обрано, бо тут ` +
+        `найменший дисбаланс серед усіх кандидатів.`
+    );
+  } else {
+    if (zeroDowsBlocked.length > 0) {
+      const blockedNames = zeroDowsBlocked.map((d) => DOW_NAMES_NOMINATIVE[d]).join(', ');
+      whyThisDay.push(
+        `${blockedNames} — заблоковано у вашому профілі, тому чергування ` +
+          `в ці дні неможливе (0 чергувань у ці дні — не помилка).`
+      );
+    }
+    if (zeroDowsAvailable.length > 0) {
+      const avNames = zeroDowsAvailable.map((d) => DOW_NAMES_NOMINATIVE[d]).join(', ');
+      whyThisDay.push(
+        `Хоча у ${avNames} у вас ще 0 чергувань, на ці дати не було ` +
+          `вільних слотів або вони будуть розподілені у наступних ітераціях розкладу.`
+      );
+    }
+  }
+
+  // Check unavailable DOWs in upcoming dates for context
+  if (user) {
+    const unavailDows = new Map<number, string>();
+    const futureDates = allDates.filter(
+      (d) =>
+        d >= dateStr &&
+        d !== dateStr &&
+        !toAssignedUserIds(schedule[d]?.userId).includes(assignedId)
+    );
+    for (const d of futureDates.slice(0, 28)) {
+      const status = getUserAvailabilityStatus(user, d);
+      if (status !== 'AVAILABLE' && !unavailDows.has(new Date(d).getDay())) {
+        unavailDows.set(new Date(d).getDay(), translateReason(status));
+      }
+    }
+    if (unavailDows.size >= 3) {
+      const dowList = [...unavailDows.entries()]
+        .map(([d, reason]) => `${DOW_NAMES_NOMINATIVE[d]} (${reason})`)
+        .slice(0, 4)
+        .join(', ');
+      whyThisDay.push(
+        `На інші дні тижня (${dowList}) ви часто недоступні, тому ` +
+          `${dowNom.toLowerCase()} залишається одним з небагатьох варіантів.`
+      );
+    }
+  }
+
+  if (whyThisDay.length > 1) {
+    sections.push({
+      icon: '📅',
+      title: `Чому саме ${dowNom.toLowerCase()}?`,
+      items: whyThisDay,
+    });
+  }
+
+  // ─── ⚠️ Section: Warnings ──────────────────────────────────────────
+  const warnings: string[] = [];
+
+  if (weeklyCount >= 2) {
+    if (poolSizes.final <= 2) {
+      warnings.push(
+        `Це вже ваш ${weeklyCount}-й наряд цього тижня. Причина: на цю дату ` +
+          `було доступно лише ${poolSizes.final} кандидат(-ів) — більшість ` +
+          `колег недоступні через відпустки, відрядження або блокування.`
+      );
+    } else {
+      warnings.push(
+        `Це ваш ${weeklyCount}-й наряд цього тижня. Причина: ви маєте борг ` +
+          `або серед доступних колег саме ви мали найменше навантаження.`
+      );
+    }
+  }
+
+  if (sameDowPenalty >= 100) {
+    warnings.push(
+      `Ви знову чергуєте у ${dowName}, хоча минулого тижня вже чергували в цей ` +
+        `самий день. Це допущено, бо інші колеги мали критичні обмеження або були відсутні.`
+    );
+  } else if (sameDowPenalty > 0) {
+    const interval = sameDow <= 14 ? '2 тижні' : '3 тижні';
+    warnings.push(
+      `${dowNom} повторюється з невеликим інтервалом (менше ніж ${interval}). ` +
+        `Система намагалась уникнути цього, але серед доступних варіантів це був найкращий.`
+    );
+  }
+
+  if (dowCount > 0 && zeroDowsAvailable.length > 0) {
+    const avNames = zeroDowsAvailable.map((d) => DOW_NAMES_NOMINATIVE[d]).join(', ');
+    warnings.push(
+      `У вас 0 чергувань у «${avNames}», але систему призначено на ${dowName} ` +
+        `(де вже ${dowCount}). Баланс буде вирівняно в наступних ітераціях або ` +
+        `при оптимізації розкладу.`
+    );
+  }
+
+  if (warnings.length > 0) {
+    sections.push({ icon: '⚠️', title: 'Зверніть увагу', items: warnings });
+  }
+
+  // ─── Build flat userText from sections ─────────────────────────────
+  const textLines: string[] = [];
+  for (const s of sections) {
+    textLines.push(`${s.icon} ${s.title}`);
+    for (const item of s.items) textLines.push(`  ${item}`);
+    textLines.push('');
+  }
+
+  return {
+    userText: textLines.join('\n').trim(),
+    sections,
+    debug: {
+      winningCriterion,
+      assignedUserId: assignedId,
+      dowCount,
+      dowSSE,
+      sameDowPenalty,
+      loadRate,
+      waitDays: waitDays === Infinity ? -1 : waitDays,
+      weeklyCount,
+      poolSizes,
+      alternatives,
+    },
+  };
+};
+
 /**
  * Multi-pass automatic fill using constraint optimization:
  *
@@ -407,11 +850,44 @@ export const autoFillSchedule = async (
     const selectedIds: number[] = [...existingIds];
     const slotsToFill = Math.max(0, slotsPerDay - selectedIds.length);
 
+    // Track pool sizes at each stage for decision log
+    const logPoolSizes = {
+      initial: 0,
+      afterHardEligible: 0,
+      afterRestDays: 0,
+      afterIncompatiblePairs: 0,
+      afterWeeklyCap: 0,
+      afterForceUseAll: 0,
+      final: 0,
+    };
+    const logAlternatives: CandidateSnapshot[] = [];
+
     for (let slot = 0; slot < slotsToFill; slot++) {
-      const hardPool = users.filter(
-        (u) =>
-          u.id && isAutoParticipant(u) && !selectedIds.includes(u.id) && isHardEligible(u, dateStr)
+      const allAutoUsers = users.filter(
+        (u) => u.id && isAutoParticipant(u) && !selectedIds.includes(u.id)
       );
+      logPoolSizes.initial = allAutoUsers.length;
+
+      const hardPool = allAutoUsers.filter((u) => isHardEligible(u, dateStr));
+      logPoolSizes.afterHardEligible = hardPool.length;
+
+      // Record hard-rejected users for decision log
+      const hardRejected = allAutoUsers.filter((u) => !isHardEligible(u, dateStr));
+      for (const u of hardRejected) {
+        const status = getUserAvailabilityStatus(u, dateStr);
+        let reason: string = 'hard_inactive';
+        if (status === 'STATUS_BUSY') reason = 'hard_status_busy';
+        else if (status === 'DAY_BLOCKED') reason = 'hard_day_blocked';
+        else if (status === 'REST_DAY' || status === 'PRE_STATUS_DAY') reason = 'hard_rest_day';
+        logAlternatives.push({
+          userId: u.id!,
+          userName: u.name,
+          rejected: true,
+          rejectPhase: 'hardConstraint',
+          rejectReason: `${reason} (${status})`,
+          metrics: null,
+        });
+      }
 
       let pool = [...hardPool];
       if (pool.length === 0) break;
@@ -420,12 +896,16 @@ export const autoFillSchedule = async (
       if (options.avoidConsecutiveDays) {
         pool = filterByRestDays(pool, dateStr, options.minRestDays || 1, tempSchedule);
       }
+      logPoolSizes.afterRestDays = pool.length;
+
       pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
+      logPoolSizes.afterIncompatiblePairs = pool.length;
 
       const totalEligibleCount = countEligibleUsersForDate(users, tempSchedule, dateStr);
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
         pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options, totalEligibleCount);
       }
+      logPoolSizes.afterWeeklyCap = pool.length;
 
       // forceUseAllWhenFew hard switch:
       // While any eligible user has 0 duties this week, only they may be assigned.
@@ -436,12 +916,14 @@ export const autoFillSchedule = async (
       ) {
         pool = filterForceUseAllWhenFew(pool, dateStr, tempSchedule);
       }
+      logPoolSizes.afterForceUseAll = pool.length;
 
       // Starvation fallback:
       // if soft filters emptied the pool, relax them and use any hard-eligible user.
       if (pool.length === 0) {
         pool = [...hardPool];
       }
+      logPoolSizes.final = pool.length;
 
       if (pool.length === 0) break;
 
@@ -462,6 +944,33 @@ export const autoFillSchedule = async (
       const selected = pool[0];
       if (!selected?.id) break;
       selectedIds.push(selected.id);
+
+      // Build alternative snapshots for non-selected candidates
+      const dayIdx = new Date(dateStr).getDay();
+      const week = getWeekWindow(dateStr);
+      for (let ci = 1; ci < Math.min(pool.length, 6); ci++) {
+        const alt = pool[ci];
+        if (!alt.id) continue;
+        const altDowCount = countUserDaysOfWeek(alt.id, fairnessSchedule)[dayIdx] || 0;
+        const selDowCount = countUserDaysOfWeek(selected.id, fairnessSchedule)[dayIdx] || 0;
+        let criterion = 'outranked';
+        if (altDowCount > selDowCount) criterion = 'dowCount';
+        logAlternatives.push({
+          userId: alt.id,
+          userName: alt.name,
+          rejected: false,
+          rejectPhase: 'comparator',
+          rejectReason: `outranked at ${criterion}`,
+          metrics: {
+            dowCount: altDowCount,
+            sameDowPenalty:
+              daysSinceLastSameDowAssignment(alt.id, fairnessSchedule, dateStr) <= 7 ? 100 : 0,
+            loadRate: computeUserLoadRate(alt.id, fairnessSchedule, dateStr, fairnessUsers),
+            waitDays: daysSinceLastAssignment(alt.id, fairnessSchedule, dateStr),
+            weeklyCount: countUserAssignmentsInRange(alt.id, fairnessSchedule, week.from, week.to),
+          },
+        });
+      }
     }
 
     if (selectedIds.length === 0) {
@@ -471,11 +980,35 @@ export const autoFillSchedule = async (
       continue;
     }
 
+    // Build decision log for this entry
+    const assignedId = selectedIds[selectedIds.length - 1]; // last assigned by this slot
+    const assignedUser = users.find((u) => u.id === assignedId);
+    const fairnessSchedule = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+    const dayIdx = new Date(dateStr).getDay();
+    const week = getWeekWindow(dateStr);
+    const pop = fairnessUsers.map((u) => u.id!);
+
+    const decisionLog: DecisionLog = buildDecisionLog(
+      assignedId,
+      assignedUser?.name || '?',
+      dateStr,
+      dayIdx,
+      fairnessSchedule,
+      dayWeights,
+      fairnessUsers,
+      pop,
+      logPoolSizes,
+      logAlternatives,
+      week,
+      dates
+    );
+
     const nextEntry: ScheduleEntry = {
       date: dateStr,
       userId: selectedIds.length === 1 ? selectedIds[0] : selectedIds,
       type: isManualType(existingEntry) ? existingEntry!.type : 'auto',
       isLocked: existingEntry?.isLocked || false,
+      decisionLog,
     };
 
     const prevIds = toAssignedUserIds(existingEntry?.userId);

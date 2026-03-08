@@ -72,11 +72,81 @@ export interface UserStatusPeriod {
   restAfter?: boolean; // Rest day after this status period
 }
 
+// ─── Decision Log (Info Button «i») ──────────────────────────────────────
+
+/** Reason code for why a candidate was filtered out / outranked. */
+export type RejectReason =
+  | 'hard_inactive'
+  | 'hard_status_busy' // VACATION / SICK / TRIP / ABSENT
+  | 'hard_day_blocked'
+  | 'hard_rest_day' // restBefore / restAfter
+  | 'hard_incompatible_pair'
+  | 'filter_rest_days' // avoidConsecutiveDays
+  | 'filter_weekly_cap'
+  | 'filter_force_use_all'
+  | 'outranked'; // passed all filters but lost in comparator
+
+/** Metrics snapshot for a single candidate (used in debug JSON). */
+export interface CandidateSnapshot {
+  userId: number;
+  userName: string;
+  rejected: boolean;
+  rejectPhase: 'hardConstraint' | 'filter' | 'comparator';
+  rejectReason: RejectReason | string;
+  metrics: {
+    dowCount: number;
+    sameDowPenalty: number;
+    loadRate: number;
+    waitDays: number;
+    weeklyCount: number;
+    fairnessIndex?: number;
+  } | null;
+}
+
+/** Structured section for the «i» modal (✅ / ❌ / 📅 / ⚠️ / 🔍). */
+export interface DecisionLogSection {
+  icon: string;
+  title: string;
+  items: string[];
+}
+
+/** Full decision log attached to a ScheduleEntry after auto-fill. */
+export interface DecisionLog {
+  /** Human-readable explanation for end users. */
+  userText: string;
+  /** Structured sections for the modal UI (Human-First). */
+  sections: DecisionLogSection[];
+  /** Debug data for developers / XAI transparency. */
+  debug: {
+    winningCriterion: string;
+    assignedUserId: number;
+    dowCount: number;
+    dowSSE: number;
+    sameDowPenalty: number;
+    loadRate: number;
+    waitDays: number;
+    weeklyCount: number;
+    poolSizes: {
+      initial: number;
+      afterHardEligible: number;
+      afterRestDays: number;
+      afterIncompatiblePairs: number;
+      afterWeeklyCap: number;
+      afterForceUseAll: number;
+      final: number;
+    };
+    alternatives: CandidateSnapshot[];
+    globalObjective_Z?: number;
+  };
+}
+
 export interface ScheduleEntry {
   date: string;
   userId: number | number[] | null; // Can be single ID or array for multiple duties per day
   type: 'manual' | 'auto' | 'critical' | 'replace' | 'swap' | 'history' | 'import';
   isLocked?: boolean;
+  /** Auto-generated decision log (Info Button «i»). Not persisted to DB. */
+  decisionLog?: DecisionLog;
 }
 
 export interface AutoScheduleOptions {

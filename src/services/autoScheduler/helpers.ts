@@ -7,6 +7,7 @@ import { getUserFairnessFrom } from '../../utils/fairness';
 import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isAssignedInEntry, isHistoryType } from '../../utils/assignment';
 import { countUserDaysOfWeek, calculateUserLoad, countUserAssignments } from '../scheduleService';
+import { getUserStatusPeriods } from '../../utils/userStatus';
 
 // ─── Константи ──────────────────────────────────────────────────────
 
@@ -379,8 +380,36 @@ export const getUserCompareFrom = (
 // ─── Load Rate & Fairness ───────────────────────────────────────────
 
 /**
- * Number of calendar days a user has been "in the system" up to `dateStr`.
+ * Count unavailable days (VACATION, SICK, TRIP, ABSENT periods) for a user
+ * in the range [fromDate, toDate]. Used to subtract from daysActive for
+ * accurate Load Rate normalization (anti-catch-up).
+ */
+export const countUnavailableDaysInRange = (
+  user: User,
+  fromDate: string,
+  toDate: string
+): number => {
+  const periods = getUserStatusPeriods(user);
+  if (periods.length === 0) return 0;
+
+  let count = 0;
+  const cursor = new Date(fromDate);
+  const end = new Date(toDate);
+  while (cursor <= end) {
+    const iso = toLocalISO(cursor);
+    if (getUserAvailabilityStatus(user, iso) !== 'AVAILABLE') {
+      count++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+};
+
+/**
+ * Number of *available* days a user has been "in the system" up to `dateStr`.
  * Uses `dateAddedToAuto` if set, otherwise earliest history/schedule date.
+ * **Subtracts** days in VACATION / SICK / TRIP / ABSENT / BLOCKED periods
+ * so that a user returning from a 14-day vacation is NOT "behind" by 14 days.
  * Returns at least 1 to avoid division by zero.
  */
 export const computeDaysActive = (
@@ -401,8 +430,11 @@ export const computeDaysActive = (
   }
   if (!from) from = dateStr; // brand-new user with no history
   if (from > dateStr) return 1;
-  const days = Math.floor((new Date(dateStr).getTime() - new Date(from).getTime()) / MS_PER_DAY);
-  return Math.max(1, days);
+  const totalDays = Math.floor(
+    (new Date(dateStr).getTime() - new Date(from).getTime()) / MS_PER_DAY
+  );
+  const unavailable = countUnavailableDaysInRange(user, from, dateStr);
+  return Math.max(1, totalDays - unavailable);
 };
 
 /**
@@ -659,10 +691,13 @@ export const computeGlobalObjective = (
     for (const t of totals) totalAssignmentSSE += (t - meanTotal) ** 2;
   }
 
-  // ── 5. Zero-guard penalty (ASTRONOMICAL) ──────────────────────────
-  // If ANY user has minDow = 0 while maxDow ≥ 2 → huge penalty.
-  // Personal pattern 1-1-1-1-1-1-1 is LAW — system must not assign a 2nd
+  // ── 5. Zero-guard penalty (ABSOLUTE LAW) ──────────────────────────
+  // If ANY user has minDow = 0 while maxDow ≥ 2 → catastrophic penalty.
+  // Personal pattern 1-1-1-1-1-1-1 is THE LAW — system MUST NOT assign a 2nd
   // duty on one DOW while another DOW remains at 0 for the same person.
+  // [1,0,0,0,0,0,0] is normal for users with few total duties — no penalty.
+  // [2,0,...] IS a violation: the 2nd duty should have gone to a zero DOW.
+  // W_ZERO_GUARD=10 ensures penalty (50k+) dominates all other objectives.
   let zeroGuardPenalty = 0;
   for (const uid of userIds) {
     const counts = dowCountsMap.get(uid)!;
@@ -673,20 +708,21 @@ export const computeGlobalObjective = (
       if (counts[d] > uMax) uMax = counts[d];
     }
     if (uMin === 0 && uMax >= 2) {
-      // Penalty proportional to how bad the imbalance is
-      zeroGuardPenalty += 1000 * (uMax - uMin);
+      // Catastrophic: 5000 base + 2500 per each level of imbalance
+      zeroGuardPenalty += 5000 + 2500 * (uMax - uMin);
     }
   }
 
   // ── Weighted combination ───────────────────────────────────────────
-  // Individual DOW balance (within-user + zero-guard) outweighs system SSE,
-  // but total assignment fairness prevents concentration on one user.
+  // VARTA 2.0 ABSOLUTE LAW: Individual DOW balance is 100× system SSE.
+  // Zero-guard at 1.0 (already scaled 5000+ inside).
+  // Within-user variance dominates system SSE by design.
   const W_SAME_DOW = 50.0;
-  const W_SYSTEM_SSE = 3.0;
-  const W_WITHIN_USER = 8.0;
+  const W_SYSTEM_SSE = 3.0; // Cross-user DOW fairness
+  const W_WITHIN_USER = 300.0; // 100× system SSE — ABSOLUTE LAW
   const W_LOAD_RANGE = 1.0;
-  const W_ZERO_GUARD = 1.0; // Already scaled inside (×1000)
-  const W_TOTAL_SSE = 10.0; // Strong: prevents one user getting all duties
+  const W_ZERO_GUARD = 10.0; // ×10 ensures 50k+ penalty is un-offsettable
+  const W_TOTAL_SSE = 100.0; // Anti-concentration guard (must dominate withinUser at extremes)
 
   return (
     W_SAME_DOW * sameDowPenalty +
