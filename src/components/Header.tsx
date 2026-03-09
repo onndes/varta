@@ -61,7 +61,7 @@ const Header: React.FC<HeaderProps> = ({
           <i className="fas fa-download me-1"></i>Експорт
         </button>
         <div className="btn-group">
-          <button className="btn btn-dark btn-sm" onClick={() => onPrint('calendar')}>
+          <button className="btn btn-dark btn-sm" onClick={() => onPrint('duty-table')}>
             <i className="fas fa-print me-1"></i>Друк
           </button>
           <button

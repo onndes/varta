@@ -22,9 +22,11 @@ import {
   MS_PER_DAY,
   computeUserLoadRate,
   daysSinceLastAssignment,
+  getLastAssignmentDate,
   daysSinceLastSameDowAssignment,
   computeDowFairnessObjective,
   countUserAssignmentsInRange,
+  countUnavailableDaysInRange,
   getWeekWindow,
 } from './helpers';
 import { countUserDaysOfWeek } from '../scheduleService';
@@ -558,15 +560,32 @@ const buildDecisionLog = (
     );
   }
 
+  const lastAssignDate = getLastAssignmentDate(assignedId, schedule, dateStr);
+  const unavailInWait =
+    lastAssignDate && user ? countUnavailableDaysInRange(user, lastAssignDate, dateStr) : 0;
+
   if (waitDays !== Infinity && waitDays > 0 && waitDays <= 3) {
     whyYou.push(
       `Останнє чергування було лише ${waitDays} дн. тому, але інші колеги ` +
         `або недоступні, або мають гірший баланс.`
     );
   } else if (waitDays !== Infinity && waitDays > 0) {
-    whyYou.push(
-      `Ви відпочивали ${waitDays} дн. з моменту останнього чергування — достатня перерва.`
-    );
+    if (unavailInWait > 0) {
+      whyYou.push(
+        `З моменту останнього наряду минуло ${waitDays} дн., з яких ${unavailInWait} — ` +
+          `у відрядженні, відпустці або на лікарняному.`
+      );
+      if (unavailInWait > 3) {
+        whyYou.push(
+          `Щойно повернувся(-лась) з відрядження/відпустки (${unavailInWait} дн.) — ` +
+            `навантаження враховане пропорційно до доступних днів.`
+        );
+      }
+    } else {
+      whyYou.push(
+        `Ви відпочивали ${waitDays} дн. з моменту останнього чергування — достатня перерва.`
+      );
+    }
   } else if (waitDays === Infinity || waitDays < 0) {
     whyYou.push(`Ви ще не чергували в цьому періоді — тому маєте пріоритет.`);
   }

@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import type { User, ScheduleEntry, TimelineEvent } from '../../types';
 import { isAssignedInEntry } from '../../utils/assignment';
 import { getUserStatusPeriods } from '../../utils/userStatus';
+import { toLocalISO } from '../../utils/dateUtils';
+import { getUserAvailabilityStatus } from '../../services/userService';
 
 type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'absent' | 'request';
 type PeriodMode = 'all' | 'year' | 'month';
@@ -123,12 +125,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     };
 
     statusPeriods.forEach((period) => {
-      const days = countOverlapDays(
-        period.from,
-        period.to,
-        periodRange.start,
-        periodRange.end
-      );
+      const days = countOverlapDays(period.from, period.to, periodRange.start, periodRange.end);
       if (period.status === 'VACATION') counts.vacation += days;
       if (period.status === 'TRIP') counts.trip += days;
       if (period.status === 'SICK') counts.sick += days;
@@ -142,12 +139,7 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     }).length;
 
     return counts;
-  }, [
-    auditEvents,
-    periodRange.end,
-    periodRange.start,
-    statusPeriods,
-  ]);
+  }, [auditEvents, periodRange.end, periodRange.start, statusPeriods]);
 
   const visibleAbsenceKeys = useMemo(
     () => (Object.keys(ABSENCE_LABELS) as AbsenceKey[]).filter((k) => shownAbsence[k]),
@@ -167,31 +159,19 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
     const totalWindowDays =
       Math.floor((new Date(todayStr).getTime() - new Date(start).getTime()) / 86400000) + 1;
 
-    const overlapDays = (
-      from: string,
-      to: string,
-      statusFrom?: string,
-      statusTo?: string
-    ): number => {
-      if (!statusFrom || !statusTo) return 0;
-      const lo = statusFrom > from ? statusFrom : from;
-      const hi = statusTo < to ? statusTo : to;
-      if (hi < lo) return 0;
-      const d1 = new Date(lo);
-      const d2 = new Date(hi);
-      return Math.floor((d2.getTime() - d1.getTime()) / 86400000) + 1;
-    };
-
-    const statusBlockedDays =
-      statusPeriods
-        .filter((period) => period.status === 'VACATION' || period.status === 'TRIP' || period.status === 'SICK')
-        .reduce(
-          (sum, period) => sum + overlapDays(start, todayStr, period.from, period.to),
-          0
-        );
+    let statusBlockedDays = 0;
+    const cursor = new Date(start);
+    const end = new Date(todayStr);
+    while (cursor <= end) {
+      const iso = toLocalISO(cursor);
+      if (getUserAvailabilityStatus(user, iso) !== 'AVAILABLE') {
+        statusBlockedDays++;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
 
     return Math.max(0, totalWindowDays - statusBlockedDays);
-  }, [schedule, todayStr, user.dateAddedToAuto, statusPeriods]);
+  }, [schedule, todayStr, user]);
 
   return (
     <div className="card border-0 bg-light mb-3">

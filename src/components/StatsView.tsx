@@ -10,12 +10,7 @@ import {
 import { toLocalISO } from '../utils/dateUtils';
 import { getUserAvailabilityStatus } from '../services/userService';
 import UserStatsModal from './users/UserStatsModal';
-import {
-  isAssignedInEntry,
-  getLogicSchedule,
-  isHistoryType,
-} from '../utils/assignment';
-import { getStatusPeriodsInRange } from '../utils/userStatus';
+import { isAssignedInEntry, getLogicSchedule, isHistoryType } from '../utils/assignment';
 
 interface StatsViewProps {
   users: User[];
@@ -64,27 +59,17 @@ const StatsView: React.FC<StatsViewProps> = ({
       .sort();
     const earliestScheduleDate = nonHistoryDates[0] || todayStr;
     const countUnavailableDays = (user: User, from: string, to: string): number => {
-      const periods = getStatusPeriodsInRange(user, from, to).filter(
-        (period) =>
-          period.status === 'VACATION' || period.status === 'TRIP' || period.status === 'SICK'
-      );
-      if (periods.length === 0) return 0;
-
-      const days = new Set<string>();
-      periods.forEach((period) => {
-        const fromDate = period.from || from;
-        const toDate = period.to || to;
-        const lo = fromDate > from ? fromDate : from;
-        const hi = toDate < to ? toDate : to;
-        if (hi < lo) return;
-        const cursor = new Date(lo);
-        const end = new Date(hi);
-        while (cursor <= end) {
-          days.add(toLocalISO(cursor));
-          cursor.setDate(cursor.getDate() + 1);
+      let count = 0;
+      const cursor = new Date(from);
+      const end = new Date(to);
+      while (cursor <= end) {
+        const iso = toLocalISO(cursor);
+        if (getUserAvailabilityStatus(user, iso) !== 'AVAILABLE') {
+          count++;
         }
-      });
-      return days.size;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return count;
     };
 
     return users
@@ -117,8 +102,7 @@ const StatsView: React.FC<StatsViewProps> = ({
             Math.floor(
               (new Date(todayStr).getTime() - new Date(trackingFrom).getTime()) / 86400000
             ) + 1;
-          const statusBlockedDays =
-            countUnavailableDays(u, trackingFrom, todayStr);
+          const statusBlockedDays = countUnavailableDays(u, trackingFrom, todayStr);
           availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
         }
 
@@ -288,194 +272,194 @@ const StatsView: React.FC<StatsViewProps> = ({
         <>
           <div ref={tableScrollRef} className="table-responsive stats-table-scroll">
             <table className="table table-hover align-middle mb-0 table-align-center stats-table">
-            <thead className="table-light small">
-              <tr>
-                <th
-                  rowSpan={2}
-                  style={{ userSelect: 'none', minWidth: '70px', whiteSpace: 'nowrap' }}
-                  className="text-start"
-                >
-                  <span
-                    className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
-                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                    onClick={() => toggleSort('rank')}
-                    title="Сортувати за званням"
+              <thead className="table-light small">
+                <tr>
+                  <th
+                    rowSpan={2}
+                    style={{ userSelect: 'none', minWidth: '70px', whiteSpace: 'nowrap' }}
+                    className="text-start"
                   >
-                    <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Зв.
-                    {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </span>
-                </th>
-                <th rowSpan={2} style={{ userSelect: 'none' }} className="text-start">
-                  <span
-                    className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
-                    style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                    onClick={() => toggleSort('name')}
-                    title="Сортувати за ПІБ"
-                  >
-                    ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </span>
-                </th>
-                <th rowSpan={2} style={{ minWidth: '72px' }}>
-                  Чергувань
-                  <br />
-                  <small className="fw-normal">всього</small>
-                </th>
-                <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
-                  В черзі
-                </th>
-                <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
-                  Днів в графіку
-                  <br />
-                  <small className="fw-normal">в обліку</small>
-                </th>
-                <th colSpan={7} className="text-center border-start">
-                  По днях (у черзі)
-                </th>
-                <th rowSpan={2} className="text-center border-start" style={{ minWidth: '90px' }}>
-                  Навантаження
-                  <br />
-                  (бали)
-                </th>
-                <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
-                  Карма
-                </th>
-                <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
-                  Рейтинг
-                </th>
-                <th rowSpan={2} className="text-center border-start" style={{ minWidth: '80px' }}>
-                  Частота
-                  <br />
-                  <small className="fw-normal">(нар/день)</small>
-                </th>
-                <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
-                  З дати
-                  <i
-                    className="fas fa-circle-info ms-1 text-muted"
-                    title="Базова дата участі в авточерзі. Після повернення з відпустки/відрядження/лікарняного облік не скидається: порівняння враховує доступність у періоді."
-                  />
-                  <br />
-                  <small className="fw-normal">(учет)</small>
-                </th>
-              </tr>
-              <tr>
-                <th className="text-center border-start" style={{ width: '40px' }}>
-                  Пн
-                </th>
-                <th className="text-center" style={{ width: '40px' }}>
-                  Вт
-                </th>
-                <th className="text-center" style={{ width: '40px' }}>
-                  Ср
-                </th>
-                <th className="text-center" style={{ width: '40px' }}>
-                  Чт
-                </th>
-                <th className="text-center" style={{ width: '40px' }}>
-                  Пт
-                </th>
-                <th className="text-center" style={{ width: '40px' }}>
-                  Сб
-                </th>
-                <th className="text-center" style={{ width: '40px' }}>
-                  Нд
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.map((u) => {
-                // Day counts: Mon=1, Tue=2...Sun=0 -> display as separate columns
-                const daysOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
+                    <span
+                      className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
+                      style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                      onClick={() => toggleSort('rank')}
+                      title="Сортувати за званням"
+                    >
+                      <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Зв.
+                      {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </span>
+                  </th>
+                  <th rowSpan={2} style={{ userSelect: 'none' }} className="text-start">
+                    <span
+                      className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
+                      style={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                      onClick={() => toggleSort('name')}
+                      title="Сортувати за ПІБ"
+                    >
+                      ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </span>
+                  </th>
+                  <th rowSpan={2} style={{ minWidth: '72px' }}>
+                    Чергувань
+                    <br />
+                    <small className="fw-normal">всього</small>
+                  </th>
+                  <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
+                    В черзі
+                  </th>
+                  <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
+                    Днів в графіку
+                    <br />
+                    <small className="fw-normal">в обліку</small>
+                  </th>
+                  <th colSpan={7} className="text-center border-start">
+                    По днях (у черзі)
+                  </th>
+                  <th rowSpan={2} className="text-center border-start" style={{ minWidth: '90px' }}>
+                    Навантаження
+                    <br />
+                    (бали)
+                  </th>
+                  <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
+                    Карма
+                  </th>
+                  <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
+                    Рейтинг
+                  </th>
+                  <th rowSpan={2} className="text-center border-start" style={{ minWidth: '80px' }}>
+                    Частота
+                    <br />
+                    <small className="fw-normal">(нар/день)</small>
+                  </th>
+                  <th rowSpan={2} className="text-center border-start" style={{ minWidth: '85px' }}>
+                    З дати
+                    <i
+                      className="fas fa-circle-info ms-1 text-muted"
+                      title="Базова дата участі в авточерзі. Після повернення з відпустки/відрядження/лікарняного облік не скидається: порівняння враховує доступність у періоді."
+                    />
+                    <br />
+                    <small className="fw-normal">(учет)</small>
+                  </th>
+                </tr>
+                <tr>
+                  <th className="text-center border-start" style={{ width: '40px' }}>
+                    Пн
+                  </th>
+                  <th className="text-center" style={{ width: '40px' }}>
+                    Вт
+                  </th>
+                  <th className="text-center" style={{ width: '40px' }}>
+                    Ср
+                  </th>
+                  <th className="text-center" style={{ width: '40px' }}>
+                    Чт
+                  </th>
+                  <th className="text-center" style={{ width: '40px' }}>
+                    Пт
+                  </th>
+                  <th className="text-center" style={{ width: '40px' }}>
+                    Сб
+                  </th>
+                  <th className="text-center" style={{ width: '40px' }}>
+                    Нд
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.map((u) => {
+                  // Day counts: Mon=1, Tue=2...Sun=0 -> display as separate columns
+                  const daysOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
 
-                return (
-                  <tr key={u.id} className={!u.isActive ? 'user-row-inactive' : ''}>
-                    <td className="text-start">
-                      <small
-                        className="text-muted text-uppercase"
-                        style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
-                      >
-                        {formatRank(u.rank)}
-                      </small>
-                    </td>
-                    <td className="text-start">
-                      <button
-                        type="button"
-                        className="btn btn-link p-0 text-decoration-none text-start"
-                        onClick={() => setSelectedUser(u)}
-                      >
-                        <div
-                          className="fw-bold text-uppercase"
-                          style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
+                  return (
+                    <tr key={u.id} className={!u.isActive ? 'user-row-inactive' : ''}>
+                      <td className="text-start">
+                        <small
+                          className="text-muted text-uppercase"
+                          style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
                         >
-                          {u.name.trim().split(/\s+/)[0]}
-                        </div>
-                        {u.name.trim().split(/\s+/).length > 1 && (
-                          <div
-                            className="text-muted"
-                            style={{ fontSize: '0.73rem', opacity: 0.7, lineHeight: 1.2 }}
-                          >
-                            {u.name.trim().split(/\s+/).slice(1).join(' ')}
-                          </div>
-                        )}
-                      </button>
-                    </td>
-                    <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
-                    <td className="text-center fw-bold">{u.totalComparableDuties}</td>
-                    <td className="text-center">{u.availableDaysForDuty}</td>
-                    {daysOrder.map((dayIdx, i) => (
-                      <td
-                        key={dayIdx}
-                        className={`text-center small${i === 0 ? ' border-start' : ''}`}
-                      >
-                        {u.dayCountComparable[dayIdx] || 0}
+                          {formatRank(u.rank)}
+                        </small>
                       </td>
-                    ))}
-                    <td className="text-center border-start">{u.comparableLoad.toFixed(1)}</td>
-                    <td
-                      className={
-                        u.balance < 0
-                          ? 'text-danger fw-bold'
-                          : u.balance > 0
-                            ? 'text-success fw-bold'
-                            : ''
-                      }
-                    >
-                      {u.balance > 0 ? `+${u.balance}` : u.balance}
-                    </td>
-                    <td className="text-center fw-bold">{u.effectiveComparable.toFixed(1)}</td>
-                    <td
-                      className="text-center border-start fw-bold"
-                      title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
-                    >
-                      {u.availableDaysForDuty > 0 ? (
-                        <span
-                          className={
-                            u.dutyRate > 0.15
-                              ? 'text-danger'
-                              : u.dutyRate > 0.08
-                                ? 'text-warning'
-                                : 'text-success'
-                          }
+                      <td className="text-start">
+                        <button
+                          type="button"
+                          className="btn btn-link p-0 text-decoration-none text-start"
+                          onClick={() => setSelectedUser(u)}
                         >
-                          {u.dutyRate.toFixed(3)}
-                        </span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="text-center border-start small">
-                      <div className="text-muted">
-                        {new Date(u.trackingFrom).toLocaleDateString('uk-UA', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: '2-digit',
-                        })}
-                      </div>
-                      <div className="fw-bold">{u.totalComparableDuties}</div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                          <div
+                            className="fw-bold text-uppercase"
+                            style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
+                          >
+                            {u.name.trim().split(/\s+/)[0]}
+                          </div>
+                          {u.name.trim().split(/\s+/).length > 1 && (
+                            <div
+                              className="text-muted"
+                              style={{ fontSize: '0.73rem', opacity: 0.7, lineHeight: 1.2 }}
+                            >
+                              {u.name.trim().split(/\s+/).slice(1).join(' ')}
+                            </div>
+                          )}
+                        </button>
+                      </td>
+                      <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
+                      <td className="text-center fw-bold">{u.totalComparableDuties}</td>
+                      <td className="text-center">{u.availableDaysForDuty}</td>
+                      {daysOrder.map((dayIdx, i) => (
+                        <td
+                          key={dayIdx}
+                          className={`text-center small${i === 0 ? ' border-start' : ''}`}
+                        >
+                          {u.dayCountComparable[dayIdx] || 0}
+                        </td>
+                      ))}
+                      <td className="text-center border-start">{u.comparableLoad.toFixed(1)}</td>
+                      <td
+                        className={
+                          u.balance < 0
+                            ? 'text-danger fw-bold'
+                            : u.balance > 0
+                              ? 'text-success fw-bold'
+                              : ''
+                        }
+                      >
+                        {u.balance > 0 ? `+${u.balance}` : u.balance}
+                      </td>
+                      <td className="text-center fw-bold">{u.effectiveComparable.toFixed(1)}</td>
+                      <td
+                        className="text-center border-start fw-bold"
+                        title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
+                      >
+                        {u.availableDaysForDuty > 0 ? (
+                          <span
+                            className={
+                              u.dutyRate > 0.15
+                                ? 'text-danger'
+                                : u.dutyRate > 0.08
+                                  ? 'text-warning'
+                                  : 'text-success'
+                            }
+                          >
+                            {u.dutyRate.toFixed(3)}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="text-center border-start small">
+                        <div className="text-muted">
+                          {new Date(u.trackingFrom).toLocaleDateString('uk-UA', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                          })}
+                        </div>
+                        <div className="fw-bold">{u.totalComparableDuties}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
           <div

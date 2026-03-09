@@ -196,6 +196,19 @@ export const daysSinceLastAssignment = (
   return Math.floor(diff / MS_PER_DAY);
 };
 
+/** Дата останнього наряду бійця до dateStr (або null якщо не було) */
+export const getLastAssignmentDate = (
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): string | null => {
+  const previousDates = Object.values(schedule)
+    .filter((s) => s.date < dateStr && toAssignedUserIds(s.userId).includes(userId))
+    .map((s) => s.date)
+    .sort();
+  return previousDates.length > 0 ? previousDates[previousDates.length - 1] : null;
+};
+
 /**
  * Чи боєць гарантовано недоступний на дату
  * (відпустка / відрядження / лікування / неактивний)
