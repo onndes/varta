@@ -325,7 +325,16 @@ export const filterForceUseAllWhenFew = (
   return zeroUsers.length > 0 ? zeroUsers : pool;
 };
 
-/** Remove users with duties inside the rest window around target date. */
+/**
+ * Remove users with duties inside the rest window around target date.
+ *
+ * NOTE — forward check (checkAfter) during the greedy pass:
+ * The greedy pass fills dates in ascending order, so future dates are empty
+ * when a given date is processed. The forward check only has effect when a
+ * future date already has an assignment (locked entry, manual entry, or a
+ * date from a previous autoFill run that overlaps). During swap optimization
+ * all dates are filled, so the forward check is fully effective there.
+ */
 export const filterByRestDays = (
   pool: User[],
   dateStr: string,

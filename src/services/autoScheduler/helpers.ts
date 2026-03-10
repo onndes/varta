@@ -3,10 +3,10 @@
 
 import type { User, ScheduleEntry, AutoScheduleOptions, DayWeights } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
-import { getUserFairnessFrom } from '../../utils/fairness';
+
 import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
-import { toAssignedUserIds, isAssignedInEntry, isHistoryType } from '../../utils/assignment';
-import { countUserDaysOfWeek, calculateUserLoad, countUserAssignments } from '../scheduleService';
+import { toAssignedUserIds, isAssignedInEntry } from '../../utils/assignment';
+import { countUserDaysOfWeek, countUserAssignments } from '../scheduleService';
 import { getUserStatusPeriods } from '../../utils/userStatus';
 
 // ─── Константи ──────────────────────────────────────────────────────
@@ -38,24 +38,6 @@ export const getScheduleStart = (
 ): string => {
   const dates = Object.keys(schedule).sort();
   return dates[0] || fallbackDate;
-};
-
-/** Найраніша історична/імпортована дата для кожного бійця */
-export const buildEarliestHistoryMap = (
-  schedule: Record<string, ScheduleEntry>
-): Map<number, string> => {
-  const map = new Map<number, string>();
-  for (const entry of Object.values(schedule)) {
-    if (!isHistoryType(entry)) continue;
-    const ids = toAssignedUserIds(entry.userId);
-    for (const id of ids) {
-      const prev = map.get(id);
-      if (!prev || entry.date < prev) {
-        map.set(id, entry.date);
-      }
-    }
-  }
-  return map;
 };
 
 /** Попередня дата (YYYY-MM-DD) */
@@ -165,20 +147,6 @@ export const getDebtRepaymentScore = (user: User, dayIdx: number, dayWeight: num
     return Math.min(debtAbs, owedToday * dayWeight);
   }
   return 0;
-};
-
-/**
- * Рішення агресивного балансування.
- * Якщо різниця навантаження > threshold — примусово переставляє.
- * Повертає 0 якщо немає підстав, інакше напрямок для сортування.
- */
-export const getAggressiveBalanceDecision = (
-  loadA: number,
-  loadB: number,
-  threshold: number
-): number => {
-  const gap = loadA - loadB;
-  return Math.abs(gap) > threshold ? gap : 0;
 };
 
 /** Скільки нарядів у бійця в діапазоні дат */
@@ -339,71 +307,6 @@ export const computeDowFairnessObjective = (
   return sse;
 };
 
-/**
- * Особистий дефіцит дня тижня для конкретного бійця.
- *
- * Показує наскільки dayIdx «недобраний» у цієї людини відносно
- * середнього по її інших доступних днях тижня.
- *
- * Формула:
- *   normalizedCount(d) = assignments_on_d / max(1, availableDays_of_d)
- *   avgOtherDays = середнє normalizedCount по всіх днях тижня КРІМ dayIdx,
- *                  де availableDays > 0
- *   deficit = avgOtherDays - normalizedCount(dayIdx)
- *
- * Чим вище значення — тим більше «недобраний» цей день у людини.
- * Від'ємне значення = день перебраний.
- *
- * Граничні випадки:
- * - Якщо доступний лише 1 день тижня — повертає 0
- * - Якщо availableDays для dayIdx = 0 — повертає 0
- */
-export const getPersonalDowDeficit = (
-  user: User,
-  dayIdx: number,
-  schedule: Record<string, ScheduleEntry>,
-  fromDate: string,
-  toDate: string
-): number => {
-  const targetAvail = countAvailableDaysInWindow(user, fromDate, toDate, dayIdx);
-  if (targetAvail === 0 || !user.id) return 0;
-
-  const dowCounts = countUserDaysOfWeek(user.id, schedule, fromDate);
-  const targetCount = dowCounts[dayIdx] || 0;
-  const targetRate = targetCount / targetAvail;
-
-  let otherSum = 0;
-  let otherDays = 0;
-  for (let d = 0; d < 7; d++) {
-    if (d === dayIdx) continue;
-    const avail = countAvailableDaysInWindow(user, fromDate, toDate, d);
-    if (avail === 0) continue;
-    const count = dowCounts[d] || 0;
-    otherSum += count / avail;
-    otherDays++;
-  }
-
-  if (otherDays === 0) return 0;
-
-  const avgOther = otherSum / otherDays;
-  return avgOther - targetRate;
-};
-
-/** Базова дата обліку для бійця (кожен рахується від своєї дати вступу) */
-export const getUserCompareFrom = (
-  user: User,
-  dateStr: string,
-  schedule: Record<string, ScheduleEntry>,
-  earliestHistoryByUser?: Map<number, string>
-): string => {
-  let from = getUserFairnessFrom(user, dateStr) || getScheduleStart(schedule, dateStr);
-  if (user.id && earliestHistoryByUser) {
-    const historyFrom = earliestHistoryByUser.get(user.id);
-    if (historyFrom && historyFrom < from) from = historyFrom;
-  }
-  return from;
-};
-
 // ─── Load Rate & Fairness ───────────────────────────────────────────
 
 /**
@@ -515,89 +418,18 @@ export const calculateUserFairnessIndex = (
 // ─── Global Objective Helpers ───────────────────────────────────────
 
 /**
- * Count back-to-back same-DOW assignments (exactly 7 days apart) across users.
- * Each such pair adds 1 to the penalty total.
- */
-export const computeSameDowConsecutivePenalty = (
-  userIds: number[],
-  schedule: Record<string, ScheduleEntry>
-): number => {
-  let penalty = 0;
-  for (const uid of userIds) {
-    // Gather all assignment dates for this user, sorted
-    const dates: string[] = [];
-    for (const [d, entry] of Object.entries(schedule)) {
-      if (toAssignedUserIds(entry.userId).includes(uid)) dates.push(d);
-    }
-    dates.sort();
-
-    // For each pair of dates: if same DOW and exactly 7 days apart → penalty
-    for (let i = 0; i < dates.length; i++) {
-      const d1 = new Date(dates[i]);
-      const dow1 = d1.getDay();
-      for (let j = i + 1; j < dates.length; j++) {
-        const d2 = new Date(dates[j]);
-        const gap = (d2.getTime() - d1.getTime()) / MS_PER_DAY;
-        if (gap > 7) break; // dates sorted, no point checking further
-        if (gap === 7 && d2.getDay() === dow1) {
-          penalty += 1;
-        }
-      }
-    }
-  }
-  return penalty;
-};
-
-/**
- * Load range: max(totalPoints) − min(totalPoints) across users.
- * A lower value means more balanced workload.
- */
-export const computeLoadRange = (
-  userIds: number[],
-  schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
-): number => {
-  if (userIds.length === 0) return 0;
-  const loads = userIds.map((uid) => calculateUserLoad(uid, schedule, dayWeights));
-  return Math.max(...loads) - Math.min(...loads);
-};
-
-/**
- * Within-user DOW variance: measures how unevenly each user's duties
- * are spread across days of the week.
- *
- * ∑_u  ∑_d  (count_{u,d} − mean_u)²
- *
- * A user with [0,2,0,1,0,0,0] has high variance → bad DOW diversity.
- * A user with [1,1,1,1,1,1,1] has 0 variance → perfect.
- */
-export const computeWithinUserDowVariance = (
-  userIds: number[],
-  schedule: Record<string, ScheduleEntry>
-): number => {
-  let total = 0;
-  for (const uid of userIds) {
-    const counts = countUserDaysOfWeek(uid, schedule);
-    const vals = Object.values(counts);
-    const sum = vals.reduce((a, b) => a + b, 0);
-    if (sum === 0) continue;
-    const mean = sum / 7;
-    total += vals.reduce((acc, v) => acc + (v - mean) ** 2, 0);
-  }
-  return total;
-};
-
-/**
  * Combined global objective for swap optimization (OPTIMISED single-pass).
  *
  * Gathers all metrics in ONE iteration over schedule entries,
  * then computes the weighted sum.
  *
- * Weights:
- *   W_SAME_DOW = 50   (highest: avoid back-to-back same DOW weeks)
- *   W_SYSTEM_SSE = 5   (cross-user DOW fairness)
- *   W_WITHIN_USER = 2  (within-user DOW diversity)
- *   W_LOAD_RANGE = 1   (workload balance)
+ * Weights (VARTA 2.0 — matches spec_logic.md):
+ *   W_SAME_DOW    =  50.0  (avoid back-to-back same DOW weeks)
+ *   W_SYSTEM_SSE  =   3.0  (cross-user DOW fairness)
+ *   W_WITHIN_USER = 300.0  (per-user DOW diversity — dominant at mild imbalances)
+ *   W_LOAD_RANGE  =   1.0  (soft pressure for workload balance)
+ *   W_ZERO_GUARD  =  10.0  (multiplier; internal 5000+ → 50k+ combined)
+ *   W_TOTAL_SSE   = 100.0  (anti-concentration; dominates by magnitude at extremes)
  *
  * Lower Z → better schedule.
  */
@@ -778,15 +610,20 @@ export const computeGlobalObjective = (
   }
 
   // ── Weighted combination ───────────────────────────────────────────
-  // VARTA 2.0 ABSOLUTE LAW: Individual DOW balance is 100× system SSE.
-  // Zero-guard at 1.0 (already scaled 5000+ inside).
-  // Within-user variance dominates system SSE by design.
+  // Design intent (VARTA 2.0):
+  //   W_WITHIN_USER (300) > W_TOTAL_SSE (100) by coefficient, so for mild
+  //   total-count differences (1-2 duties) the scheduler prefers fixing
+  //   per-user DOW spread over equalizing totals — this is intentional.
+  //   At EXTREME concentration (5+ duty gap between users) the totalAssignmentSSE
+  //   value grows quadratically and its contribution (100 × large²) eclipses
+  //   withinUserVar (300 × near-zero) — so concentration is still prevented.
+  //   W_ZERO_GUARD × internal 5000+ = 50k+ per penalty fire → truly un-overridable.
   const W_SAME_DOW = 50.0;
   const W_SYSTEM_SSE = 3.0; // Cross-user DOW fairness
-  const W_WITHIN_USER = 300.0; // 100× system SSE — ABSOLUTE LAW
+  const W_WITHIN_USER = 300.0; // Per-user DOW spread — dominant at mild imbalances
   const W_LOAD_RANGE = 1.0;
-  const W_ZERO_GUARD = 10.0; // ×10 ensures 50k+ penalty is un-offsettable
-  const W_TOTAL_SSE = 100.0; // Anti-concentration guard (must dominate withinUser at extremes)
+  const W_ZERO_GUARD = 10.0; // Multiplier — internal penalty already 5000+, together 50k+
+  const W_TOTAL_SSE = 100.0; // Anti-concentration guard — dominates by magnitude at extremes
 
   return (
     W_SAME_DOW * sameDowPenalty +

@@ -12,8 +12,9 @@ import {
   filterByIncompatiblePairs,
   filterBySameWeekdayLastWeek,
   filterByWeeklyCap,
+  filterForceUseAllWhenFew,
 } from './comparator';
-import { countEligibleUsersForDate } from './helpers';
+import { countEligibleUsersForWeek, MIN_USERS_FOR_WEEKLY_LIMIT } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
 // Re-export головного алгоритму
@@ -66,7 +67,7 @@ export const getFreeUsersForDate = (
       !assignedOnDate.has(u.id!) &&
       isUserAvailable(u, dateStr, schedule)
   );
-  const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
+  const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
@@ -74,6 +75,9 @@ export const getFreeUsersForDate = (
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
   candidatePool = filterBySameWeekdayLastWeek(candidatePool, dateStr, schedule);
+  if (options.forceUseAllWhenFew && totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+    candidatePool = filterForceUseAllWhenFew(candidatePool, dateStr, schedule);
+  }
 
   // Сортуємо за спільним пріоритетним компаратором
   return candidatePool.sort(
@@ -163,7 +167,7 @@ export const calculateOptimalAssignment = (
     (u) => u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, schedule)
   );
   if (available.length === 0) return null;
-  const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
+  const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
   const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
 
   // Ліміт на тиждень
@@ -172,6 +176,9 @@ export const calculateOptimalAssignment = (
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
   available = filterBySameWeekdayLastWeek(available, dateStr, schedule);
+  if (options.forceUseAllWhenFew && totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+    available = filterForceUseAllWhenFew(available, dateStr, schedule);
+  }
 
   // Сортуємо за спільним пріоритетним компаратором
   available.sort(

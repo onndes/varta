@@ -15,7 +15,7 @@ import { getLogicSchedule, isManualType, toAssignedUserIds } from '../../utils/a
 import { getUserAvailabilityStatus } from '../userService';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
 import {
-  countEligibleUsersForDate,
+  countEligibleUsersForWeek,
   FLOAT_EPSILON,
   MIN_USERS_FOR_WEEKLY_LIMIT,
   computeGlobalObjective,
@@ -74,7 +74,8 @@ const isLookAheadSafe = (
   futureDates: string[],
   users: User[],
   tempSchedule: Record<string, ScheduleEntry>,
-  selectedIds: number[]
+  selectedIds: number[],
+  minRest: number
 ): boolean => {
   for (const futureDate of futureDates) {
     if (futureDate <= dateStr) continue;
@@ -84,12 +85,14 @@ const isLookAheadSafe = (
 
     // Count hard-eligible auto-participants for futureDate,
     // excluding the candidate AND users already selected for dateStr.
+    // Also respects rest-day constraints from the current (pre-assignment) schedule.
     let count = 0;
     for (const u of users) {
       if (!u.id || !isAutoParticipant(u)) continue;
       if (u.id === candidate.id) continue;
       if (selectedIds.includes(u.id)) continue;
       if (!isHardEligible(u, futureDate)) continue;
+      if (minRest > 0 && wouldViolateRestDays(u.id, futureDate, minRest, tempSchedule)) continue;
       count++;
       if (count >= 1) return true; // ≥1 is enough, no need to count all
     }
@@ -912,6 +915,7 @@ export const autoFillSchedule = async (
 
   // Deterministic order is important for reproducibility.
   const dates = [...targetDates].sort();
+  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
 
   for (const dateStr of dates) {
     if (dateStr < todayStr) continue;
@@ -982,7 +986,9 @@ export const autoFillSchedule = async (
 
       pool = filterBySameWeekdayLastWeek(pool, dateStr, tempSchedule);
 
-      const totalEligibleCount = countEligibleUsersForDate(users, tempSchedule, dateStr);
+      // Use week-based eligibility count for both forceUseAllWhenFew and the
+      // comparator's totalEligibleCount parameter — consistent with filterByWeeklyCap.
+      const totalEligibleCount = countEligibleUsersForWeek(users, tempSchedule, dateStr);
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
         pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options);
       }
@@ -1027,7 +1033,9 @@ export const autoFillSchedule = async (
       let selected = pool[0];
       if (pool.length > 1) {
         for (const candidate of pool) {
-          if (isLookAheadSafe(candidate, dateStr, dates, users, tempSchedule, selectedIds)) {
+          if (
+            isLookAheadSafe(candidate, dateStr, dates, users, tempSchedule, selectedIds, minRest)
+          ) {
             selected = candidate;
             break;
           }
