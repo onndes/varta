@@ -34,6 +34,7 @@ import {
   buildUserComparator,
   filterByIncompatiblePairs,
   filterByRestDays,
+  filterBySameWeekdayLastWeek,
   filterByWeeklyCap,
   filterForceUseAllWhenFew,
 } from './comparator';
@@ -193,7 +194,7 @@ const performSwapOptimization = (
         )
           continue;
 
-        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
         // Apply exchange tentatively.
         tempSchedule[date1] = { ...entry1, userId: user2 };
@@ -210,7 +211,7 @@ const performSwapOptimization = (
           continue;
         }
 
-        const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+        const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
         if (newObj < baseObj - FLOAT_EPSILON) {
           improved = true;
@@ -245,7 +246,7 @@ const performSwapOptimization = (
         );
         if (candidates.length === 0) continue;
 
-        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
         for (const candidate of candidates) {
           const newIds = [...assignedIds];
@@ -258,7 +259,7 @@ const performSwapOptimization = (
 
           tempSchedule[dateStr] = swappedEntry;
 
-          const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+          const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
           if (newObj < baseObj - FLOAT_EPSILON) {
             // forceUseAllWhenFew guard: single swaps change weekly counts.
@@ -317,7 +318,7 @@ const performSwapOptimization = (
           if (gap !== 7 || new Date(d1).getDay() !== new Date(d2).getDay()) continue;
 
           // d2 is the repeat — try pair exchange
-          const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+          const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
           const entry2 = tempSchedule[d2];
           if (!entry2) continue;
 
@@ -355,7 +356,7 @@ const performSwapOptimization = (
               continue;
             }
 
-            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights);
+            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
             if (newObj < baseObj - FLOAT_EPSILON) {
               resolvedSameDow = true;
               break;
@@ -935,6 +936,8 @@ export const autoFillSchedule = async (
 
       pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
       logPoolSizes.afterIncompatiblePairs = pool.length;
+
+      pool = filterBySameWeekdayLastWeek(pool, dateStr, tempSchedule);
 
       const totalEligibleCount = countEligibleUsersForDate(users, tempSchedule, dateStr);
       if (options.limitOneDutyPerWeekWhenSevenPlus) {

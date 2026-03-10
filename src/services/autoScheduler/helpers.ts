@@ -122,6 +122,20 @@ export const countEligibleUsersForDate = (
     return isUserAvailable(u, dateStr, schedule);
   }).length;
 
+/** Скільки бійців доступно хоча б раз протягом тижня, що містить dateStr */
+export const countEligibleUsersForWeek = (
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): number => {
+  const week = getWeekWindow(dateStr);
+  const weekDates = getDatesInRange(week.from, week.to);
+  return users.filter((u) => {
+    if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
+    return weekDates.some((d) => isUserAvailable(u, d, schedule));
+  }).length;
+};
+
 /** Чи має боєць неоплачений борг (карма або owedDays) */
 export const hasDebtBacklog = (user: User): boolean => {
   const hasOwedDays = Object.values(user.owedDays || {}).some((v) => v > 0);
@@ -590,7 +604,8 @@ export const computeWithinUserDowVariance = (
 export const computeGlobalObjective = (
   userIds: number[],
   schedule: Record<string, ScheduleEntry>,
-  dayWeights: DayWeights
+  dayWeights: DayWeights,
+  users?: User[]
 ): number => {
   const N = userIds.length;
   if (N === 0) return 0;
@@ -665,15 +680,39 @@ export const computeGlobalObjective = (
     }
   }
 
-  // ── 3. Within-user DOW variance ────────────────────────────────────
+  // ── 3. Within-user DOW variance (availability-normalised) ──────────
+  // Divides by number of AVAILABLE days of week, not always 7.
+  // Prevents penalizing users who are blocked on certain weekdays
+  // (e.g. a user available only Fri+Sat: pattern [0,0,0,0,3,3,0] is perfect
+  // for them and must not be treated as high variance).
   let withinUserVar = 0;
   for (const uid of userIds) {
     const counts = dowCountsMap.get(uid)!;
     let sum = 0;
     for (let d = 0; d < 7; d++) sum += counts[d];
     if (sum === 0) continue;
-    const mean = sum / 7;
-    for (let d = 0; d < 7; d++) withinUserVar += (counts[d] - mean) ** 2;
+
+    const userObj = users?.find((u) => u.id === uid);
+
+    // Count DOWs where user is not permanently blocked.
+    // blockedDays uses ISO numbering: 1=Mon … 6=Sat, 7=Sun (JS: 0=Sun).
+    let activeDows = 7;
+    if (userObj?.blockedDays && userObj.blockedDays.length > 0) {
+      let blocked = 0;
+      for (let d = 0; d < 7; d++) {
+        const isoDow = d === 0 ? 7 : d;
+        if (userObj.blockedDays.includes(isoDow)) blocked++;
+      }
+      activeDows = Math.max(1, 7 - blocked);
+    }
+
+    const mean = sum / activeDows;
+    for (let d = 0; d < 7; d++) {
+      // Skip permanently-blocked DOWs — they contribute 0 by definition.
+      const isoDow = d === 0 ? 7 : d;
+      if (userObj?.blockedDays?.includes(isoDow)) continue;
+      withinUserVar += (counts[d] - mean) ** 2;
+    }
   }
 
   // ── 4. Load range ──────────────────────────────────────────────────

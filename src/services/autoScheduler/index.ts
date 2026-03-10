@@ -7,7 +7,12 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { repayOwedDay, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isManualType, getLogicSchedule } from '../../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
-import { buildUserComparator, filterByIncompatiblePairs, filterByWeeklyCap } from './comparator';
+import {
+  buildUserComparator,
+  filterByIncompatiblePairs,
+  filterBySameWeekdayLastWeek,
+  filterByWeeklyCap,
+} from './comparator';
 import { countEligibleUsersForDate } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
@@ -75,6 +80,7 @@ export const getFreeUsersForDate = (
     );
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
+  candidatePool = filterBySameWeekdayLastWeek(candidatePool, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
   return candidatePool.sort(
@@ -172,6 +178,7 @@ export const calculateOptimalAssignment = (
     available = filterByWeeklyCap(available, users, dateStr, schedule, options, totalEligibleCount);
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
+  available = filterBySameWeekdayLastWeek(available, dateStr, schedule);
 
   // Сортуємо за спільним пріоритетним компаратором
   available.sort(

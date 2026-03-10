@@ -8,6 +8,7 @@ import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
 import {
   countEligibleUsersForDate,
+  countEligibleUsersForWeek,
   countUserAssignmentsInRange,
   getDatesInRange,
   getDateMinusDays,
@@ -176,11 +177,10 @@ export const buildUserComparator = (
   };
 
   /**
-   * Cross-DOW zero guard (ABSOLUTE LAW): penalizes adding duties to any DOW
-   * where count > minDow, while the user still has 0 in some other DOW.
-   * Prevents patterns like [0,2,0,1,0,0,0] AND [0,1,0,0,0,0,0] stacking.
-   * Previous bug: only checked thisDowCount >= maxDow, allowing [2,1,0,...]
-   * to keep piling on Tuesday (count=1 < max=2). Now checks > minDow.
+   * Cross-DOW imbalance guard (ABSOLUTE LAW): penalizes adding duties to any DOW
+   * where count > minDow while imbalance already exists (maxDow > minDow).
+   * Catches both [0,2,0,...] (minDow=0) and [1,3,1,...] (minDow=1) patterns.
+   * Previously only triggered when minDow === 0, missing the second case.
    * Penalty > 5000 to dominate all other soft constraints.
    */
   const getCrossDowGuard = (userId: number): number => {
@@ -189,8 +189,8 @@ export const buildUserComparator = (
     const minDow = getUserMinDowCount(userId, fs);
     const thisDowCount = getDowCount(userId);
     let penalty = 0;
-    // If user has 0 in some DOW but is about to get more in a non-zero DOW
-    if (minDow === 0 && maxDow >= 1 && thisDowCount > minDow) {
+    // Penalize adding to a non-minimum DOW whenever any imbalance exists.
+    if (maxDow > minDow && thisDowCount > minDow) {
       penalty = 5000 + 2500 * (thisDowCount - minDow + 1); // ABSOLUTE LAW
     }
     crossDowGuardCache.set(userId, penalty);
@@ -262,16 +262,8 @@ export const buildUserComparator = (
     const sameDowB = getSameDowPenalty(b.id);
     if (!floatEq(sameDowA, sameDowB)) return sameDowA - sameDowB;
 
-    // 3. Soft +1 shift preference (high priority).
-    //    Encourages pattern: Mon → Tue → Wed → ... → Sun → Mon.
-    //    Placed BEFORE weekly cap to give it strong influence.
-    if (!isForceUseFew) {
-      const plusOneA = getPlusOnePenalty(a.id);
-      const plusOneB = getPlusOnePenalty(b.id);
-      if (plusOneA !== plusOneB) return plusOneA - plusOneB;
-    }
-
-    // 4. Weekly cap tie-break (normal mode).
+    // 3. Weekly cap tie-break (normal mode). (+1 shift preference removed: it conflicted
+    //    with DOW-balance by pulling toward a "ladder" pattern instead of gap-filling.)
     if (
       options.limitOneDutyPerWeekWhenSevenPlus &&
       (totalEligibleCount ?? 0) >= MIN_USERS_FOR_WEEKLY_LIMIT
@@ -430,11 +422,12 @@ export const filterByWeeklyCap = (
   dateStr: string,
   schedule: Record<string, ScheduleEntry>,
   options: AutoScheduleOptions,
-  eligibleCountOnDate?: number
+  _eligibleCountOnDate?: number // kept for compat; gate now uses week-based count
 ): User[] => {
-  const effectiveEligibleCount =
-    eligibleCountOnDate ?? countEligibleUsersForDate(allUsers, schedule, dateStr);
-  if (effectiveEligibleCount < MIN_USERS_FOR_WEEKLY_LIMIT) return pool;
+  // Gate by week-level eligibility so that a low-availability Friday
+  // doesn't silently disable the cap for the whole week.
+  const weekEligibleCount = countEligibleUsersForWeek(allUsers, schedule, dateStr);
+  if (weekEligibleCount < MIN_USERS_FOR_WEEKLY_LIMIT) return pool;
 
   const week = getWeekWindow(dateStr);
   const filtered = pool.filter((u) => {
@@ -447,12 +440,22 @@ export const filterByWeeklyCap = (
 
 /**
  * Hard filter: forbid the same weekday two weeks in a row (exactly -7 days).
- * No fallback to original pool.
+ * Exception: users with 0 duties this week always pass through (starvation guard) —
+ * forceUseAllWhenFew and coverage fairness take precedence over DOW-repeat avoidance.
+ * Falls back to original pool if all candidates would be blocked.
  */
 export const filterBySameWeekdayLastWeek = (
   pool: User[],
   dateStr: string,
   schedule: Record<string, ScheduleEntry>
 ): User[] => {
-  return pool.filter((u) => u.id && !didUserServeSameWeekdayLastWeek(u.id, dateStr, schedule));
+  const week = getWeekWindow(dateStr);
+  const filtered = pool.filter((u) => {
+    if (!u.id) return false;
+    if (!didUserServeSameWeekdayLastWeek(u.id, dateStr, schedule)) return true;
+    // Allow same-weekday repeat if user has 0 duties this week — never starve them.
+    const weeklyCount = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
+    return weeklyCount === 0;
+  });
+  return filtered.length > 0 ? filtered : pool;
 };
