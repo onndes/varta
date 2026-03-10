@@ -1072,13 +1072,54 @@ export const autoFillSchedule = async (
     );
 
     // Reconcile: collect final state for any date touched by swap optimizer.
+    // Rebuild decision logs for entries whose assignment changed during swaps,
+    // so the info button shows metrics for the ACTUAL assigned user.
+    const fairnessScheduleFinal = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+    const pop = fairnessUsers.map((u) => u.id!);
+
     for (const dateStr of autoFilledDateSet) {
       const finalEntry = tempSchedule[dateStr];
       if (!finalEntry) continue;
       const existingUpdate = updates.find((u) => u.date === dateStr);
-      if (existingUpdate) {
-        // Update in-place so the caller sees the optimized assignment.
-        existingUpdate.userId = finalEntry.userId;
+      if (!existingUpdate) continue;
+
+      const oldIds = toAssignedUserIds(existingUpdate.userId);
+      const newIds = toAssignedUserIds(finalEntry.userId);
+      existingUpdate.userId = finalEntry.userId;
+
+      // Rebuild decision log if the assigned user changed.
+      const changed =
+        oldIds.length !== newIds.length || oldIds.some((id, idx) => id !== newIds[idx]);
+      if (changed) {
+        const assignedId = newIds[newIds.length - 1];
+        const dayIdx = new Date(dateStr).getDay();
+        const week = getWeekWindow(dateStr);
+
+        // Exclude current date from schedule so dowCount reflects state-before-assignment
+        // (matches greedy pass behaviour where buildDecisionLog is called before the entry
+        // is written to tempSchedule).
+        const { [dateStr]: _, ...scheduleWithoutDate } = fairnessScheduleFinal;
+
+        existingUpdate.decisionLog = buildDecisionLog(
+          assignedId,
+          dateStr,
+          dayIdx,
+          scheduleWithoutDate,
+          fairnessUsers,
+          pop,
+          existingUpdate.decisionLog?.debug?.poolSizes || {
+            initial: 0,
+            afterHardEligible: 0,
+            afterRestDays: 0,
+            afterIncompatiblePairs: 0,
+            afterWeeklyCap: 0,
+            afterForceUseAll: 0,
+            final: 0,
+          },
+          [], // alternatives from greedy pass are stale after swap
+          week,
+          dates
+        );
       }
     }
   }

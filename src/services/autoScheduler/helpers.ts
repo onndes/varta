@@ -744,24 +744,36 @@ export const computeGlobalObjective = (
   }
 
   // ── 5. Zero-guard penalty (ABSOLUTE LAW) ──────────────────────────
-  // If ANY user has minDow = 0 while maxDow ≥ 2 → catastrophic penalty.
-  // Personal pattern 1-1-1-1-1-1-1 is THE LAW — system MUST NOT assign a 2nd
-  // duty on one DOW while another DOW remains at 0 for the same person.
-  // [1,0,0,0,0,0,0] is normal for users with few total duties — no penalty.
-  // [2,0,...] IS a violation: the 2nd duty should have gone to a zero DOW.
-  // W_ZERO_GUARD=10 ensures penalty (50k+) dominates all other objectives.
+  // Fires when a user's DOW spread exceeds the theoretical minimum.
+  // With `total` duties and `activeDows` available DOWs, the best possible
+  // spread is ceil(total/activeDows) - floor(total/activeDows) = 0 or 1.
+  // Pattern [1,0,0,0,0,0,0] (total=1, spread=1) → unavoidable, NO penalty.
+  // Pattern [1,0,0,0,1,2,1] (total=5, spread=2) → avoidable, PENALTY.
+  // Only counts DOWs where the user is not permanently blocked.
   let zeroGuardPenalty = 0;
   for (const uid of userIds) {
     const counts = dowCountsMap.get(uid)!;
+    const userObj = users?.find((u) => u.id === uid);
+
     let uMin = Infinity;
     let uMax = -Infinity;
+    let total = 0;
+    let activeDows = 0;
     for (let d = 0; d < 7; d++) {
+      const isoDow = d === 0 ? 7 : d;
+      if (userObj?.blockedDays?.includes(isoDow)) continue;
+      activeDows++;
+      total += counts[d];
       if (counts[d] < uMin) uMin = counts[d];
       if (counts[d] > uMax) uMax = counts[d];
     }
-    if (uMin === 0 && uMax >= 2) {
-      // Catastrophic: 5000 base + 2500 per each level of imbalance
-      zeroGuardPenalty += 5000 + 2500 * (uMax - uMin);
+    if (activeDows === 0 || total === 0) continue;
+
+    const idealSpread = total % activeDows === 0 ? 0 : 1;
+    const actualSpread = uMax - uMin;
+    if (actualSpread > idealSpread) {
+      // Catastrophic: 5000 base + 2500 per each level of excess imbalance
+      zeroGuardPenalty += 5000 + 2500 * (actualSpread - idealSpread);
     }
   }
 
@@ -787,23 +799,43 @@ export const computeGlobalObjective = (
 };
 
 /**
- * User's max DOW count across all 7 days.
+ * User's max DOW count across available (non-blocked) days.
+ * Blocked DOWs are permanently 0 and must not skew the result.
  */
 export const getUserMaxDowCount = (
   userId: number,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  blockedDays?: number[]
 ): number => {
   const counts = countUserDaysOfWeek(userId, schedule);
-  return Math.max(...Object.values(counts));
+  const vals: number[] = [];
+  for (let d = 0; d < 7; d++) {
+    if (blockedDays && blockedDays.length > 0) {
+      const isoDow = d === 0 ? 7 : d;
+      if (blockedDays.includes(isoDow)) continue;
+    }
+    vals.push(counts[d] || 0);
+  }
+  return vals.length > 0 ? Math.max(...vals) : 0;
 };
 
 /**
- * User's min DOW count across all 7 days.
+ * User's min DOW count across available (non-blocked) days.
+ * Blocked DOWs are permanently 0 and must not skew the result.
  */
 export const getUserMinDowCount = (
   userId: number,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  blockedDays?: number[]
 ): number => {
   const counts = countUserDaysOfWeek(userId, schedule);
-  return Math.min(...Object.values(counts));
+  const vals: number[] = [];
+  for (let d = 0; d < 7; d++) {
+    if (blockedDays && blockedDays.length > 0) {
+      const isoDow = d === 0 ? 7 : d;
+      if (blockedDays.includes(isoDow)) continue;
+    }
+    vals.push(counts[d] || 0);
+  }
+  return vals.length > 0 ? Math.min(...vals) : 0;
 };

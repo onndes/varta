@@ -185,8 +185,12 @@ export const buildUserComparator = (
    */
   const getCrossDowGuard = (userId: number): number => {
     if (crossDowGuardCache.has(userId)) return crossDowGuardCache.get(userId)!;
-    const maxDow = getUserMaxDowCount(userId, fs);
-    const minDow = getUserMinDowCount(userId, fs);
+    const user = (fairnessUsers?.length ? fairnessUsers : candidatePool || []).find(
+      (u) => u.id === userId
+    );
+    const blocked = user?.blockedDays;
+    const maxDow = getUserMaxDowCount(userId, fs, blocked);
+    const minDow = getUserMinDowCount(userId, fs, blocked);
     const thisDowCount = getDowCount(userId);
     let penalty = 0;
     // Penalize adding to a non-minimum DOW whenever any imbalance exists.
