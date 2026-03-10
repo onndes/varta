@@ -56,6 +56,49 @@ const isHardEligible = (user: User, dateStr: string): boolean => {
   return true;
 };
 
+// ─── Look-Ahead Starvation Guard ─────────────────────────────────────────────
+
+/**
+ * Check if assigning `candidate` to `dateStr` would leave any future unfilled
+ * date with 0 hard-eligible auto-participants remaining.
+ *
+ * This prevents greedy "first come, first served" from consuming the last
+ * available user for a future date. Lightweight: only counts hard eligibility
+ * (status + blocked days), rest-day constraints are not checked here.
+ *
+ * Returns true when assigning `candidate` is safe (future dates still covered).
+ */
+const isLookAheadSafe = (
+  candidate: User,
+  dateStr: string,
+  futureDates: string[],
+  users: User[],
+  tempSchedule: Record<string, ScheduleEntry>,
+  selectedIds: number[]
+): boolean => {
+  for (const futureDate of futureDates) {
+    if (futureDate <= dateStr) continue;
+    // Skip dates already filled.
+    const existing = tempSchedule[futureDate];
+    if (existing && toAssignedUserIds(existing.userId).length > 0) continue;
+
+    // Count hard-eligible auto-participants for futureDate,
+    // excluding the candidate AND users already selected for dateStr.
+    let count = 0;
+    for (const u of users) {
+      if (!u.id || !isAutoParticipant(u)) continue;
+      if (u.id === candidate.id) continue;
+      if (selectedIds.includes(u.id)) continue;
+      if (!isHardEligible(u, futureDate)) continue;
+      count++;
+      if (count >= 1) return true; // ≥1 is enough, no need to count all
+    }
+    // If we reach here, count === 0 → this futureDate would be starved.
+    if (count === 0) return false;
+  }
+  return true;
+};
+
 // ─── Swap Optimizer ──────────────────────────────────────────────────────────
 
 const BASE_SWAP_ITERATIONS = 1500;
@@ -941,7 +984,7 @@ export const autoFillSchedule = async (
 
       const totalEligibleCount = countEligibleUsersForDate(users, tempSchedule, dateStr);
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
-        pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options, totalEligibleCount);
+        pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options);
       }
       logPoolSizes.afterWeeklyCap = pool.length;
 
@@ -979,7 +1022,17 @@ export const autoFillSchedule = async (
       );
       pool.sort(compare);
 
-      const selected = pool[0];
+      // Look-ahead: prefer the highest-ranked candidate that does NOT
+      // starve a future date. Falls back to pool[0] if all would starve.
+      let selected = pool[0];
+      if (pool.length > 1) {
+        for (const candidate of pool) {
+          if (isLookAheadSafe(candidate, dateStr, dates, users, tempSchedule, selectedIds)) {
+            selected = candidate;
+            break;
+          }
+        }
+      }
       if (!selected?.id) break;
       selectedIds.push(selected.id);
 

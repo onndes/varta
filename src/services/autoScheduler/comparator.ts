@@ -7,12 +7,10 @@ import { calculateUserLoad, countUserDaysOfWeek } from '../scheduleService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
 import {
-  countEligibleUsersForDate,
   countEligibleUsersForWeek,
   countUserAssignmentsInRange,
   getDatesInRange,
   getDateMinusDays,
-  getLastAssignedDayIdx,
   getWeekWindow,
   getWeeklyAssignmentCap,
   MIN_USERS_FOR_WEEKLY_LIMIT,
@@ -31,22 +29,21 @@ import {
  * Comparator for candidate ranking on a specific date.
  *
  * Priority order:
- * -2. Cross-DOW zero guard: if user has max DOW count ≥ 2 while min DOW count = 0
- *     AND this DOW is their max → deprioritize (prevent 2+ in one DOW while 0 in another).
+ * -2. Cross-DOW zero guard: penalizes adding duties to a non-minimum DOW
+ *     when imbalance exists (maxDow > minDow). Respects blockedDays.
  * -1. forceUseAllWhenFew: absolute priority for zero-assignment users (hard switch).
  *     Users with 0 duties this week beat all others unconditionally.
  * 0.  getDowCount — FIRST regular criterion (strict DOW fairness account).
  * 1.  Lower post-assignment SSE objective for this day-of-week.
  * 2.  Exponential penalty for serving the same weekday recently
  *     (7d ago = 100, 14d ago = 25, 21d ago = 6.25). Soft, not a hard block.
- * 3.  Soft +1 shift preference (high weight: last duty DOW + 1).
- * 4.  Fewer duties in current week (normal mode / tie-break).
- * 5.  DOW recency (longer gap since same DOW = higher priority).
- * 6.  Remaining availability for forceUse mode.
- * 7.  Fewer total duties.
- * 8.  Load balancing (if enabled).
- * 9.  Longer time since last duty.
- * 10. Stable tie-break by id.
+ * 3.  Fewer duties in current week (weekly cap tie-break).
+ * 4.  DOW recency (longer gap since same DOW = higher priority).
+ * 5.  Remaining availability for forceUse mode.
+ * 6.  Fewer total duties (normalized by Load Rate — anti-catch-up).
+ * 7.  Load balancing (if enabled).
+ * 8.  Longer time since last duty.
+ * 9.  Stable tie-break by id.
  */
 export const buildUserComparator = (
   dateStr: string,
@@ -72,7 +69,6 @@ export const buildUserComparator = (
 
   const dowCountCache = new Map<number, number>();
   const objectiveCache = new Map<number, number>();
-  const plusOnePenaltyCache = new Map<number, number>();
   const weekCountCache = new Map<number, number>();
   const waitCache = new Map<number, number>();
   const dowRecencyCache = new Map<number, number>();
@@ -95,20 +91,6 @@ export const buildUserComparator = (
     const val = computeDowFairnessObjective(dayIdx, pop, fs, userId);
     objectiveCache.set(userId, val);
     return val;
-  };
-
-  const getPlusOnePenalty = (userId: number): number => {
-    if (plusOnePenaltyCache.has(userId)) return plusOnePenaltyCache.get(userId)!;
-    const lastDow = getLastAssignedDayIdx(userId, fs, dateStr);
-    // No history -> neutral.
-    if (lastDow === null) {
-      plusOnePenaltyCache.set(userId, 0);
-      return 0;
-    }
-    const expectedNextDow = (lastDow + 1) % 7;
-    const penalty = expectedNextDow === dayIdx ? 0 : 1;
-    plusOnePenaltyCache.set(userId, penalty);
-    return penalty;
   };
 
   const getWeekCount = (userId: number): number => {
@@ -147,7 +129,7 @@ export const buildUserComparator = (
     let count = 0;
     for (const d of dates) {
       // Count only physical availability — same-weekday recency is a soft penalty,
-      // not a hard block (prevents the Khlivnyuk starvation effect).
+      // not a hard block (prevents starvation when few users are available).
       if (getUserAvailabilityStatus(user, d) !== 'AVAILABLE') continue;
       count++;
     }
@@ -277,19 +259,19 @@ export const buildUserComparator = (
       if (weekA !== weekB) return weekA - weekB;
     }
 
-    // 5. DOW recency.
+    // 4. DOW recency.
     const dowRecencyA = getDowRecency(a.id);
     const dowRecencyB = getDowRecency(b.id);
     if (dowRecencyA !== dowRecencyB) return dowRecencyB - dowRecencyA;
 
-    // 6. Remaining availability in forceUse mode.
+    // 5. Remaining availability in forceUse mode.
     if (isForceUseFew) {
       const remainingAvailA = Math.max(1, getForceUseRemainingAvailability(a));
       const remainingAvailB = Math.max(1, getForceUseRemainingAvailability(b));
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
     }
 
-    // 7. Fewer total duties — normalised by Load Rate (anti-catch-up).
+    // 6. Fewer total duties — normalized by Load Rate (anti-catch-up).
     //    Rate = assignments / days_active. Prevents newcomers from being overloaded.
     const allUsers = fairnessUsers?.length ? fairnessUsers : candidatePool || [];
     const rateA = (() => {
@@ -306,19 +288,19 @@ export const buildUserComparator = (
     })();
     if (!floatEq(rateA, rateB)) return rateA - rateB;
 
-    // 8. Load balancing.
+    // 7. Load balancing.
     if (options.considerLoad) {
       const loadA = getEffectiveLoad(a);
       const loadB = getEffectiveLoad(b);
       if (!floatEq(loadA, loadB)) return loadA - loadB;
     }
 
-    // 9. Longer time since last duty.
+    // 8. Longer time since last duty.
     const waitA = getWaitDays(a.id);
     const waitB = getWaitDays(b.id);
     if (waitA !== waitB) return waitB - waitA;
 
-    // 10. Stable tie-break.
+    // 9. Stable tie-break.
     return a.id - b.id;
   };
 };
@@ -425,8 +407,7 @@ export const filterByWeeklyCap = (
   allUsers: User[],
   dateStr: string,
   schedule: Record<string, ScheduleEntry>,
-  options: AutoScheduleOptions,
-  _eligibleCountOnDate?: number // kept for compat; gate now uses week-based count
+  options: AutoScheduleOptions
 ): User[] => {
   // Gate by week-level eligibility so that a low-availability Friday
   // doesn't silently disable the cap for the whole week.

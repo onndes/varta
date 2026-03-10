@@ -70,14 +70,7 @@ export const getFreeUsersForDate = (
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    candidatePool = filterByWeeklyCap(
-      candidatePool,
-      users,
-      dateStr,
-      schedule,
-      options,
-      totalEligibleCount
-    );
+    candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule, options);
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
   candidatePool = filterBySameWeekdayLastWeek(candidatePool, dateStr, schedule);
@@ -175,7 +168,7 @@ export const calculateOptimalAssignment = (
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    available = filterByWeeklyCap(available, users, dateStr, schedule, options, totalEligibleCount);
+    available = filterByWeeklyCap(available, users, dateStr, schedule, options);
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
   available = filterBySameWeekdayLastWeek(available, dateStr, schedule);
