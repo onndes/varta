@@ -1,7 +1,13 @@
 // src/types/index.ts
 
-/** Режим друку: календар / таблиця чергувань / довідка по складу */
-export type PrintMode = 'calendar' | 'duty-table' | 'status-list';
+/** Режим друку: календар / таблиця чергувань / тижневий календар / довідка по складу */
+export type PrintMode = 'calendar' | 'duty-table' | 'week-calendar-table' | 'status-list';
+
+export interface PrintWeekRange {
+  year: number;
+  fromWeek: number;
+  toWeek: number;
+}
 
 /** Тема оформлення */
 export type AppTheme = 'light' | 'dark';

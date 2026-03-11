@@ -13,7 +13,7 @@ interface PrintHeaderProps {
  */
 const PrintHeader: React.FC<PrintHeaderProps> = ({ signatories, weekDates }) => {
   const startDate = new Date(weekDates[0]);
-  const endDate = new Date(weekDates[6]);
+  const endDate = new Date(weekDates[weekDates.length - 1]);
   const defaultSubtitle = `добового чергування на ${startDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })} — ${endDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}`;
 
   const rankLower = (r: string) => (r ? r.charAt(0).toLowerCase() + r.slice(1) : '');

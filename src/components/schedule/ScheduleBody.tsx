@@ -1,9 +1,10 @@
 // src/components/schedule/ScheduleBody.tsx
 
 import React from 'react';
-import type { User, ScheduleEntry, Signatories, PrintMode } from '../../types';
+import type { User, ScheduleEntry, Signatories, PrintMode, PrintWeekRange } from '../../types';
 import type { DeletedUserInfo } from '../../services/userService';
 import type { ScheduleModalsProps } from './ScheduleModals';
+import { getWeekRangeDates } from '../../utils/dateUtils';
 import WeekNavigator from './WeekNavigator';
 import ScheduleControls from './ScheduleControls';
 import PrintHeader from './PrintHeader';
@@ -11,6 +12,7 @@ import PrintFooter from '../PrintFooter';
 import ScheduleTable from './ScheduleTable';
 import PrintCalendar from './PrintCalendar';
 import PrintDutyTable from './PrintDutyTable';
+import PrintWeekCalendarTable from './PrintWeekCalendarTable';
 import PrintStatusList from './PrintStatusList';
 import ScheduleModals from './ScheduleModals';
 
@@ -70,6 +72,7 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   signatories: Signatories;
   printMode: PrintMode;
   printMaxRows: number;
+  printWeekRange: PrintWeekRange | null;
 }
 
 /**
@@ -122,6 +125,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   signatories,
   printMode,
   printMaxRows,
+  printWeekRange,
   // Modal passthrough
   executeAssign,
   handleSwap,
@@ -140,124 +144,138 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   handleApplyEditChanges,
   handleDiscardEditChanges,
   handleCancelEditReview,
-}) => (
-  <div className="schedule-view-wrapper">
-    <div className="schedule-top-row no-print">
-      <WeekNavigator
-        currentDate={new Date()}
-        activeDate={new Date(weekDates[0])}
-        scheduledWeeksMap={scheduledWeeksMap}
-        onJumpToWeek={jumpToWeek}
-      />
-      <ScheduleControls
+}) => {
+  const printHeaderDates =
+    printMode === 'week-calendar-table' && printWeekRange
+      ? getWeekRangeDates(printWeekRange.year, printWeekRange.fromWeek, printWeekRange.toWeek).flat()
+      : weekDates;
+
+  return (
+    <div className="schedule-view-wrapper">
+      <div className="schedule-top-row no-print">
+        <WeekNavigator
+          currentDate={new Date()}
+          activeDate={new Date(weekDates[0])}
+          scheduledWeeksMap={scheduledWeeksMap}
+          onJumpToWeek={jumpToWeek}
+        />
+        <ScheduleControls
+          weekDates={weekDates}
+          cascadeStartDate={cascadeStartDate}
+          shouldShowCascade={shouldShowCascadeRecalc}
+          conflictsCount={scheduleIssues.conflicts.length}
+          criticalConflictsCount={scheduleIssues.criticalConflicts.length}
+          onPrevWeek={() => shiftWeek(-1)}
+          onNextWeek={() => shiftWeek(1)}
+          onToday={goToToday}
+          onDatePick={handleDatePick}
+          onFillGaps={runFillGaps}
+          onFixConflicts={runFixConflicts}
+          onAutoSchedule={runFullAutoSchedule}
+          onCascadeRecalc={runCascadeRecalc}
+          onDismissCascade={runDismissCascade}
+          onClearWeek={runClearWeek}
+          onImportSchedule={() => setShowImportModal(true)}
+          historyMode={historyMode}
+          onToggleHistoryMode={() => setHistoryMode((v) => !v)}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          undoLabel={undoLabel}
+          redoLabel={redoLabel}
+          onUndo={runUndo}
+          onRedo={runRedo}
+        />
+      </div>
+
+      {printMode !== 'status-list' && printMode !== 'week-calendar-table' && (
+        <PrintHeader signatories={signatories} weekDates={printHeaderDates} />
+      )}
+
+      <div className="schedule-table-scroll-area">
+        <ScheduleTable
+          users={users}
+          weekDates={weekDates}
+          schedule={schedule}
+          todayStr={todayStr}
+          dutiesPerDay={dutiesPerDay}
+          historyMode={historyMode}
+          deletedUserNames={deletedUserNames}
+          onUserClick={handleStartEdit}
+          onCellClick={(date, entry, assignedUserId) => {
+            setPendingAssignConfirm(null);
+            setSelectedCell({ date, entry, assignedUserId });
+            setSwapMode('replace');
+          }}
+          onQuickAssignClick={(date, user) => {
+            setPendingAssignConfirm(null);
+            setSwapMode('replace');
+            const targetCell = { date, entry: null, assignedUserId: undefined };
+            setSelectedCell(targetCell);
+            void handleAssign(user.id, false, targetCell);
+          }}
+        />
+      </div>
+
+      {printMode === 'calendar' && (
+        <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
+      )}
+      {printMode === 'duty-table' && (
+        <PrintDutyTable
+          weekDates={weekDates}
+          schedule={schedule}
+          users={users}
+          maxRowsPerPage={printMaxRows}
+        />
+      )}
+      {printMode === 'week-calendar-table' && printWeekRange && (
+        <PrintWeekCalendarTable users={users} schedule={schedule} range={printWeekRange} />
+      )}
+      {printMode === 'status-list' && (
+        <PrintStatusList
+          users={users}
+          schedule={schedule}
+          weekDates={weekDates}
+          signatories={signatories}
+        />
+      )}
+      {printMode !== 'status-list' && printMode !== 'week-calendar-table' && (
+        <PrintFooter signatories={signatories} />
+      )}
+
+      <ScheduleModals
+        selectedCell={selectedCell}
+        setSelectedCell={setSelectedCell}
+        swapMode={swapMode}
+        setSwapMode={setSwapMode}
+        pendingAssignConfirm={pendingAssignConfirm}
+        setPendingAssignConfirm={setPendingAssignConfirm}
+        executeAssign={executeAssign}
+        handleAssign={(userId, penalize) => handleAssign(userId, penalize)}
+        handleSwap={handleSwap}
+        handleRemove={handleRemove}
+        users={users}
+        schedule={schedule}
         weekDates={weekDates}
-        cascadeStartDate={cascadeStartDate}
-        shouldShowCascade={shouldShowCascadeRecalc}
-        conflictsCount={scheduleIssues.conflicts.length}
-        criticalConflictsCount={scheduleIssues.criticalConflicts.length}
-        onPrevWeek={() => shiftWeek(-1)}
-        onNextWeek={() => shiftWeek(1)}
-        onToday={goToToday}
-        onDatePick={handleDatePick}
-        onFillGaps={runFillGaps}
-        onFixConflicts={runFixConflicts}
-        onAutoSchedule={runFullAutoSchedule}
-        onCascadeRecalc={runCascadeRecalc}
-        onDismissCascade={runDismissCascade}
-        onClearWeek={runClearWeek}
-        onImportSchedule={() => setShowImportModal(true)}
         historyMode={historyMode}
-        onToggleHistoryMode={() => setHistoryMode((v) => !v)}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        undoLabel={undoLabel}
-        redoLabel={redoLabel}
-        onUndo={runUndo}
-        onRedo={runRedo}
+        getFreeUsers={getFreeUsers}
+        getWeekAssignedUsers={getWeekAssignedUsers}
+        daysSinceLastDuty={daysSinceLastDuty}
+        calculateEffectiveLoad={calculateEffectiveLoad}
+        showImportModal={showImportModal}
+        setShowImportModal={setShowImportModal}
+        logAction={logAction}
+        refreshData={refreshData}
+        editingUser={editingUser}
+        pendingEditReview={pendingEditReview}
+        isApplyingEdit={isApplyingEdit}
+        setEditingUser={setEditingUser}
+        handleCloseEditModal={handleCloseEditModal}
+        handleApplyEditChanges={handleApplyEditChanges}
+        handleDiscardEditChanges={handleDiscardEditChanges}
+        handleCancelEditReview={handleCancelEditReview}
       />
     </div>
-
-    {printMode !== 'status-list' && <PrintHeader signatories={signatories} weekDates={weekDates} />}
-
-    <div className="schedule-table-scroll-area">
-      <ScheduleTable
-        users={users}
-        weekDates={weekDates}
-        schedule={schedule}
-        todayStr={todayStr}
-        dutiesPerDay={dutiesPerDay}
-        historyMode={historyMode}
-        deletedUserNames={deletedUserNames}
-        onUserClick={handleStartEdit}
-        onCellClick={(date, entry, assignedUserId) => {
-          setPendingAssignConfirm(null);
-          setSelectedCell({ date, entry, assignedUserId });
-          setSwapMode('replace');
-        }}
-        onQuickAssignClick={(date, user) => {
-          setPendingAssignConfirm(null);
-          setSwapMode('replace');
-          const targetCell = { date, entry: null, assignedUserId: undefined };
-          setSelectedCell(targetCell);
-          void handleAssign(user.id, false, targetCell);
-        }}
-      />
-    </div>
-
-    {printMode === 'calendar' && (
-      <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
-    )}
-    {printMode === 'duty-table' && (
-      <PrintDutyTable
-        weekDates={weekDates}
-        schedule={schedule}
-        users={users}
-        maxRowsPerPage={printMaxRows}
-      />
-    )}
-    {printMode === 'status-list' && (
-      <PrintStatusList
-        users={users}
-        schedule={schedule}
-        weekDates={weekDates}
-        signatories={signatories}
-      />
-    )}
-    {printMode !== 'status-list' && <PrintFooter signatories={signatories} />}
-
-    <ScheduleModals
-      selectedCell={selectedCell}
-      setSelectedCell={setSelectedCell}
-      swapMode={swapMode}
-      setSwapMode={setSwapMode}
-      pendingAssignConfirm={pendingAssignConfirm}
-      setPendingAssignConfirm={setPendingAssignConfirm}
-      executeAssign={executeAssign}
-      handleAssign={(userId, penalize) => handleAssign(userId, penalize)}
-      handleSwap={handleSwap}
-      handleRemove={handleRemove}
-      users={users}
-      schedule={schedule}
-      weekDates={weekDates}
-      historyMode={historyMode}
-      getFreeUsers={getFreeUsers}
-      getWeekAssignedUsers={getWeekAssignedUsers}
-      daysSinceLastDuty={daysSinceLastDuty}
-      calculateEffectiveLoad={calculateEffectiveLoad}
-      showImportModal={showImportModal}
-      setShowImportModal={setShowImportModal}
-      logAction={logAction}
-      refreshData={refreshData}
-      editingUser={editingUser}
-      pendingEditReview={pendingEditReview}
-      isApplyingEdit={isApplyingEdit}
-      setEditingUser={setEditingUser}
-      handleCloseEditModal={handleCloseEditModal}
-      handleApplyEditChanges={handleApplyEditChanges}
-      handleDiscardEditChanges={handleDiscardEditChanges}
-      handleCancelEditReview={handleCancelEditReview}
-    />
-  </div>
-);
+  );
+};
 
 export default ScheduleBody;

@@ -6,6 +6,7 @@ import type {
   Signatories,
   AutoScheduleOptions,
   PrintMode,
+  PrintWeekRange,
 } from '../types';
 import * as userService from '../services/userService';
 import type { DeletedUserInfo } from '../services/userService';
@@ -37,6 +38,7 @@ interface ScheduleViewProps {
   autoScheduleOptions?: AutoScheduleOptions;
   dutiesPerDay: number;
   printMode: PrintMode;
+  printWeekRange: PrintWeekRange | null;
   printMaxRows: number;
   ignoreHistoryInLogic: boolean;
 }
@@ -56,6 +58,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   autoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   dutiesPerDay,
   printMode,
+  printWeekRange,
   printMaxRows,
   ignoreHistoryInLogic,
 }) => {
@@ -274,6 +277,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       handleCancelEditReview={handleCancelEditReview}
       signatories={signatories}
       printMode={printMode}
+      printWeekRange={printWeekRange}
       printMaxRows={printMaxRows}
     />
   );

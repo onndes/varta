@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { PrintMode } from './types';
+import type { PrintMode, PrintWeekRange } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
 import { getAppVersion, triggerPrint } from './utils/platform';
@@ -17,6 +17,7 @@ import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
 import AuditLogView from './components/AuditLogView';
 import AppSidebar from './components/AppSidebar';
+import PrintWeekRangeModal from './components/schedule/PrintWeekRangeModal';
 
 // Styles
 import './styles/main.scss';
@@ -27,6 +28,8 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('schedule');
   const [showBackupAlert, setShowBackupAlert] = useState(false);
   const [printMode, setPrintMode] = useState<PrintMode>('calendar');
+  const [printWeekRange, setPrintWeekRange] = useState<PrintWeekRange | null>(null);
+  const [showPrintWeekRangeModal, setShowPrintWeekRangeModal] = useState(false);
   const [workspaceVersion, setWorkspaceVersion] = useState(() => getActiveWorkspaceId());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [appVersion, setAppVersion] = useState('');
@@ -153,9 +156,10 @@ const App = () => {
   };
 
   // Handle print
-  const handlePrint = (mode: PrintMode) => {
+  const runPrint = (mode: PrintMode, weekRange: PrintWeekRange | null = null) => {
     const previousTab = activeTab;
     setPrintMode(mode);
+    setPrintWeekRange(weekRange);
 
     if (activeTab !== 'schedule') {
       setActiveTab('schedule');
@@ -166,10 +170,25 @@ const App = () => {
         setActiveTab(previousTab);
       }
       setPrintMode('calendar');
+      setPrintWeekRange(null);
     };
 
     // Use platform-aware print (works in browser, file://, and Tauri)
     triggerPrint(undefined, restoreTab);
+  };
+
+  const handlePrint = (mode: PrintMode) => {
+    if (mode === 'week-calendar-table') {
+      setShowPrintWeekRangeModal(true);
+      return;
+    }
+
+    runPrint(mode);
+  };
+
+  const handleConfirmPrintWeekRange = (range: PrintWeekRange) => {
+    setShowPrintWeekRangeModal(false);
+    runPrint('week-calendar-table', range);
   };
 
   return (
@@ -187,6 +206,14 @@ const App = () => {
         onClose={() => setShowBackupAlert(false)}
         onExport={handleExport}
       />
+      {showPrintWeekRangeModal && (
+        <PrintWeekRangeModal
+          show={showPrintWeekRangeModal}
+          initialRange={printWeekRange}
+          onClose={() => setShowPrintWeekRangeModal(false)}
+          onConfirm={handleConfirmPrintWeekRange}
+        />
+      )}
 
       {/* ─── Sidebar ────────────────────────────────────────────── */}
       <AppSidebar
@@ -226,6 +253,7 @@ const App = () => {
               autoScheduleOptions={autoScheduleOptions}
               dutiesPerDay={dutiesPerDay}
               printMode={printMode}
+              printWeekRange={printWeekRange}
               printMaxRows={printMaxRows}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
             />

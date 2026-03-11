@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { getWeekNumber, getMondayOfWeek } from '../../utils/dateUtils';
+import { getWeekNumber, getMondayOfWeek, getWeekYear, getIsoWeeksInYear } from '../../utils/dateUtils';
 
 interface WeekNavigatorProps {
   currentDate: Date;
@@ -34,13 +34,15 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
   scheduledWeeksMap,
   onJumpToWeek,
 }) => {
-  const [displayYear, setDisplayYear] = useState(activeDate.getFullYear());
-  // Dec 28 is always in the last ISO week of the year
-  const maxWeeks = getWeekNumber(new Date(displayYear, 11, 28));
+  const activeYear = getWeekYear(activeDate);
+  const currentYear = getWeekYear(currentDate);
+  const [displayYearOffset, setDisplayYearOffset] = useState(0);
+  const displayYear = activeYear + displayYearOffset;
+  const maxWeeks = getIsoWeeksInYear(displayYear);
   const currentWeek = getWeekNumber(currentDate);
   const activeWeek = getWeekNumber(activeDate);
-  const isActiveYear = displayYear === activeDate.getFullYear();
-  const isCurrentYear = displayYear === currentDate.getFullYear();
+  const isActiveYear = displayYear === activeYear;
+  const isCurrentYear = displayYear === currentYear;
   const yearWeeks = scheduledWeeksMap.get(displayYear);
 
   // Group week numbers by the month of their Monday
@@ -65,7 +67,7 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
       <div className="week-nav-year-row">
         <button
           className="btn btn-sm btn-link text-muted p-0"
-          onClick={() => setDisplayYear((y) => y - 1)}
+          onClick={() => setDisplayYearOffset((offset) => offset - 1)}
           title={`${displayYear - 1}`}
         >
           <i className="fas fa-chevron-left" style={{ fontSize: '0.65rem' }}></i>
@@ -73,14 +75,14 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
         <span
           className={`fw-bold small ${isCurrentYear ? 'text-primary' : 'text-muted'}`}
           style={{ cursor: 'pointer', userSelect: 'none', minWidth: '40px', textAlign: 'center' }}
-          onClick={() => setDisplayYear(currentDate.getFullYear())}
+          onClick={() => setDisplayYearOffset(currentYear - activeYear)}
           title="Повернутися до поточного року"
         >
           {displayYear}
         </span>
         <button
           className="btn btn-sm btn-link text-muted p-0"
-          onClick={() => setDisplayYear((y) => y + 1)}
+          onClick={() => setDisplayYearOffset((offset) => offset + 1)}
           title={`${displayYear + 1}`}
         >
           <i className="fas fa-chevron-right" style={{ fontSize: '0.65rem' }}></i>
@@ -117,7 +119,10 @@ const WeekNavigator: React.FC<WeekNavigatorProps> = ({
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onClick={() => onJumpToWeek(week, displayYear)}
+                  onClick={() => {
+                    setDisplayYearOffset(0);
+                    onJumpToWeek(week, displayYear);
+                  }}
                 >
                   {week}
                   <div className="week-tooltip">

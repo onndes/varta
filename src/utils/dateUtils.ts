@@ -25,6 +25,11 @@ export const getWeekNumber = (d: Date): number => {
   return Math.ceil(((date.getTime() - yearStart.getTime()) / MS_PER_DAY + 1) / 7);
 };
 
+/** Get number of ISO weeks in a year. */
+export const getIsoWeeksInYear = (year: number): number => {
+  return getWeekNumber(new Date(year, 11, 28));
+};
+
 /** Returns the ISO week-year (may differ from calendar year for week 1 / week 52-53 boundary dates) */
 export const getWeekYear = (d: Date): number => {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -64,6 +69,19 @@ export const getWeekDates = (monday: Date): string[] => {
     dates.push(toLocalISO(d));
   }
   return dates;
+};
+
+/** Generate inclusive week-date arrays for an ISO week range in a specific year. */
+export const getWeekRangeDates = (
+  year: number,
+  fromWeek: number,
+  toWeek: number
+): string[][] => {
+  const weeks: string[][] = [];
+  for (let week = fromWeek; week <= toWeek; week++) {
+    weeks.push(getWeekDates(getMondayOfWeek(year, week)));
+  }
+  return weeks;
 };
 
 /**

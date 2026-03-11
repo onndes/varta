@@ -83,6 +83,11 @@ const Header: React.FC<HeaderProps> = ({
               </button>
             </li>
             <li>
+              <button className="dropdown-item" onClick={() => onPrint('week-calendar-table')}>
+                <i className="fas fa-calendar-week me-2"></i>Графік (тижні таблицею)
+              </button>
+            </li>
+            <li>
               <hr className="dropdown-divider" />
             </li>
             <li>
