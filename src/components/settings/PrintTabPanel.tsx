@@ -1,6 +1,6 @@
 // src/components/settings/PrintTabPanel.tsx
 import React from 'react';
-import type { Signatories } from '../../types';
+import type { Signatories, ScheduleDocumentMode } from '../../types';
 import { RANKS } from '../../utils/constants';
 
 // Max-rows-per-page constraints for the duty table
@@ -13,6 +13,7 @@ interface PrintTabPanelProps {
   onSigsChange: (s: Signatories) => void;
   maxRows: number;
   onMaxRowsChange: (n: number) => void;
+  onExportExcel: (mode: ScheduleDocumentMode) => void;
 }
 
 /**
@@ -24,8 +25,37 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
   onSigsChange,
   maxRows,
   onMaxRowsChange,
+  onExportExcel,
 }) => (
   <>
+    <div className="card shadow-sm border-0 mb-4">
+      <div className="card-header bg-white py-3">
+        <h5 className="mb-0 fw-bold">
+          <i className="fas fa-file-excel me-2 text-success"></i>Експорт в Excel
+        </h5>
+      </div>
+      <div className="card-body">
+        <div className="text-muted small mb-3">
+          Експортує графік у форматі Excel. Для режиму «тижні таблицею» буде запропоновано вибрати
+          діапазон ISO-тижнів.
+        </div>
+        <div className="d-flex flex-wrap gap-2">
+          <button className="btn btn-outline-success" onClick={() => onExportExcel('calendar')}>
+            <i className="fas fa-calendar-days me-2"></i>Графік (календар)
+          </button>
+          <button className="btn btn-outline-success" onClick={() => onExportExcel('duty-table')}>
+            <i className="fas fa-table me-2"></i>Графік (таблиця)
+          </button>
+          <button
+            className="btn btn-outline-success"
+            onClick={() => onExportExcel('week-calendar-table')}
+          >
+            <i className="fas fa-calendar-week me-2"></i>Графік (тижні таблицею)
+          </button>
+        </div>
+      </div>
+    </div>
+
     {/* Signatories */}
     <div className="card shadow-sm border-0 mb-4">
       <div className="card-header bg-white py-3">

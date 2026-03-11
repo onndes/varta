@@ -2,6 +2,7 @@
 
 /** Режим друку: календар / таблиця чергувань / тижневий календар / довідка по складу */
 export type PrintMode = 'calendar' | 'duty-table' | 'week-calendar-table' | 'status-list';
+export type ScheduleDocumentMode = Exclude<PrintMode, 'status-list'>;
 
 export interface PrintWeekRange {
   year: number;

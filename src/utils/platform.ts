@@ -24,6 +24,26 @@ export const isFileProtocol = (): boolean =>
 export const isDev = (): boolean =>
   typeof import.meta !== 'undefined' && import.meta.env?.DEV === true;
 
+interface SaveFileFilter {
+  name: string;
+  extensions: string[];
+}
+
+const LAST_SAVE_DIR_KEY = 'varta:last-save-dir';
+
+const extractDirFromPath = (filePath: string): string | null => {
+  const normalized = filePath.replace(/\\/g, '/');
+  const idx = normalized.lastIndexOf('/');
+  if (idx <= 0) return null;
+  return normalized.slice(0, idx);
+};
+
+const joinPath = (dir: string, filename: string): string => {
+  const usesBackslash = dir.includes('\\') && !dir.includes('/');
+  const sep = usesBackslash ? '\\' : '/';
+  return `${dir.replace(/[\\/]+$/, '')}${sep}${filename}`;
+};
+
 /**
  * Get app version for UI:
  * - Tauri: native app version from bundle metadata.
@@ -48,19 +68,6 @@ export const getAppVersion = async (): Promise<string> => {
  * - In browser/file://: falls back to Blob + <a> download trick.
  */
 export const saveTextFile = async (content: string, defaultFilename: string): Promise<void> => {
-  const LAST_SAVE_DIR_KEY = 'varta:last-save-dir';
-  const extractDirFromPath = (filePath: string): string | null => {
-    const normalized = filePath.replace(/\\/g, '/');
-    const idx = normalized.lastIndexOf('/');
-    if (idx <= 0) return null;
-    return normalized.slice(0, idx);
-  };
-  const joinPath = (dir: string, filename: string): string => {
-    const usesBackslash = dir.includes('\\') && !dir.includes('/');
-    const sep = usesBackslash ? '\\' : '/';
-    return `${dir.replace(/[\\/]+$/, '')}${sep}${filename}`;
-  };
-
   if (isTauri()) {
     try {
       // Dynamic imports so these modules are tree-shaken in non-Tauri builds
@@ -89,6 +96,56 @@ export const saveTextFile = async (content: string, defaultFilename: string): Pr
 
   // Browser / file:// fallback
   const blob = new Blob([content], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = defaultFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+};
+
+/**
+ * Save binary content to a file.
+ * - In Tauri: opens native "Save As" dialog and writes bytes.
+ * - In browser/file://: falls back to Blob download.
+ */
+export const saveBinaryFile = async (
+  data: ArrayBuffer | Uint8Array,
+  defaultFilename: string,
+  mimeType: string,
+  filters: SaveFileFilter[]
+): Promise<void> => {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+
+  if (isTauri()) {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      const lastDir = localStorage.getItem(LAST_SAVE_DIR_KEY);
+      const initialPath = lastDir ? joinPath(lastDir, defaultFilename) : defaultFilename;
+
+      const filePath = await save({
+        defaultPath: initialPath,
+        filters,
+      });
+
+      if (filePath) {
+        await writeFile(filePath, bytes);
+        const dir = extractDirFromPath(filePath);
+        if (dir) localStorage.setItem(LAST_SAVE_DIR_KEY, dir);
+      }
+      return;
+    } catch (err) {
+      throw new Error(
+        `Не вдалося зберегти файл через системний діалог Tauri: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const blobBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(blobBuffer).set(bytes);
+  const blob = new Blob([blobBuffer], { type: mimeType });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = defaultFilename;

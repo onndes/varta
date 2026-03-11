@@ -6,6 +6,10 @@ import Modal from '../Modal';
 interface PrintWeekRangeModalProps {
   show: boolean;
   initialRange?: PrintWeekRange | null;
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
+  confirmIconClass?: string;
   onClose: () => void;
   onConfirm: (range: PrintWeekRange) => void;
 }
@@ -20,6 +24,10 @@ const getDefaultRange = (): PrintWeekRange => {
 const PrintWeekRangeModal: React.FC<PrintWeekRangeModalProps> = ({
   show,
   initialRange,
+  title = 'Друк: тижневий календар',
+  description = 'Оберіть рік і діапазон ISO-тижнів. Наприклад: 2026, з 1 по 13 тиждень.',
+  confirmLabel = 'Друкувати',
+  confirmIconClass = 'fas fa-print',
   onClose,
   onConfirm,
 }) => {
@@ -29,10 +37,8 @@ const PrintWeekRangeModal: React.FC<PrintWeekRangeModalProps> = ({
   const totalWeeks = range.toWeek - range.fromWeek + 1;
 
   return (
-    <Modal show={show} onClose={onClose} title="Друк: тижневий календар" size="modal-md">
-      <div className="text-muted small mb-3">
-        Оберіть рік і діапазон ISO-тижнів. Наприклад: 2026, з 1 по 13 тиждень.
-      </div>
+    <Modal show={show} onClose={onClose} title={title} size="modal-md">
+      <div className="text-muted small mb-3">{description}</div>
 
       <div className="row g-3">
         <div className="col-md-4">
@@ -102,7 +108,8 @@ const PrintWeekRangeModal: React.FC<PrintWeekRangeModalProps> = ({
           Скасувати
         </button>
         <button type="button" className="btn btn-primary" onClick={() => onConfirm(range)}>
-          <i className="fas fa-print me-2"></i>Друкувати
+          <i className={`${confirmIconClass} me-2`}></i>
+          {confirmLabel}
         </button>
       </div>
     </Modal>

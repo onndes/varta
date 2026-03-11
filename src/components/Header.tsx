@@ -97,7 +97,6 @@ const Header: React.FC<HeaderProps> = ({
             </li>
           </ul>
         </div>
-
         {/* Theme switcher */}
         <div className="btn-group">
           <button

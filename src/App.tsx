@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import type { PrintMode, PrintWeekRange } from './types';
+import type { PrintMode, PrintWeekRange, ScheduleDocumentMode } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
 import { getAppVersion, triggerPrint } from './utils/platform';
+import { getCurrentMonday, getWeekDates } from './utils/dateUtils';
+import { exportScheduleToExcel } from './services/scheduleExcelExportService';
 
 // Hooks
 import { useUsers, useSchedule, useSettings, useExport } from './hooks';
@@ -30,6 +32,10 @@ const App = () => {
   const [printMode, setPrintMode] = useState<PrintMode>('calendar');
   const [printWeekRange, setPrintWeekRange] = useState<PrintWeekRange | null>(null);
   const [showPrintWeekRangeModal, setShowPrintWeekRangeModal] = useState(false);
+  const [weekRangeAction, setWeekRangeAction] = useState<'print' | 'excel' | null>(null);
+  const [currentWeekDates, setCurrentWeekDates] = useState<string[]>(() =>
+    getWeekDates(getCurrentMonday())
+  );
   const [workspaceVersion, setWorkspaceVersion] = useState(() => getActiveWorkspaceId());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [appVersion, setAppVersion] = useState('');
@@ -179,6 +185,7 @@ const App = () => {
 
   const handlePrint = (mode: PrintMode) => {
     if (mode === 'week-calendar-table') {
+      setWeekRangeAction('print');
       setShowPrintWeekRangeModal(true);
       return;
     }
@@ -186,8 +193,47 @@ const App = () => {
     runPrint(mode);
   };
 
-  const handleConfirmPrintWeekRange = (range: PrintWeekRange) => {
+  const handleExportExcel = async (
+    mode: ScheduleDocumentMode,
+    weekRange: PrintWeekRange | null = null
+  ) => {
+    try {
+      await exportScheduleToExcel({
+        mode,
+        users,
+        schedule,
+        signatories,
+        weekDates: currentWeekDates,
+        weekRange,
+        maxRowsPerPage: printMaxRows,
+      });
+    } catch (err) {
+      console.error(err);
+      await showAlert('Не вдалося експортувати Excel');
+    }
+  };
+
+  const requestExportExcel = (mode: ScheduleDocumentMode) => {
+    if (mode === 'week-calendar-table') {
+      setWeekRangeAction('excel');
+      setShowPrintWeekRangeModal(true);
+      return;
+    }
+
+    void handleExportExcel(mode);
+  };
+
+  const handleConfirmWeekRange = (range: PrintWeekRange) => {
     setShowPrintWeekRangeModal(false);
+    const action = weekRangeAction;
+    setWeekRangeAction(null);
+    setPrintWeekRange(range);
+
+    if (action === 'excel') {
+      void handleExportExcel('week-calendar-table', range);
+      return;
+    }
+
     runPrint('week-calendar-table', range);
   };
 
@@ -210,8 +256,17 @@ const App = () => {
         <PrintWeekRangeModal
           show={showPrintWeekRangeModal}
           initialRange={printWeekRange}
-          onClose={() => setShowPrintWeekRangeModal(false)}
-          onConfirm={handleConfirmPrintWeekRange}
+          title={
+            weekRangeAction === 'excel' ? 'Експорт Excel: тижневий календар' : 'Друк: тижневий календар'
+          }
+          description="Оберіть рік і діапазон ISO-тижнів. Наприклад: 2026, з 1 по 13 тиждень."
+          confirmLabel={weekRangeAction === 'excel' ? 'Експортувати в Excel' : 'Друкувати'}
+          confirmIconClass={weekRangeAction === 'excel' ? 'fas fa-file-excel' : 'fas fa-print'}
+          onClose={() => {
+            setShowPrintWeekRangeModal(false);
+            setWeekRangeAction(null);
+          }}
+          onConfirm={handleConfirmWeekRange}
         />
       )}
 
@@ -243,6 +298,7 @@ const App = () => {
               key={workspaceVersion}
               users={users}
               schedule={schedule}
+              onWeekDatesChange={setCurrentWeekDates}
               refreshData={refreshData}
               logAction={logAction}
               dayWeights={dayWeights}
@@ -296,6 +352,7 @@ const App = () => {
               onSavePrintMaxRows={savePrintMaxRows}
               onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
               onSaveUiScale={saveUiScale}
+              onExportExcel={requestExportExcel}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}
               logAction={logAction}

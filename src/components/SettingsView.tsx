@@ -1,6 +1,13 @@
 // src/components/SettingsView.tsx
 import React, { useState } from 'react';
-import type { DayWeights, Signatories, AutoScheduleOptions, User, ScheduleEntry } from '../types';
+import type {
+  DayWeights,
+  Signatories,
+  AutoScheduleOptions,
+  User,
+  ScheduleEntry,
+  ScheduleDocumentMode,
+} from '../types';
 import Modal from './Modal';
 import LogicTabPanel from './settings/LogicTabPanel';
 import PrintTabPanel from './settings/PrintTabPanel';
@@ -26,6 +33,7 @@ interface SettingsViewProps {
   onSavePrintMaxRows: (value: number) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
+  onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
@@ -127,6 +135,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onSigsChange={setSigs}
           maxRows={maxRows}
           onMaxRowsChange={setMaxRows}
+          onExportExcel={props.onExportExcel}
         />
       )}
 

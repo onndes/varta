@@ -28,6 +28,7 @@ import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 interface ScheduleViewProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
+  onWeekDatesChange?: (weekDates: string[]) => void;
   refreshData: () => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
   dayWeights: DayWeights;
@@ -48,6 +49,7 @@ interface ScheduleViewProps {
 const ScheduleView: React.FC<ScheduleViewProps> = ({
   users,
   schedule,
+  onWeekDatesChange,
   refreshData,
   logAction,
   dayWeights,
@@ -141,6 +143,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   // ── Week navigation ─────────────────────────────────────────────────────
   const { weekDates, todayStr, shiftWeek, jumpToWeek, goToToday, handleDatePick } =
     useWeekNavigation({ isModalOpen: !!selectedCell || !!pendingAssignConfirm });
+
+  useEffect(() => {
+    onWeekDatesChange?.(weekDates);
+  }, [onWeekDatesChange, weekDates]);
 
   // ── Schedule issues (conflicts & gaps) ───────────────────────────────────
   const scheduleIssues = useScheduleIssues({
