@@ -80,19 +80,6 @@ export const getDatesInRange = (fromDate: string, toDate: string): string[] => {
 
 // ─── Допоміжні функції: обмеження ──────────────────────────────────
 
-/** Чи досить бійців для обмеження «1 наряд на тиждень» */
-export const shouldEnforceOneDutyPerWeek = (
-  users: User[],
-  schedule: Record<string, ScheduleEntry>,
-  weekDates: string[]
-): boolean => {
-  const eligibleThisWeek = users.filter((u) => {
-    if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
-    return weekDates.some((d) => isUserAvailable(u, d, schedule));
-  });
-  return eligibleThisWeek.length >= MIN_USERS_FOR_WEEKLY_LIMIT;
-};
-
 /** Скільки бійців доступно саме на конкретну дату */
 export const countEligibleUsersForDate = (
   users: User[],
@@ -424,12 +411,12 @@ export const calculateUserFairnessIndex = (
  * then computes the weighted sum.
  *
  * Weights (VARTA 2.0 — matches spec_logic.md):
- *   W_SAME_DOW    =  50.0  (avoid back-to-back same DOW weeks)
+ *   W_SAME_DOW    =  50.0  (highest: avoid same DOW repeat week-over-week)
  *   W_SYSTEM_SSE  =   3.0  (cross-user DOW fairness)
- *   W_WITHIN_USER = 300.0  (per-user DOW diversity — dominant at mild imbalances)
- *   W_LOAD_RANGE  =   1.0  (soft pressure for workload balance)
- *   W_ZERO_GUARD  =  10.0  (multiplier; internal 5000+ → 50k+ combined)
- *   W_TOTAL_SSE   = 100.0  (anti-concentration; dominates by magnitude at extremes)
+ *   W_WITHIN_USER =   8.0  (per-user DOW spread, availability-normalised)
+ *   W_LOAD_RANGE  =   1.0  (soft pressure toward equal workload)
+ *   W_ZERO_GUARD  =   1.0  (multiplier; internal penalty already 5000+)
+ *   W_TOTAL_SSE   =  10.0  (anti-concentration: prevents duty hoarding)
  *
  * Lower Z → better schedule.
  */
@@ -610,20 +597,12 @@ export const computeGlobalObjective = (
   }
 
   // ── Weighted combination ───────────────────────────────────────────
-  // Design intent (VARTA 2.0):
-  //   W_WITHIN_USER (300) > W_TOTAL_SSE (100) by coefficient, so for mild
-  //   total-count differences (1-2 duties) the scheduler prefers fixing
-  //   per-user DOW spread over equalizing totals — this is intentional.
-  //   At EXTREME concentration (5+ duty gap between users) the totalAssignmentSSE
-  //   value grows quadratically and its contribution (100 × large²) eclipses
-  //   withinUserVar (300 × near-zero) — so concentration is still prevented.
-  //   W_ZERO_GUARD × internal 5000+ = 50k+ per penalty fire → truly un-overridable.
-  const W_SAME_DOW = 50.0;
+  const W_SAME_DOW = 50.0; // Highest: avoid same DOW repeat week-over-week
   const W_SYSTEM_SSE = 3.0; // Cross-user DOW fairness
-  const W_WITHIN_USER = 300.0; // Per-user DOW spread — dominant at mild imbalances
-  const W_LOAD_RANGE = 1.0;
-  const W_ZERO_GUARD = 10.0; // Multiplier — internal penalty already 5000+, together 50k+
-  const W_TOTAL_SSE = 100.0; // Anti-concentration guard — dominates by magnitude at extremes
+  const W_WITHIN_USER = 300.0; // Per-user DOW spread (availability-normalised)
+  const W_LOAD_RANGE = 1.0; // Soft pressure toward equal workload
+  const W_ZERO_GUARD = 10.0; // Multiplier — internal penalty already 5000+
+  const W_TOTAL_SSE = 100.0; // Anti-concentration: prevents duty hoarding
 
   return (
     W_SAME_DOW * sameDowPenalty +

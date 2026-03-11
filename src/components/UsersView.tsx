@@ -1,23 +1,17 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
-import { useUsers } from '../hooks';
 import AddUserForm from './users/AddUserForm';
 import UserRow from './users/UserRow';
 import EditUserModal from './users/EditUserModal';
 import UserChangesReviewModal from './users/UserChangesReviewModal';
 import UserStatsModal from './users/UserStatsModal';
 import Modal from './Modal';
-import { useDialog } from './useDialog';
 import { sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
-import { cloneUserDraft, getUserChangeSummary } from '../utils/userEditDiff';
 import { getFirstDutyDate } from '../utils/assignment';
-import {
-  getFutureStatusPeriods,
-  getStatusPeriodAtDate,
-  getUserStatusPeriods,
-} from '../utils/userStatus';
-import * as userService from '../services/userService';
+import { useUserEditFlow } from '../hooks/useUserEditFlow';
+import { useUsersActions } from '../hooks/useUsersActions';
+import { UsersTableHead } from './users/UsersTableHead';
 
 interface UsersViewProps {
   users: User[];
@@ -28,6 +22,7 @@ interface UsersViewProps {
   updateCascadeTrigger: (date: string) => Promise<void>;
 }
 
+/** Manages the full users list with add/edit/delete/stats modals. */
 const UsersView: React.FC<UsersViewProps> = ({
   users,
   schedule,
@@ -36,21 +31,10 @@ const UsersView: React.FC<UsersViewProps> = ({
   dayWeights,
   updateCascadeTrigger,
 }) => {
-  const { createUser, updateUser, deleteUser: deleteUserHook } = useUsers();
-
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editBaseUser, setEditBaseUser] = useState<User | null>(null);
-  const [pendingEditReview, setPendingEditReview] = useState<{
-    draft: User;
-    changes: ReturnType<typeof getUserChangeSummary>;
-  } | null>(null);
-  const [isApplyingEdit, setIsApplyingEdit] = useState(false);
   const [viewStatsUser, setViewStatsUser] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-
-  const { showConfirm } = useDialog();
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -60,6 +44,26 @@ const UsersView: React.FC<UsersViewProps> = ({
       setSortDir(key === 'rank' ? 'desc' : 'asc');
     }
   };
+
+  const {
+    editingUser,
+    setEditingUser,
+    pendingEditReview,
+    isApplyingEdit,
+    handleStartEdit,
+    handleCloseEditModal,
+    handleCancelEditReview,
+    handleDiscardEditChanges,
+    handleApplyEditChanges,
+  } = useUserEditFlow({ schedule, updateCascadeTrigger, refreshData, logAction });
+
+  const { handleAdd, handleDelete } = useUsersActions({
+    schedule,
+    refreshData,
+    logAction,
+    updateCascadeTrigger,
+    onAddDone: () => setShowAddModal(false),
+  });
 
   const sortedActiveUsers = useMemo(() => {
     const active = users.filter((u) => u.isActive);
@@ -71,198 +75,8 @@ const UsersView: React.FC<UsersViewProps> = ({
     return sortKey ? sortUsersBy(inactive, sortKey, sortDir) : inactive;
   }, [users, sortKey, sortDir]);
 
-  // ─── Persist user draft after explicit confirmation ─────────────────────
-  const saveUser = useCallback(
-    async (user: User) => {
-      if (!user.id) return;
-      const todayStr = toLocalISO(new Date());
-      const normalizedPeriods = getUserStatusPeriods(user);
-      const currentPeriod = getStatusPeriodAtDate(user, todayStr);
-      const nextPeriod = getFutureStatusPeriods(user, todayStr)[0];
-      const legacyPeriod = currentPeriod || null;
-      const legacyRestBefore = legacyPeriod?.restBefore || false;
-      const legacyRestAfter = legacyPeriod?.restAfter || false;
-
-      await updateUser(user.id, {
-        name: user.name,
-        rank: user.rank,
-        status: legacyPeriod ? legacyPeriod.status : 'ACTIVE',
-        statusFrom: legacyPeriod ? legacyPeriod.from : undefined,
-        statusTo: legacyPeriod ? legacyPeriod.to : undefined,
-        isActive: user.isActive,
-        excludeFromAuto: user.excludeFromAuto,
-        note: user.note,
-        restBeforeStatus: legacyRestBefore,
-        restAfterStatus: legacyRestAfter,
-        blockedDays: user.blockedDays,
-        blockedDaysFrom: user.blockedDaysFrom,
-        blockedDaysTo: user.blockedDaysTo,
-        blockedDaysComment: user.blockedDaysComment,
-        statusComment: legacyPeriod?.status === 'ABSENT' ? legacyPeriod.comment : undefined,
-        statusPeriods: normalizedPeriods,
-        dateAddedToAuto: user.dateAddedToAuto,
-      });
-      await userService.syncUserIncompatibility(user.id, user.incompatibleWith);
-
-      if (legacyPeriod?.from) {
-        await updateCascadeTrigger(legacyPeriod.from);
-      } else if (nextPeriod?.from) {
-        await updateCascadeTrigger(nextPeriod.from);
-      } else {
-        await updateCascadeTrigger(todayStr);
-      }
-
-      await refreshData();
-    },
-    [updateUser, updateCascadeTrigger, refreshData]
-  );
-
-  const resetEditState = useCallback(() => {
-    setEditingUser(null);
-    setEditBaseUser(null);
-    setPendingEditReview(null);
-    setIsApplyingEdit(false);
-  }, []);
-
-  const handleStartEdit = useCallback((user: User) => {
-    setEditBaseUser(cloneUserDraft(user));
-    setEditingUser(cloneUserDraft(user));
-  }, []);
-
-  const handleAdd = async (name: string, rank: string, note: string) => {
-    const scheduleDates = Object.keys(schedule).sort();
-    const lastScheduleDate = scheduleDates[scheduleDates.length - 1];
-
-    const today = new Date();
-    const todayStr = toLocalISO(today);
-
-    let dateAddedToAuto = todayStr;
-    if (lastScheduleDate && lastScheduleDate >= todayStr) {
-      const nextDay = new Date(lastScheduleDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      dateAddedToAuto = toLocalISO(nextDay);
-    }
-    await createUser({
-      name,
-      rank,
-      status: 'ACTIVE',
-      isActive: true,
-      excludeFromAuto: false,
-      note,
-      debt: 0.0,
-      statusFrom: '',
-      statusTo: '',
-      statusPeriods: [],
-      restAfterStatus: false,
-      owedDays: {},
-      dateAddedToAuto,
-    });
-    await logAction('ADD', `Додано: ${name}`);
-    await refreshData();
-    setShowAddModal(false);
-  };
-
-  const handleDelete = async (u: User) => {
-    if (!u.id) return;
-    if (!(await showConfirm('Видалити?'))) return;
-    await deleteUserHook(u.id);
-    const todayStr = new Date().toISOString().split('T')[0];
-    await updateCascadeTrigger(todayStr);
-    await logAction('DELETE', `Видалено: ${u.name}`);
-    await refreshData();
-  };
-
-  const handleCloseEditModal = useCallback(() => {
-    if (!editingUser || !editBaseUser) {
-      resetEditState();
-      return;
-    }
-
-    const changes = getUserChangeSummary(editBaseUser, editingUser, users);
-    if (changes.length === 0) {
-      resetEditState();
-      return;
-    }
-
-    setPendingEditReview({
-      draft: cloneUserDraft(editingUser),
-      changes,
-    });
-  }, [editBaseUser, editingUser, resetEditState, users]);
-
-  const handleCancelEditReview = useCallback(() => {
-    setPendingEditReview(null);
-  }, []);
-
-  const handleDiscardEditChanges = useCallback(() => {
-    resetEditState();
-  }, [resetEditState]);
-
-  const handleApplyEditChanges = useCallback(async () => {
-    const draft = pendingEditReview?.draft;
-    if (!draft?.id) {
-      resetEditState();
-      return;
-    }
-
-    setIsApplyingEdit(true);
-    try {
-      await saveUser(draft);
-      await logAction('EDIT', `Редаговано: ${draft.name}`);
-      resetEditState();
-    } finally {
-      setIsApplyingEdit(false);
-    }
-  }, [logAction, pendingEditReview, resetEditState, saveUser]);
-
   const activeCount = sortedActiveUsers.length;
   const inactiveCount = sortedInactiveUsers.length;
-
-  const renderSortBtn = (key: SortKey, label: string, icon?: string) => (
-    <span
-      className={`users-sort-btn ${sortKey === key ? 'users-sort-btn--active' : ''}`}
-      onClick={() => toggleSort(key)}
-      title={`Сортувати за ${label.toLowerCase()}`}
-    >
-      {icon && <i className={`fas ${icon} me-1`} style={{ fontSize: '0.6rem' }}></i>}
-      {label}
-      {sortKey === key && <span className="ms-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-    </span>
-  );
-
-  const renderTableHead = () => (
-    <thead>
-      <tr className="users-table__head">
-        <th
-          className="text-center"
-          style={{ width: '44px', minWidth: '44px', maxWidth: '44px', userSelect: 'none' }}
-        >
-          №
-        </th>
-        <th
-          className="text-start ps-3"
-          style={{
-            userSelect: 'none',
-            width: '96px',
-            minWidth: '96px',
-            maxWidth: '96px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <div className="d-flex align-items-center gap-1">{renderSortBtn('rank', 'Звання')}</div>
-        </th>
-        <th className="text-start" style={{ userSelect: 'none' }}>
-          <div className="d-flex align-items-center gap-1">{renderSortBtn('name', 'ПІБ')}</div>
-        </th>
-        <th className="text-start" style={{ width: '40%', minWidth: '300px' }}>
-          Статус
-        </th>
-        <th className="text-end pe-3" style={{ width: '14%' }}>
-          Дії
-        </th>
-      </tr>
-    </thead>
-  );
 
   return (
     <div>
@@ -289,7 +103,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       <div className="card shadow-sm border-0 mb-3">
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0 users-table">
-            {renderTableHead()}
+            <UsersTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
             <tbody>
               {activeCount === 0 ? (
                 <tr>
@@ -339,7 +153,7 @@ const UsersView: React.FC<UsersViewProps> = ({
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0 users-table">
-              {renderTableHead()}
+              <UsersTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               <tbody>
                 {sortedInactiveUsers.map((u, idx) => (
                   <UserRow
@@ -372,7 +186,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         <EditUserModal
           user={editingUser}
           onChange={setEditingUser}
-          onClose={handleCloseEditModal}
+          onClose={() => handleCloseEditModal(users)}
           computedFairnessDate={(() => {
             const dates = Object.keys(schedule).sort();
             return dates[0] || toLocalISO(new Date());

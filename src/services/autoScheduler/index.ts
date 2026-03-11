@@ -14,7 +14,11 @@ import {
   filterByWeeklyCap,
   filterForceUseAllWhenFew,
 } from './comparator';
-import { countEligibleUsersForWeek, MIN_USERS_FOR_WEEKLY_LIMIT } from './helpers';
+import {
+  countEligibleUsersForDate,
+  countEligibleUsersForWeek,
+  MIN_USERS_FOR_WEEKLY_LIMIT,
+} from './helpers';
 import { autoFillSchedule } from './scheduler';
 
 // Re-export головного алгоритму
@@ -67,7 +71,7 @@ export const getFreeUsersForDate = (
       !assignedOnDate.has(u.id!) &&
       isUserAvailable(u, dateStr, schedule)
   );
-  const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+  const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
@@ -75,7 +79,11 @@ export const getFreeUsersForDate = (
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
   candidatePool = filterBySameWeekdayLastWeek(candidatePool, dateStr, schedule);
-  if (options.forceUseAllWhenFew && totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+
+  // forceUseAllWhenFew: while any user has 0 duties this week,
+  // only zero-assignment users are eligible candidates.
+  const weekEligible = countEligibleUsersForWeek(users, schedule, dateStr);
+  if (options.forceUseAllWhenFew && weekEligible <= MIN_USERS_FOR_WEEKLY_LIMIT) {
     candidatePool = filterForceUseAllWhenFew(candidatePool, dateStr, schedule);
   }
 
@@ -167,7 +175,7 @@ export const calculateOptimalAssignment = (
     (u) => u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, schedule)
   );
   if (available.length === 0) return null;
-  const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+  const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
   const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
 
   // Ліміт на тиждень
@@ -176,7 +184,11 @@ export const calculateOptimalAssignment = (
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
   available = filterBySameWeekdayLastWeek(available, dateStr, schedule);
-  if (options.forceUseAllWhenFew && totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+
+  // forceUseAllWhenFew: while any user has 0 duties this week,
+  // only zero-assignment users are eligible candidates.
+  const weekEligibleOpt = countEligibleUsersForWeek(users, schedule, dateStr);
+  if (options.forceUseAllWhenFew && weekEligibleOpt <= MIN_USERS_FOR_WEEKLY_LIMIT) {
     available = filterForceUseAllWhenFew(available, dateStr, schedule);
   }
 

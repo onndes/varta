@@ -4,17 +4,9 @@ import { isAssignedInEntry } from '../../utils/assignment';
 import { getUserStatusPeriods } from '../../utils/userStatus';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getUserAvailabilityStatus } from '../../services/userService';
+import AbsenceSummaryTable, { type AbsenceKey, ABSENCE_LABELS } from './AbsenceSummaryTable';
 
-type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'absent' | 'request';
 type PeriodMode = 'all' | 'year' | 'month';
-
-const ABSENCE_LABELS: Record<AbsenceKey, string> = {
-  vacation: 'Відпустка',
-  trip: 'Відрядження',
-  sick: 'Лікарняний',
-  absent: 'Відсутній',
-  request: 'За власним бажанням',
-};
 
 const MONTH_NAMES = [
   'Січень',
@@ -257,42 +249,11 @@ const AbsenceSection: React.FC<AbsenceSectionProps> = ({
           ))}
         </div>
 
-        <div className="small text-muted mb-2">
-          Показано тільки вибрані категорії. Для відсутностей враховуються дні, для рапортів -
-          кількість випадків.
-        </div>
-        <div className="small mb-2">
-          <strong>Доступних днів для чергування:</strong> {availableDaysTotal}
-        </div>
-        <div className="d-flex justify-content-center">
-          <table
-            className="table table-sm mb-0 text-center"
-            style={{ width: 'auto', minWidth: '280px' }}
-          >
-            <thead>
-              <tr>
-                <th className="text-center">Категорія</th>
-                <th className="text-center">Кількість</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleAbsenceKeys.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="text-center text-muted">
-                    Оберіть хоча б одну категорію
-                  </td>
-                </tr>
-              ) : (
-                visibleAbsenceKeys.map((key) => (
-                  <tr key={key}>
-                    <td>{ABSENCE_LABELS[key]}</td>
-                    <td className="fw-bold">{absenceCounts[key]}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <AbsenceSummaryTable
+          visibleAbsenceKeys={visibleAbsenceKeys}
+          absenceCounts={absenceCounts}
+          availableDaysTotal={availableDaysTotal}
+        />
       </div>
     </div>
   );

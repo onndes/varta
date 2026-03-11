@@ -16,7 +16,7 @@ import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
 import AuditLogView from './components/AuditLogView';
-import InfoButton from './components/InfoButton';
+import AppSidebar from './components/AppSidebar';
 
 // Styles
 import './styles/main.scss';
@@ -172,14 +172,6 @@ const App = () => {
     triggerPrint(undefined, restoreTab);
   };
 
-  const NAV_TABS = [
-    { id: 'schedule', icon: 'fa-calendar-alt', label: 'Графік' },
-    { id: 'users', icon: 'fa-users', label: 'Особовий склад' },
-    { id: 'stats', icon: 'fa-chart-bar', label: 'Статистика' },
-    { id: 'settings', icon: 'fa-cog', label: 'Налаштування' },
-    { id: 'logs', icon: 'fa-history', label: 'Журнал' },
-  ];
-
   return (
     <div
       className={`app-shell ${sidebarCollapsed ? 'app-shell--collapsed' : ''} show-print-${printMode}`}
@@ -197,45 +189,13 @@ const App = () => {
       />
 
       {/* ─── Sidebar ────────────────────────────────────────────── */}
-      <aside className="app-sidebar no-print">
-        <div className="app-sidebar__brand">
-          <div className="app-sidebar__brand-icon">
-            <i className="fas fa-shield-alt"></i>
-          </div>
-          <div className="app-sidebar__brand-text">
-            <span className="app-sidebar__brand-name">ВАРТА</span>
-            <span className="app-sidebar__brand-sub">{displayVersionLabel}</span>
-          </div>
-        </div>
-
-        <nav className="app-sidebar__nav">
-          {NAV_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={`app-sidebar__item ${activeTab === tab.id ? 'app-sidebar__item--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.label}
-            >
-              <i className={`fas ${tab.icon} app-sidebar__icon`}></i>
-              <span className="app-sidebar__label">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="app-sidebar__bottom">
-          <InfoButton />
-          <button
-            className="app-sidebar__collapse-btn"
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            title={sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
-          >
-            <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
-            <span className="app-sidebar__collapse-label">
-              {sidebarCollapsed ? 'Розгорнути' : 'Згорнути'}
-            </span>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar
+        sidebarCollapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed((v) => !v)}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        displayVersionLabel={displayVersionLabel}
+      />
 
       {/* ─── Main area ──────────────────────────────────────────── */}
       <div className="app-main">

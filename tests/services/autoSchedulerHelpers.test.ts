@@ -7,7 +7,6 @@ import {
   getDatesInRange,
   daysSinceLastAssignment,
   hasDebtBacklog,
-  shouldEnforceOneDutyPerWeek,
   getDebtRepaymentScore,
   computeDaysActive,
   computeUserLoadRate,
@@ -377,54 +376,6 @@ describe('hasDebtBacklog', () => {
   it("від'ємна карма + owedDays → true", () => {
     const user = makeUser({ debt: -1, owedDays: { 5: 1 } });
     expect(hasDebtBacklog(user)).toBe(true);
-  });
-});
-
-// ─── shouldEnforceOneDutyPerWeek ───────────────────────────────────
-
-describe('shouldEnforceOneDutyPerWeek', () => {
-  const weekDates = getDatesInRange('2026-03-09', '2026-03-15');
-
-  const makeActiveUsers = (count: number): User[] =>
-    Array.from({ length: count }, (_, i) => makeUser({ id: i + 1, name: `User${i + 1}` }));
-
-  it('7+ доступних бійців → true', () => {
-    const users = makeActiveUsers(8);
-    const schedule: Record<string, ScheduleEntry> = {};
-    expect(shouldEnforceOneDutyPerWeek(users, schedule, weekDates)).toBe(true);
-  });
-
-  it('<7 доступних бійців → false', () => {
-    const users = makeActiveUsers(5);
-    const schedule: Record<string, ScheduleEntry> = {};
-    expect(shouldEnforceOneDutyPerWeek(users, schedule, weekDates)).toBe(false);
-  });
-
-  it('рівно 7 доступних → true', () => {
-    const users = makeActiveUsers(7);
-    const schedule: Record<string, ScheduleEntry> = {};
-    expect(shouldEnforceOneDutyPerWeek(users, schedule, weekDates)).toBe(true);
-  });
-
-  it('неактивні бійці не рахуються', () => {
-    // 6 активних + 2 неактивних = все одно <7 eligible
-    const users = [
-      ...makeActiveUsers(6),
-      makeUser({ id: 7, name: 'Inactive1', isActive: false }),
-      makeUser({ id: 8, name: 'Inactive2', isActive: false }),
-    ];
-    const schedule: Record<string, ScheduleEntry> = {};
-    expect(shouldEnforceOneDutyPerWeek(users, schedule, weekDates)).toBe(false);
-  });
-
-  it('isExtra та excludeFromAuto бійці не рахуються', () => {
-    const users = [
-      ...makeActiveUsers(5),
-      makeUser({ id: 6, name: 'Extra', isExtra: true }),
-      makeUser({ id: 7, name: 'Excluded', excludeFromAuto: true }),
-    ];
-    const schedule: Record<string, ScheduleEntry> = {};
-    expect(shouldEnforceOneDutyPerWeek(users, schedule, weekDates)).toBe(false);
   });
 });
 

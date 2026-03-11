@@ -10,6 +10,8 @@ import {
   type SortKey,
   type SortDir,
 } from '../../utils/helpers';
+import { CompactScheduleView } from './CompactScheduleView';
+import { ScheduleTableHeader } from './ScheduleTableHeader';
 
 interface ScheduleTableProps {
   users: User[];
@@ -78,123 +80,17 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
 
   // ── Day-centric compact view for large teams (> 20) ──────────────────
   if (activeUsers.length > 20) {
-    const slotsPerDay = Math.max(dutiesPerDay, 1);
     return (
-      <div className="view-table">
-        <div className="card shadow-sm border-0">
-          <table className="compact-table">
-            <thead>
-              <tr>
-                <th style={{ width: '130px' }}>Дата</th>
-                {Array.from({ length: slotsPerDay }, (_, i) => (
-                  <th key={i}>Черг. {i + 1}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {weekDates.map((date) => {
-                const entry = schedule[date];
-                const assignedIds = toAssignedUserIds(entry?.userId);
-                const isPast = date < todayStr;
-                const d = new Date(date);
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const dayLabel = d.toLocaleDateString('uk-UA', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: '2-digit',
-                });
-                // Build slot cells: filled + empty up to slotsPerDay
-                const slots: (number | null)[] = [
-                  ...assignedIds,
-                  ...Array(Math.max(0, slotsPerDay - assignedIds.length)).fill(null),
-                ];
-                return (
-                  <tr key={date}>
-                    <td
-                      className="text-start fw-bold"
-                      style={{
-                        fontSize: '0.82rem',
-                        background: isWeekend
-                          ? 'var(--app-table-weekend-bg, #e9ecef)'
-                          : 'var(--app-table-header-bg, #f8f9fa)',
-                        color: 'var(--bs-body-color)',
-                      }}
-                    >
-                      {dayLabel}
-                    </td>
-                    {slots.map((uid, slotIdx) => {
-                      const user = uid != null ? usersById[uid] : null;
-                      const deletedInfo = uid != null && !user ? deletedUserNames[uid] : null;
-                      if (uid != null && (user || deletedInfo)) {
-                        // Assigned slot (active or deleted user)
-                        const isHistory = entry?.type === 'history' || entry?.type === 'import';
-                        const isDeleted = !user && !!deletedInfo;
-                        const cellClass =
-                          'compact-cell' +
-                          (isDeleted
-                            ? ' past-locked'
-                            : isHistory
-                              ? ' history-entry'
-                              : isPast && !historyMode
-                                ? ' assigned-past'
-                                : ' assigned' + (entry?.isLocked ? ' locked' : ''));
-                        const displayName = user?.name ?? deletedInfo?.name ?? '?';
-                        return (
-                          <td
-                            key={slotIdx}
-                            className={cellClass}
-                            onClick={() => {
-                              if (isDeleted) return; // Can't interact with deleted user's cell
-                              if (isPast && !historyMode) return;
-                              onCellClick(date, entry, uid);
-                            }}
-                            title={isDeleted ? `Видалений: ${displayName}` : undefined}
-                          >
-                            <span
-                              className="no-print"
-                              style={{ fontSize: '0.78rem', opacity: isDeleted ? 0.6 : 1 }}
-                            >
-                              {isDeleted && (
-                                <i
-                                  className="fas fa-user-slash me-1"
-                                  style={{ fontSize: '0.65rem' }}
-                                ></i>
-                              )}
-                              {displayName}
-                            </span>
-                          </td>
-                        );
-                      } else {
-                        // Empty slot
-                        return (
-                          <td
-                            key={slotIdx}
-                            className="compact-cell"
-                            style={{ color: '#adb5bd' }}
-                            onClick={() => {
-                              if (isPast && !historyMode) return;
-                              onCellClick(date, null, undefined);
-                            }}
-                          >
-                            {(!isPast || historyMode) && (
-                              <span
-                                className="no-print"
-                                style={{ fontSize: '1rem', lineHeight: 1 }}
-                              >
-                                +
-                              </span>
-                            )}
-                          </td>
-                        );
-                      }
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <CompactScheduleView
+        weekDates={weekDates}
+        schedule={schedule}
+        todayStr={todayStr}
+        dutiesPerDay={dutiesPerDay}
+        historyMode={historyMode}
+        deletedUserNames={deletedUserNames}
+        usersById={usersById}
+        onCellClick={onCellClick}
+      />
     );
   }
 
@@ -203,73 +99,13 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
     <div className="view-table">
       <div className="card shadow-sm border-0">
         <table className="compact-table">
-          <thead>
-            <tr>
-              <th style={{ width: '40px' }}>#</th>
-              <th
-                className="col-user-screen"
-                style={{
-                  width: '96px',
-                  minWidth: '96px',
-                  maxWidth: '96px',
-                  whiteSpace: 'nowrap',
-                  userSelect: 'none',
-                }}
-              >
-                <span
-                  className={`badge ${sortKey === 'rank' ? 'bg-primary' : 'bg-light text-secondary border'} fw-semibold text-dark`}
-                  style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                  onClick={() => toggleSort('rank')}
-                  title="Сортувати за званням"
-                >
-                  <i className="fas fa-medal me-1" style={{ fontSize: '0.65rem' }}></i>Зв.
-                  {sortKey === 'rank' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                </span>
-              </th>
-              <th className="col-user-screen" style={{ width: '170px', userSelect: 'none' }}>
-                <span
-                  className={`badge ${sortKey === 'name' ? 'bg-primary' : 'bg-light text-secondary border'} me-1 fw-semibold text-dark`}
-                  style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                  onClick={() => toggleSort('name')}
-                  title="Сортувати за ПІБ"
-                >
-                  ПІБ{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                </span>
-              </th>
-              <th className="col-user-print" style={{ width: '120px' }}>
-                Військове звання
-              </th>
-              <th className="col-user-print" style={{ width: '180px' }}>
-                Прізвище та ініціали
-              </th>
-              {weekDates.map((date) => {
-                const d = new Date(date);
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const dayMonth = d.toLocaleDateString('uk-UA', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: '2-digit',
-                });
-                return (
-                  <th
-                    key={date}
-                    onClick={() => onCellClick(date, null, undefined)}
-                    style={{
-                      width: '10%',
-                      backgroundColor: isWeekend
-                        ? 'var(--app-table-weekend-bg, #e9ecef)'
-                        : 'var(--app-table-header-bg, #f8f9fa)',
-                      color: 'var(--bs-body-color)',
-                      cursor: 'pointer',
-                    }}
-                    title="Відкрити список осіб на цю дату"
-                  >
-                    {dayMonth}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
+          <ScheduleTableHeader
+            weekDates={weekDates}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={toggleSort}
+            onDateClick={(date) => onCellClick(date, null, undefined)}
+          />
           <tbody>
             {displayUsers.length === 0 ? (
               <tr>
