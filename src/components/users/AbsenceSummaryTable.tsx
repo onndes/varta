@@ -1,17 +1,6 @@
 // src/components/users/AbsenceSummaryTable.tsx — absence counts table and per-category display
 import React from 'react';
-
-/** Absence category keys used throughout absence tracking. */
-export type AbsenceKey = 'vacation' | 'trip' | 'sick' | 'absent' | 'request';
-
-/** Human-readable labels for each absence category. */
-export const ABSENCE_LABELS: Record<AbsenceKey, string> = {
-  vacation: 'Відпустка',
-  trip: 'Відрядження',
-  sick: 'Лікарняний',
-  absent: 'Відсутній',
-  request: 'За власним бажанням',
-};
+import { ABSENCE_LABELS, type AbsenceKey } from './absenceSectionUtils';
 
 interface AbsenceSummaryTableProps {
   visibleAbsenceKeys: AbsenceKey[];

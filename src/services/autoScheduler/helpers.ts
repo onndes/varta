@@ -410,7 +410,7 @@ export const calculateUserFairnessIndex = (
  * Gathers all metrics in ONE iteration over schedule entries,
  * then computes the weighted sum.
  *
- * Weights (VARTA 2.0 — matches spec_logic.md):
+ * Weights (matches spec_logic.md):
  *   W_SAME_DOW    =  50.0  (highest: avoid same DOW repeat week-over-week)
  *   W_SYSTEM_SSE  =   3.0  (cross-user DOW fairness)
  *   W_WITHIN_USER =   8.0  (per-user DOW spread, availability-normalised)

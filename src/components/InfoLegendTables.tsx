@@ -3,7 +3,7 @@
 import React from 'react';
 
 /** Shared base style for legend cell badge samples. */
-export const LEGEND_CELL_BADGE: React.CSSProperties = {
+const LEGEND_CELL_BADGE: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',

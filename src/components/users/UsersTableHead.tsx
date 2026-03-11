@@ -8,20 +8,29 @@ interface UsersTableHeadProps {
   onSort: (key: SortKey) => void;
 }
 
+interface SortBtnProps {
+  k: SortKey;
+  label: string;
+  icon?: string;
+  sortKey: SortKey | null;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+}
+
+const SortBtn: React.FC<SortBtnProps> = ({ k, label, icon, sortKey, sortDir, onSort }) => (
+  <span
+    className={`users-sort-btn ${sortKey === k ? 'users-sort-btn--active' : ''}`}
+    onClick={() => onSort(k)}
+    title={`Сортувати за ${label.toLowerCase()}`}
+  >
+    {icon && <i className={`fas ${icon} me-1`} style={{ fontSize: '0.6rem' }}></i>}
+    {label}
+    {sortKey === k && <span className="ms-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+  </span>
+);
+
 /** Reusable sortable <thead> for the active and inactive users tables. */
 export const UsersTableHead: React.FC<UsersTableHeadProps> = ({ sortKey, sortDir, onSort }) => {
-  const SortBtn = ({ k, label, icon }: { k: SortKey; label: string; icon?: string }) => (
-    <span
-      className={`users-sort-btn ${sortKey === k ? 'users-sort-btn--active' : ''}`}
-      onClick={() => onSort(k)}
-      title={`Сортувати за ${label.toLowerCase()}`}
-    >
-      {icon && <i className={`fas ${icon} me-1`} style={{ fontSize: '0.6rem' }}></i>}
-      {label}
-      {sortKey === k && <span className="ms-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-    </span>
-  );
-
   return (
     <thead>
       <tr className="users-table__head">
@@ -42,12 +51,12 @@ export const UsersTableHead: React.FC<UsersTableHeadProps> = ({ sortKey, sortDir
           }}
         >
           <div className="d-flex align-items-center gap-1">
-            <SortBtn k="rank" label="Звання" />
+            <SortBtn k="rank" label="Звання" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           </div>
         </th>
         <th className="text-start" style={{ userSelect: 'none' }}>
           <div className="d-flex align-items-center gap-1">
-            <SortBtn k="name" label="ПІБ" />
+            <SortBtn k="name" label="ПІБ" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           </div>
         </th>
         <th className="text-start" style={{ width: '40%', minWidth: '300px' }}>

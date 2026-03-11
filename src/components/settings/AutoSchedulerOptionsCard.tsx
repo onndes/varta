@@ -5,6 +5,10 @@ import DebtUserOptions from './DebtUserOptions';
 
 const REST_DAYS_MIN = 1;
 const REST_DAYS_MAX = 7; // min/max rest days between duties
+const BALANCE_STEP = 0.05;
+const BALANCE_MIN = 0.05;
+const BALANCE_MAX = 1.0;
+const BALANCE_DEFAULT = 0.2;
 
 interface AutoSchedulerOptionsCardProps {
   autoOpts: AutoScheduleOptions;
@@ -73,8 +77,8 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
             />
             <span className="text-muted small">
               {autoOpts.minRestDays === 1 && '(не ставити 2 дні поспіль)'}
-              {autoOpts.minRestDays === 2 && '(мінімум 1 день перерви між черguваннями)'}
-              {autoOpts.minRestDays === 3 && '(мінімум 2 дні перерви між черguваннями)'}
+              {autoOpts.minRestDays === 2 && '(мінімум 1 день перерви між чергуваннями)'}
+              {autoOpts.minRestDays === 3 && '(мінімум 2 дні перерви між чергуваннями)'}
               {autoOpts.minRestDays &&
                 autoOpts.minRestDays > 3 &&
                 `(мінімум ${autoOpts.minRestDays - 1} днів перерви)`}

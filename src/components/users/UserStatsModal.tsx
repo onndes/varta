@@ -65,7 +65,6 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
   });
 
   const owedDays = user.owedDays || {};
-  const hasOwedDays = Object.values(owedDays).some((v) => v > 0);
 
   const statusEvents = useMemo(() => {
     const events: TimelineEvent[] = [];

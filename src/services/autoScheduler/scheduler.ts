@@ -1,6 +1,6 @@
 // src/services/autoScheduler/scheduler.ts
 // Constraint-optimization auto scheduler (fairness accounts + hard constraints).
-// VARTA 2.0: Decision logging, adaptive iterations, strengthened zero-guard.
+// Decision logging, adaptive iterations, strengthened zero-guard.
 
 import type {
   User,
@@ -509,7 +509,7 @@ const translateReason = (reason: string): string => {
 /**
  * Build a DecisionLog explaining why a specific user was assigned to a date.
  *
- * VARTA 2.0 Human-First: structured sections (✅ / ❌ / 📅 / ⚠️) + flat userText.
+ * Human-First: structured sections (✅ / ❌ / 📅 / ⚠️) + flat userText.
  */
 const buildDecisionLog = (
   assignedId: number,
@@ -1159,7 +1159,8 @@ export const autoFillSchedule = async (
         // Exclude current date from schedule so dowCount reflects state-before-assignment
         // (matches greedy pass behaviour where buildDecisionLog is called before the entry
         // is written to tempSchedule).
-        const { [dateStr]: _, ...scheduleWithoutDate } = fairnessScheduleFinal;
+        const scheduleWithoutDate = { ...fairnessScheduleFinal };
+        delete scheduleWithoutDate[dateStr];
 
         existingUpdate.decisionLog = buildDecisionLog(
           assignedId,

@@ -4,24 +4,14 @@ import { isAssignedInEntry } from '../../utils/assignment';
 import { getUserStatusPeriods } from '../../utils/userStatus';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getUserAvailabilityStatus } from '../../services/userService';
-import AbsenceSummaryTable, { type AbsenceKey, ABSENCE_LABELS } from './AbsenceSummaryTable';
-
-type PeriodMode = 'all' | 'year' | 'month';
-
-const MONTH_NAMES = [
-  'Січень',
-  'Лютий',
-  'Березень',
-  'Квітень',
-  'Травень',
-  'Червень',
-  'Липень',
-  'Серпень',
-  'Вересень',
-  'Жовтень',
-  'Листопад',
-  'Грудень',
-];
+import AbsenceSummaryTable from './AbsenceSummaryTable';
+import {
+  ABSENCE_LABELS,
+  countOverlapDays,
+  MONTH_NAMES,
+  type AbsenceKey,
+  type PeriodMode,
+} from './absenceSectionUtils';
 
 interface AbsenceSectionProps {
   user: User;
@@ -31,21 +21,6 @@ interface AbsenceSectionProps {
   currentYear: number;
   currentMonth: number;
 }
-
-const countOverlapDays = (
-  from?: string,
-  to?: string,
-  periodStart?: Date,
-  periodEnd?: Date
-): number => {
-  if (!periodStart || !periodEnd) return 0;
-  const start = from ? new Date(from) : new Date(periodStart);
-  const end = to ? new Date(to) : new Date(periodEnd);
-  const lo = start < periodStart ? periodStart : start;
-  const hi = end > periodEnd ? periodEnd : end;
-  if (hi < lo) return 0;
-  return Math.floor((hi.getTime() - lo.getTime()) / 86400000) + 1;
-};
 
 const AbsenceSection: React.FC<AbsenceSectionProps> = ({
   user,

@@ -3,14 +3,14 @@ import React from 'react';
 import InfoButton from './InfoButton';
 
 /** Navigation tab definition used by the sidebar. */
-export interface NavTab {
+interface NavTab {
   id: string;
   icon: string;
   label: string;
 }
 
 /** Tabs shown in the sidebar navigation. */
-export const NAV_TABS: NavTab[] = [
+const NAV_TABS: NavTab[] = [
   { id: 'schedule', icon: 'fa-calendar-alt', label: 'Графік' },
   { id: 'users', icon: 'fa-users', label: 'Особовий склад' },
   { id: 'stats', icon: 'fa-chart-bar', label: 'Статистика' },
