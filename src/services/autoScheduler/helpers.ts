@@ -410,13 +410,14 @@ export const calculateUserFairnessIndex = (
  * Gathers all metrics in ONE iteration over schedule entries,
  * then computes the weighted sum.
  *
- * Weights (matches spec_logic.md):
+ * Weights:
  *   W_SAME_DOW    =  50.0  (highest: avoid same DOW repeat week-over-week)
  *   W_SYSTEM_SSE  =   3.0  (cross-user DOW fairness)
- *   W_WITHIN_USER =   8.0  (per-user DOW spread, availability-normalised)
+ *   W_WITHIN_USER = 300.0  (per-user DOW spread, availability-normalised)
  *   W_LOAD_RANGE  =   1.0  (soft pressure toward equal workload)
- *   W_ZERO_GUARD  =   1.0  (multiplier; internal penalty already 5000+)
- *   W_TOTAL_SSE   =  10.0  (anti-concentration: prevents duty hoarding)
+ *   W_ZERO_GUARD  =  10.0  (multiplier; internal penalty already 5000+)
+ *   W_TOTAL_SSE   = 100.0  (anti-concentration: prevents duty hoarding)
+ *   W_RATE_SSE    = 5000.0 (rate-normalised cross-user fairness)
  *
  * Lower Z → better schedule.
  */
@@ -562,6 +563,30 @@ export const computeGlobalObjective = (
     for (const t of totals) totalAssignmentSSE += (t - meanTotal) ** 2;
   }
 
+  // ── 4c. Rate SSE (rate-normalised cross-user fairness) ────────────
+  // Uses loadRate = totalAssignments / daysActive to compare users fairly
+  // regardless of when they joined or how many days they were on leave.
+  // Without this, users with different available-day counts can diverge
+  // by 30%+ in rate even though their absolute counts look close.
+  let rateSSE = 0;
+  if (users && users.length > 0) {
+    const rates: number[] = [];
+    const todayStr = toLocalISO(new Date());
+    for (const uid of userIds) {
+      const user = users.find((u) => u.id === uid);
+      if (!user) continue;
+      let total = 0;
+      const counts = dowCountsMap.get(uid)!;
+      for (let d = 0; d < 7; d++) total += counts[d];
+      const daysActive = computeDaysActive(user, todayStr, schedule);
+      rates.push(total / daysActive);
+    }
+    if (rates.length > 0) {
+      const meanRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+      for (const r of rates) rateSSE += (r - meanRate) ** 2;
+    }
+  }
+
   // ── 5. Zero-guard penalty (ABSOLUTE LAW) ──────────────────────────
   // Fires when a user's DOW spread exceeds the theoretical minimum.
   // With `total` duties and `activeDows` available DOWs, the best possible
@@ -603,6 +628,7 @@ export const computeGlobalObjective = (
   const W_LOAD_RANGE = 1.0; // Soft pressure toward equal workload
   const W_ZERO_GUARD = 10.0; // Multiplier — internal penalty already 5000+
   const W_TOTAL_SSE = 100.0; // Anti-concentration: prevents duty hoarding
+  const W_RATE_SSE = 5000.0; // Rate-normalised fairness across users
 
   return (
     W_SAME_DOW * sameDowPenalty +
@@ -610,7 +636,8 @@ export const computeGlobalObjective = (
     W_WITHIN_USER * withinUserVar +
     W_LOAD_RANGE * loadRange +
     W_ZERO_GUARD * zeroGuardPenalty +
-    W_TOTAL_SSE * totalAssignmentSSE
+    W_TOTAL_SSE * totalAssignmentSSE +
+    W_RATE_SSE * rateSSE
   );
 };
 

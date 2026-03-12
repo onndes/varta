@@ -330,6 +330,7 @@ const App = () => {
               schedule={schedule}
               dayWeights={dayWeights}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
+              useExperimentalStatsView={autoScheduleOptions.useExperimentalStatsView}
             />
           )}
           {activeTab === 'settings' && (

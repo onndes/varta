@@ -168,6 +168,7 @@ export interface AutoScheduleOptions {
   debtUsersWeeklyLimit: number;
   prioritizeFasterDebtRepayment: boolean;
   forceUseAllWhenFew: boolean; // When few users available (<=7), force cyclic use of ALL users regardless of load
+  useExperimentalStatsView: boolean; // Toggle experimental stats view with progress bars and deviation %
 }
 
 export interface AuditLogEntry {

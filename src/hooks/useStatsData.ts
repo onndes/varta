@@ -9,14 +9,21 @@ import { isAssignedInEntry, getLogicSchedule, isHistoryType } from '../utils/ass
 export interface UserStats extends User {
   balance: number;
   trackingFrom: string;
+  windowEnd: string;
   totalAllDuties: number;
   totalComparableDuties: number;
   comparableLoad: number;
   effectiveComparable: number;
   dayCountComparable: Record<number, number>;
   availableDaysForDuty: number;
+  windowDuties: number;
   dutyRate: number;
   availability: ReturnType<typeof getUserAvailabilityStatus>;
+}
+
+export interface StatsGroupMeta {
+  avgDutyRate: number;
+  maxDutyRate: number;
 }
 
 interface UseStatsDataProps {
@@ -28,6 +35,7 @@ interface UseStatsDataProps {
   showInactive: boolean;
   sortKey: SortKey | null;
   sortDir: SortDir;
+  includeFuture: boolean;
 }
 
 /** Computes per-user duty statistics and applies filtering and user-selected sort. */
@@ -40,6 +48,7 @@ export const useStatsData = ({
   showInactive,
   sortKey,
   sortDir,
+  includeFuture,
 }: UseStatsDataProps) => {
   const todayStr = toLocalISO(new Date());
 
@@ -78,13 +87,21 @@ export const useStatsData = ({
           return false;
         });
 
+        // Window end: for includeFuture mode, extend to the last assigned date;
+        // for past-only mode, cap at today.
+        const lastEntryDateInWindow = comparableEntries
+          .map((s) => s.date)
+          .filter((d) => d >= trackingFrom)
+          .reduce((max, d) => (d > max ? d : max), trackingFrom);
+        const windowEnd = includeFuture ? lastEntryDateInWindow : todayStr;
+
         let availableDaysForDuty = 0;
-        if (trackingFrom <= todayStr && u.isActive && !u.excludeFromAuto) {
+        if (trackingFrom <= windowEnd && u.isActive && !u.excludeFromAuto) {
           const totalWindowDays =
             Math.floor(
-              (new Date(todayStr).getTime() - new Date(trackingFrom).getTime()) / 86400000
+              (new Date(windowEnd).getTime() - new Date(trackingFrom).getTime()) / 86400000
             ) + 1;
-          const statusBlockedDays = countUnavailableDays(u, trackingFrom, todayStr);
+          const statusBlockedDays = countUnavailableDays(u, trackingFrom, windowEnd);
           availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
         }
 
@@ -98,19 +115,26 @@ export const useStatsData = ({
 
         const balance = u.debt || 0;
         const availability = getUserAvailabilityStatus(u, todayStr);
-        const dutyRate =
-          availableDaysForDuty > 0 ? comparableEntries.length / availableDaysForDuty : 0;
+        // Count duties within the same [trackingFrom, windowEnd] window as availableDaysForDuty
+        // so numerator and denominator always cover the same period.
+        const windowEntries = comparableEntries.filter(
+          (s) => s.date >= trackingFrom && s.date <= windowEnd
+        );
+        const windowDuties = windowEntries.length;
+        const dutyRate = availableDaysForDuty > 0 ? windowDuties / availableDaysForDuty : 0;
 
         return {
           ...u,
           balance,
           trackingFrom,
+          windowEnd,
           totalAllDuties: allUserEntries.length,
           totalComparableDuties: comparableEntries.length,
           comparableLoad,
           effectiveComparable: comparableLoad + balance,
           dayCountComparable,
           availableDaysForDuty,
+          windowDuties,
           dutyRate,
           availability,
         };
@@ -119,7 +143,7 @@ export const useStatsData = ({
         const loadDiff = a.effectiveComparable - b.effectiveComparable;
         return loadDiff !== 0 ? loadDiff : compareByRankAndName(a, b);
       });
-  }, [users, schedule, dayWeights, todayStr, ignoreHistoryInLogic]);
+  }, [users, schedule, dayWeights, todayStr, ignoreHistoryInLogic, includeFuture]);
 
   const filteredStats = allStats.filter((u) => {
     if (u.isActive && !showActive) return false;
@@ -132,5 +156,12 @@ export const useStatsData = ({
     return sortUsersBy(filteredStats, sortKey, sortDir);
   }, [filteredStats, sortKey, sortDir]);
 
-  return { stats, todayStr };
+  const groupMeta = useMemo((): StatsGroupMeta => {
+    const rates = filteredStats.filter((u) => u.dutyRate > 0).map((u) => u.dutyRate);
+    const avgDutyRate = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+    const maxDutyRate = rates.length > 0 ? Math.max(...rates) : 0;
+    return { avgDutyRate, maxDutyRate };
+  }, [filteredStats]);
+
+  return { stats, todayStr, groupMeta };
 };

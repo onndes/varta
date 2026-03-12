@@ -231,6 +231,28 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
 
       {/* Allow debt users / repayment options */}
       <DebtUserOptions autoOpts={autoOpts} onAutoOptsChange={onAutoOptsChange} />
+
+      <hr className="my-3" />
+
+      {/* Experimental stats view */}
+      <div className="form-check form-switch mb-3">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id="useExperimentalStatsView"
+          checked={autoOpts.useExperimentalStatsView}
+          onChange={(e) =>
+            onAutoOptsChange({ ...autoOpts, useExperimentalStatsView: e.target.checked })
+          }
+        />
+        <label className="form-check-label" htmlFor="useExperimentalStatsView">
+          <strong>Експериментальний вид статистики</strong>
+          <div className="text-muted small">
+            Альтернативний вигляд таблиці статистики з прогрес-барами відносного навантаження,
+            відхиленням від середнього та згортанням стовпців Пн–Нд. Вимкніть для стандартного виду.
+          </div>
+        </label>
+      </div>
     </div>
   </div>
 );

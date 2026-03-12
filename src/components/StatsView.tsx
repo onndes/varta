@@ -3,7 +3,14 @@ import type { User, ScheduleEntry, DayWeights } from '../types';
 import { type SortKey, type SortDir } from '../utils/helpers';
 import UserStatsModal from './users/UserStatsModal';
 import { useStatsData } from '../hooks/useStatsData';
-import { StatsTableHeader, StatsTableRow, StatsLegend } from './StatsTableParts';
+import {
+  StatsTableHeader,
+  StatsTableRow,
+  StatsLegend,
+  StatsTableHeaderClassic,
+  StatsTableRowClassic,
+  StatsLegendClassic,
+} from './StatsTableParts';
 import type { UserStats } from '../hooks/useStatsData';
 
 interface StatsViewProps {
@@ -11,6 +18,7 @@ interface StatsViewProps {
   schedule: Record<string, ScheduleEntry>;
   dayWeights: DayWeights;
   ignoreHistoryInLogic: boolean;
+  useExperimentalStatsView: boolean;
 }
 
 const StatsView: React.FC<StatsViewProps> = ({
@@ -18,9 +26,12 @@ const StatsView: React.FC<StatsViewProps> = ({
   schedule,
   dayWeights,
   ignoreHistoryInLogic,
+  useExperimentalStatsView,
 }) => {
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
+  const [showDayBreakdown, setShowDayBreakdown] = useState(false);
+  const [includeFuture, setIncludeFuture] = useState(useExperimentalStatsView);
   const [selectedUser, setSelectedUser] = useState<UserStats | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -43,7 +54,7 @@ const StatsView: React.FC<StatsViewProps> = ({
     }
   };
 
-  const { stats } = useStatsData({
+  const { stats, groupMeta } = useStatsData({
     users,
     schedule,
     dayWeights,
@@ -52,6 +63,7 @@ const StatsView: React.FC<StatsViewProps> = ({
     showInactive,
     sortKey,
     sortDir,
+    includeFuture,
   });
 
   useEffect(() => {
@@ -140,23 +152,51 @@ const StatsView: React.FC<StatsViewProps> = ({
             <i className="fas fa-chart-line me-2 text-primary"></i>Статистика навантаження
           </h5>
           <div className="d-flex gap-2 align-items-center">
-            <div className="btn-group btn-group-sm" role="group">
-              <button
-                type="button"
-                className={`btn btn-sm stats-filter-btn ${showActive ? 'is-on' : ''}`}
-                onClick={() => setShowActive(!showActive)}
-              >
-                <i className="fas fa-user-check me-1"></i>
-                Активні
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm stats-filter-btn ${showInactive ? 'is-on' : ''}`}
-                onClick={() => setShowInactive(!showInactive)}
-              >
-                <i className="fas fa-user-slash me-1"></i>
-                Неактивні
-              </button>
+            <div className="d-flex gap-2">
+              {useExperimentalStatsView && (
+                <>
+                  <button
+                    type="button"
+                    className={`btn btn-sm stats-filter-btn ${showDayBreakdown ? 'is-on' : ''}`}
+                    onClick={() => setShowDayBreakdown(!showDayBreakdown)}
+                    title="Показати/сховати розбивку по дням тижня"
+                  >
+                    <i className="fas fa-calendar-week me-1"></i>
+                    Пн–Нд
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm stats-filter-btn ${includeFuture ? 'is-on' : ''}`}
+                    onClick={() => setIncludeFuture(!includeFuture)}
+                    title={
+                      includeFuture
+                        ? 'Зараз: враховуються минулі + майбутні наряди. Натисніть — тільки минулі'
+                        : 'Зараз: тільки минулі наряди. Натисніть — враховувати майбутні'
+                    }
+                  >
+                    <i className={`fas fa-${includeFuture ? 'calendar-alt' : 'history'} me-1`}></i>
+                    {includeFuture ? 'З майбутніми' : 'Минулі'}
+                  </button>
+                </>
+              )}
+              <div className="btn-group btn-group-sm" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm stats-filter-btn ${showActive ? 'is-on' : ''}`}
+                  onClick={() => setShowActive(!showActive)}
+                >
+                  <i className="fas fa-user-check me-1"></i>
+                  Активні
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm stats-filter-btn ${showInactive ? 'is-on' : ''}`}
+                  onClick={() => setShowInactive(!showInactive)}
+                >
+                  <i className="fas fa-user-slash me-1"></i>
+                  Неактивні
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -170,12 +210,41 @@ const StatsView: React.FC<StatsViewProps> = ({
         <>
           <div ref={tableScrollRef} className="table-responsive stats-table-scroll">
             <table className="table table-hover align-middle mb-0 table-align-center stats-table">
-              <StatsTableHeader sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <tbody>
-                {stats.map((u) => (
-                  <StatsTableRow key={u.id} u={u} onSelect={setSelectedUser} />
-                ))}
-              </tbody>
+              {useExperimentalStatsView ? (
+                <>
+                  <StatsTableHeader
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={toggleSort}
+                    showDayBreakdown={showDayBreakdown}
+                  />
+                  <tbody>
+                    {stats.map((u) => (
+                      <StatsTableRow
+                        key={u.id}
+                        u={u}
+                        onSelect={setSelectedUser}
+                        groupMeta={groupMeta}
+                        showDayBreakdown={showDayBreakdown}
+                        includeFuture={includeFuture}
+                      />
+                    ))}
+                  </tbody>
+                </>
+              ) : (
+                <>
+                  <StatsTableHeaderClassic
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <tbody>
+                    {stats.map((u) => (
+                      <StatsTableRowClassic key={u.id} u={u} onSelect={setSelectedUser} />
+                    ))}
+                  </tbody>
+                </>
+              )}
             </table>
           </div>
           <div
@@ -192,7 +261,7 @@ const StatsView: React.FC<StatsViewProps> = ({
           </div>
         </>
       )}
-      <StatsLegend />
+      {useExperimentalStatsView ? <StatsLegend /> : <StatsLegendClassic />}
       {selectedUser && (
         <UserStatsModal
           user={selectedUser}

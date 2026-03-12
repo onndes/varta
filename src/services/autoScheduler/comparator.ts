@@ -248,6 +248,24 @@ export const buildUserComparator = (
     const sameDowB = getSameDowPenalty(b.id);
     if (!floatEq(sameDowA, sameDowB)) return sameDowA - sameDowB;
 
+    // 2b. Load Rate — normalized duty intensity (assignments / days_active).
+    //     Prevents newcomers from being overloaded and ensures users with
+    //     different available-day counts converge to the same rate.
+    const allUsers = fairnessUsers?.length ? fairnessUsers : candidatePool || [];
+    const rateA = (() => {
+      if (loadRateCache.has(a.id!)) return loadRateCache.get(a.id!)!;
+      const v = computeUserLoadRate(a.id!, fs, dateStr, allUsers);
+      loadRateCache.set(a.id!, v);
+      return v;
+    })();
+    const rateB = (() => {
+      if (loadRateCache.has(b.id!)) return loadRateCache.get(b.id!)!;
+      const v = computeUserLoadRate(b.id!, fs, dateStr, allUsers);
+      loadRateCache.set(b.id!, v);
+      return v;
+    })();
+    if (!floatEq(rateA, rateB)) return rateA - rateB;
+
     // 3. Weekly cap tie-break (normal mode). (+1 shift preference removed: it conflicted
     //    with DOW-balance by pulling toward a "ladder" pattern instead of gap-filling.)
     if (
@@ -271,36 +289,19 @@ export const buildUserComparator = (
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
     }
 
-    // 6. Fewer total duties — normalized by Load Rate (anti-catch-up).
-    //    Rate = assignments / days_active. Prevents newcomers from being overloaded.
-    const allUsers = fairnessUsers?.length ? fairnessUsers : candidatePool || [];
-    const rateA = (() => {
-      if (loadRateCache.has(a.id!)) return loadRateCache.get(a.id!)!;
-      const v = computeUserLoadRate(a.id!, fs, dateStr, allUsers);
-      loadRateCache.set(a.id!, v);
-      return v;
-    })();
-    const rateB = (() => {
-      if (loadRateCache.has(b.id!)) return loadRateCache.get(b.id!)!;
-      const v = computeUserLoadRate(b.id!, fs, dateStr, allUsers);
-      loadRateCache.set(b.id!, v);
-      return v;
-    })();
-    if (!floatEq(rateA, rateB)) return rateA - rateB;
-
-    // 7. Load balancing.
+    // 6. Load balancing (weighted points + karma).
     if (options.considerLoad) {
       const loadA = getEffectiveLoad(a);
       const loadB = getEffectiveLoad(b);
       if (!floatEq(loadA, loadB)) return loadA - loadB;
     }
 
-    // 8. Longer time since last duty.
+    // 7. Longer time since last duty.
     const waitA = getWaitDays(a.id);
     const waitB = getWaitDays(b.id);
     if (waitA !== waitB) return waitB - waitA;
 
-    // 9. Stable tie-break.
+    // 8. Stable tie-break.
     return a.id - b.id;
   };
 };
