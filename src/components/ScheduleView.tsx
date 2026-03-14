@@ -41,6 +41,7 @@ interface ScheduleViewProps {
   printMode: PrintMode;
   printWeekRange: PrintWeekRange | null;
   printMaxRows: number;
+  printDutyTableShowAllUsers: boolean;
   ignoreHistoryInLogic: boolean;
 }
 
@@ -62,6 +63,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   printMode,
   printWeekRange,
   printMaxRows,
+  printDutyTableShowAllUsers,
   ignoreHistoryInLogic,
 }) => {
   // ── Deleted users (historical display) ──────────────────────────────────
@@ -285,6 +287,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       printMode={printMode}
       printWeekRange={printWeekRange}
       printMaxRows={printMaxRows}
+      printDutyTableShowAllUsers={printDutyTableShowAllUsers}
     />
   );
 };

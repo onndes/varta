@@ -23,6 +23,7 @@ interface SettingsViewProps {
   autoScheduleOptions: AutoScheduleOptions;
   maxDebt: number;
   printMaxRows: number;
+  printDutyTableShowAllUsers: boolean;
   ignoreHistoryInLogic: boolean;
   uiScale: number;
   onSave: (w: DayWeights) => Promise<void>;
@@ -31,6 +32,7 @@ interface SettingsViewProps {
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
   onSaveMaxDebt: (value: number) => Promise<void>;
   onSavePrintMaxRows: (value: number) => Promise<void>;
+  onSavePrintDutyTableShowAllUsers: (value: boolean) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
@@ -57,6 +59,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setDebt,
     maxRows,
     setMaxRows,
+    printAllUsers,
+    setPrintAllUsers,
     ignoreHistory,
     setIgnoreHistory,
     scale,
@@ -135,6 +139,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onSigsChange={setSigs}
           maxRows={maxRows}
           onMaxRowsChange={setMaxRows}
+          printAllUsers={printAllUsers}
+          onPrintAllUsersChange={setPrintAllUsers}
           onExportExcel={props.onExportExcel}
         />
       )}

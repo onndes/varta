@@ -50,6 +50,7 @@ const App = () => {
     autoScheduleOptions,
     maxDebt,
     printMaxRows,
+    printDutyTableShowAllUsers,
     ignoreHistoryInLogic,
     uiScale,
     theme,
@@ -60,6 +61,7 @@ const App = () => {
     saveAutoScheduleOptions,
     saveMaxDebt,
     savePrintMaxRows,
+    savePrintDutyTableShowAllUsers,
     saveIgnoreHistoryInLogic,
     saveUiScale,
     saveTheme,
@@ -311,6 +313,7 @@ const App = () => {
               printMode={printMode}
               printWeekRange={printWeekRange}
               printMaxRows={printMaxRows}
+              printDutyTableShowAllUsers={printDutyTableShowAllUsers}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
             />
           )}
@@ -343,6 +346,7 @@ const App = () => {
               autoScheduleOptions={autoScheduleOptions}
               maxDebt={maxDebt}
               printMaxRows={printMaxRows}
+              printDutyTableShowAllUsers={printDutyTableShowAllUsers}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
               uiScale={uiScale}
               onSave={saveDayWeights}
@@ -351,6 +355,7 @@ const App = () => {
               onSaveAutoScheduleOptions={saveAutoScheduleOptions}
               onSaveMaxDebt={saveMaxDebt}
               onSavePrintMaxRows={savePrintMaxRows}
+              onSavePrintDutyTableShowAllUsers={savePrintDutyTableShowAllUsers}
               onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
               onSaveUiScale={saveUiScale}
               onExportExcel={requestExportExcel}

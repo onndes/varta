@@ -2,10 +2,12 @@ import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import { formatRank, splitFormattedName, compareByRankAndName } from '../../utils/helpers';
 import { toAssignedUserIds } from '../../utils/assignment';
-import { DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS } from '../../utils/constants';
+import { getStatusPeriodAtDate } from '../../utils/userStatus';
+import { DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS, STATUSES } from '../../utils/constants';
 
 /** Час заступання (відображається у кожній комірці) */
 const DUTY_TIME = '08.00';
+const FOOTER_RESERVED_ROWS = 2;
 
 interface PrintDutyTableProps {
   weekDates: string[];
@@ -13,12 +15,26 @@ interface PrintDutyTableProps {
   users: User[];
   /** Ліміт рядків, що вміщуються на одну сторінку */
   maxRowsPerPage?: number;
+  /** Якщо false — друкувати тільки тих, хто призначений на поточний тиждень */
+  showAllUsers?: boolean;
+  /** Блок, який має бути надрукований разом з останньою сторінкою таблиці */
+  footer?: React.ReactNode;
 }
 
 // ── Допоміжні ─────────────────────────────────────────────────────────
 
 /** Сортувати бійців за званням та ПІБ */
 const sortByRank = (list: User[]): User[] => [...list].sort(compareByRankAndName);
+
+const paginateUsers = (list: User[], maxRowsPerPage: number): User[][] => {
+  if (list.length === 0) return [[]];
+
+  const pages: User[][] = [];
+  for (let index = 0; index < list.length; index += maxRowsPerPage) {
+    pages.push(list.slice(index, index + maxRowsPerPage));
+  }
+  return pages;
+};
 
 /** Зібрати ID всіх бійців, призначених на тиждень */
 const collectScheduledIds = (
@@ -32,15 +48,37 @@ const collectScheduledIds = (
   return ids;
 };
 
+const getCellContent = (
+  user: User,
+  date: string,
+  schedule: Record<string, ScheduleEntry>
+): { text: string; className: string } => {
+  const isOnDuty = user.id ? toAssignedUserIds(schedule[date]?.userId).includes(user.id) : false;
+  if (isOnDuty) {
+    return { text: DUTY_TIME, className: ' duty-highlight' };
+  }
+
+  const statusPeriod = getStatusPeriodAtDate(user, date);
+  if (statusPeriod) {
+    return {
+      text: STATUSES[statusPeriod.status] || statusPeriod.status,
+      className: ' duty-status-highlight',
+    };
+  }
+
+  return { text: DUTY_TIME, className: '' };
+};
+
 // ── Таблиця ───────────────────────────────────────────────────────────
 
 interface TablePageProps {
   users: User[];
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
+  startIndex: number;
 }
 
-const DutyTable: React.FC<TablePageProps> = ({ users, weekDates, schedule }) => {
+const DutyTable: React.FC<TablePageProps> = ({ users, weekDates, schedule, startIndex }) => {
   return (
     <table className="print-duty-table">
       <thead>
@@ -72,16 +110,14 @@ const DutyTable: React.FC<TablePageProps> = ({ users, weekDates, schedule }) => 
 
           return (
             <tr key={user.id}>
-              <td className="col-num">{idx + 1}.</td>
+              <td className="col-num">{startIndex + idx + 1}.</td>
               <td className="col-rank">{formatRank(user.rank)}</td>
               <td className="col-name">{fullName}</td>
               {weekDates.map((date) => {
-                const isOnDuty = user.id
-                  ? toAssignedUserIds(schedule[date]?.userId).includes(user.id)
-                  : false;
+                const cell = getCellContent(user, date, schedule);
                 return (
-                  <td key={date} className={`col-day${isOnDuty ? ' duty-highlight' : ''}`}>
-                    {DUTY_TIME}
+                  <td key={date} className={`col-day${cell.className}`}>
+                    {cell.text}
                   </td>
                 );
               })}
@@ -96,36 +132,48 @@ const DutyTable: React.FC<TablePageProps> = ({ users, weekDates, schedule }) => 
 // ── Головний компонент ────────────────────────────────────────────────
 
 /**
- * Друк: таблиця чергувань (одна сторінка).
+ * Друк: таблиця чергувань з пагінацією.
  *
- * - Якщо бійців ≤ ліміту — показує всіх;
- * - Якщо бійців > ліміту — показує лише тих, хто в графіку цього тижня.
+ * - За замовчуванням друкує всіх активних осіб;
+ * - За потреби може друкувати тільки тих, хто призначений на поточний тиждень;
+ * - Якщо рядків більше за ліміт, продовжує таблицю на наступних сторінках.
  */
 const PrintDutyTable: React.FC<PrintDutyTableProps> = ({
   weekDates,
   schedule,
   users,
   maxRowsPerPage = DEFAULT_PRINT_MAX_ROWS,
+  showAllUsers = true,
+  footer = null,
 }) => {
   const activeUsers = sortByRank(users.filter((u) => u.isActive));
-
-  // Якщо всі поміщаються — показуємо всіх
-  if (activeUsers.length <= maxRowsPerPage) {
-    return (
-      <div className="print-only print-duty-table-wrapper">
-        <DutyTable users={activeUsers} weekDates={weekDates} schedule={schedule} />
-      </div>
-    );
-  }
-
-  // Забагато бійців — показуємо лише тих, хто призначений на цей тиждень
   const scheduledIds = collectScheduledIds(weekDates, schedule);
-  const scheduled = sortByRank(activeUsers.filter((u) => scheduledIds.has(u.id!)));
+  const printableUsers = showAllUsers
+    ? activeUsers
+    : sortByRank(activeUsers.filter((u) => scheduledIds.has(u.id!)));
+  const safeMaxRows = Math.max(
+    1,
+    footer ? maxRowsPerPage - FOOTER_RESERVED_ROWS : maxRowsPerPage
+  );
+  const pages = paginateUsers(printableUsers, safeMaxRows);
 
   return (
-    <div className="print-only print-duty-table-wrapper">
-      <DutyTable users={scheduled} weekDates={weekDates} schedule={schedule} />
-    </div>
+    <>
+      {pages.map((pageUsers, pageIndex) => (
+        <div
+          key={`print-duty-page-${pageIndex + 1}`}
+          className={`print-only print-duty-table-wrapper${pageIndex > 0 ? ' print-overflow-page' : ''}`}
+        >
+          <DutyTable
+            users={pageUsers}
+            weekDates={weekDates}
+            schedule={schedule}
+            startIndex={pageIndex * safeMaxRows}
+          />
+          {footer && pageIndex === pages.length - 1 ? footer : null}
+        </div>
+      ))}
+    </>
   );
 };
 

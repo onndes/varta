@@ -7,6 +7,7 @@ import {
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
   DEFAULT_MAX_DEBT,
   DEFAULT_PRINT_MAX_ROWS,
+  DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS,
   DEFAULT_SIGNATORIES,
 } from '../utils/constants';
 
@@ -23,6 +24,9 @@ export const useSettings = () => {
   );
   const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
   const [printMaxRows, setPrintMaxRows] = useState<number>(DEFAULT_PRINT_MAX_ROWS);
+  const [printDutyTableShowAllUsers, setPrintDutyTableShowAllUsers] = useState<boolean>(
+    DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS
+  );
   const [ignoreHistoryInLogic, setIgnoreHistoryInLogic] = useState(false);
   const [uiScale, setUiScale] = useState(100);
   const [theme, setTheme] = useState<AppTheme>('light');
@@ -43,6 +47,7 @@ export const useSettings = () => {
         autoOpts,
         debt,
         maxRows,
+        printAllUsers,
         ignoreHistory,
         savedUiScale,
         savedTheme,
@@ -54,6 +59,7 @@ export const useSettings = () => {
         settingsService.getAutoScheduleOptions(),
         settingsService.getMaxDebt(),
         settingsService.getPrintMaxRows(),
+        settingsService.getPrintDutyTableShowAllUsers(),
         settingsService.getIgnoreHistoryInLogic(),
         settingsService.getUiScale(),
         settingsService.getTheme(),
@@ -66,6 +72,7 @@ export const useSettings = () => {
       setAutoScheduleOptions(autoOpts);
       setMaxDebt(debt);
       setPrintMaxRows(maxRows);
+      setPrintDutyTableShowAllUsers(printAllUsers);
       setIgnoreHistoryInLogic(ignoreHistory);
       setUiScale(savedUiScale);
       const validThemes: AppTheme[] = ['light', 'dark'];
@@ -180,6 +187,16 @@ export const useSettings = () => {
     }
   }, []);
 
+  const savePrintDutyTableShowAllUsers = useCallback(async (value: boolean) => {
+    try {
+      await settingsService.savePrintDutyTableShowAllUsers(value);
+      setPrintDutyTableShowAllUsers(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save print duty-table mode');
+      throw err;
+    }
+  }, []);
+
   // Save ignoreHistoryInLogic
   const saveIgnoreHistoryInLogic = useCallback(async (value: boolean) => {
     try {
@@ -226,6 +243,7 @@ export const useSettings = () => {
     autoScheduleOptions,
     maxDebt,
     printMaxRows,
+    printDutyTableShowAllUsers,
     ignoreHistoryInLogic,
     uiScale,
     theme,
@@ -236,6 +254,7 @@ export const useSettings = () => {
     saveSignatories,
     saveDutiesPerDay,
     savePrintMaxRows,
+    savePrintDutyTableShowAllUsers,
     saveIgnoreHistoryInLogic,
     saveUiScale,
     saveTheme,

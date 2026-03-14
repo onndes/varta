@@ -91,7 +91,6 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-  ;
   }
 
   .print-logo-block {
@@ -202,6 +201,9 @@
   .print-footer-container {
     margin-top: 40px;
     width: 100%;
+    break-before: avoid; // never orphan the footer — keep it with the last table row
+    break-inside: avoid;
+    page-break-before: avoid;
     page-break-inside: avoid;
   }
 
@@ -374,6 +376,18 @@
       font-weight: bold;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+    }
+
+    .duty-status-highlight {
+      font-size: 8pt;
+      font-style: normal;
+      font-weight: 400;
+    }
+
+    // Anchor last row to the footer below — prevents footer orphaning on next page
+    tbody tr:last-child {
+      break-after: avoid;
+      page-break-after: avoid;
     }
   }
 

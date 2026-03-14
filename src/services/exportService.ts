@@ -29,6 +29,7 @@ export interface ExportData {
   maxDebt?: number;
   dutiesPerDay?: number;
   printMaxRows?: number;
+  printDutyTableShowAllUsers?: boolean;
   ignoreHistoryInLogic?: boolean;
   uiScale?: number;
   deletedUsers?: Record<number, unknown>;
@@ -98,6 +99,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     maxDebtRec,
     dutiesPerDayRec,
     printMaxRowsRec,
+    printDutyTableShowAllUsersRec,
     ignoreHistoryRec,
     uiScaleRec,
     deletedUsersRec,
@@ -113,6 +115,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('maxDebt'),
     targetDb.appState.get('dutiesPerDay'),
     targetDb.appState.get('printMaxRows'),
+    targetDb.appState.get('printDutyTableShowAllUsers'),
     targetDb.appState.get('ignoreHistoryInLogic'),
     targetDb.appState.get('uiScale'),
     targetDb.appState.get('deletedUsers'),
@@ -131,6 +134,9 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     maxDebt: maxDebtRec ? (maxDebtRec.value as number) : undefined,
     dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
     printMaxRows: printMaxRowsRec ? (printMaxRowsRec.value as number) : undefined,
+    printDutyTableShowAllUsers: printDutyTableShowAllUsersRec
+      ? (printDutyTableShowAllUsersRec.value as boolean)
+      : undefined,
     ignoreHistoryInLogic: ignoreHistoryRec ? (ignoreHistoryRec.value as boolean) : undefined,
     uiScale: uiScaleRec ? (uiScaleRec.value as number) : undefined,
     deletedUsers: deletedUsersRec
@@ -181,6 +187,11 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
         await targetDb.appState.put({ key: 'dutiesPerDay', value: data.dutiesPerDay });
       if (data.printMaxRows != null)
         await targetDb.appState.put({ key: 'printMaxRows', value: data.printMaxRows });
+      if (data.printDutyTableShowAllUsers != null)
+        await targetDb.appState.put({
+          key: 'printDutyTableShowAllUsers',
+          value: data.printDutyTableShowAllUsers,
+        });
       if (data.ignoreHistoryInLogic != null)
         await targetDb.appState.put({
           key: 'ignoreHistoryInLogic',

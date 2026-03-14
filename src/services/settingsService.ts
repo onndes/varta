@@ -9,6 +9,7 @@ import {
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
   DEFAULT_MAX_DEBT,
   DEFAULT_PRINT_MAX_ROWS,
+  DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS,
 } from '../utils/constants';
 
 /**
@@ -75,6 +76,12 @@ export const getPrintMaxRows = async (): Promise<number> =>
 
 export const savePrintMaxRows = async (value: number): Promise<void> =>
   saveSetting('printMaxRows', value);
+
+export const getPrintDutyTableShowAllUsers = async (): Promise<boolean> =>
+  getJsonSetting('printDutyTableShowAllUsers', DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS);
+
+export const savePrintDutyTableShowAllUsers = async (value: boolean): Promise<void> =>
+  saveSetting('printDutyTableShowAllUsers', value);
 
 // ── Scalar settings ───────────────────────────────────────────────────
 
@@ -173,6 +180,7 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('autoScheduleOptions', DEFAULT_AUTO_SCHEDULE_OPTIONS);
   await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
   await saveSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
+  await saveSetting('printDutyTableShowAllUsers', DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS);
   await saveSetting('ignoreHistoryInLogic', false);
   await saveSetting('uiScale', 100);
   // theme is intentionally NOT reset — user preference

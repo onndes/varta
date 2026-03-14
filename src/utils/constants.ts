@@ -93,6 +93,8 @@ const DEFAULT_MIN_REST_DAYS = 1;
 
 /** Максимум рядків на сторінці таблиці чергувань (друк) */
 export const DEFAULT_PRINT_MAX_ROWS = 12;
+/** За замовчуванням друкувати всіх активних осіб у графіку-таблиці */
+export const DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS = true;
 
 /** Опції авто-розкладу за замовчуванням */
 export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {

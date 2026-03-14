@@ -72,6 +72,7 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   signatories: Signatories;
   printMode: PrintMode;
   printMaxRows: number;
+  printDutyTableShowAllUsers: boolean;
   printWeekRange: PrintWeekRange | null;
 }
 
@@ -125,6 +126,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   signatories,
   printMode,
   printMaxRows,
+  printDutyTableShowAllUsers,
   printWeekRange,
   // Modal passthrough
   executeAssign,
@@ -225,6 +227,10 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           schedule={schedule}
           users={users}
           maxRowsPerPage={printMaxRows}
+          showAllUsers={printDutyTableShowAllUsers}
+          footer={
+            signatories.showCreatorFooter !== false ? <PrintFooter signatories={signatories} /> : null
+          }
         />
       )}
       {printMode === 'week-calendar-table' && printWeekRange && (
@@ -238,7 +244,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           signatories={signatories}
         />
       )}
-      {printMode !== 'status-list' && printMode !== 'week-calendar-table' && (
+      {printMode !== 'status-list' &&
+        printMode !== 'week-calendar-table' &&
+        printMode !== 'duty-table' && (
         <PrintFooter signatories={signatories} />
       )}
 

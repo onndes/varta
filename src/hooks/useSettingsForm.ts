@@ -18,6 +18,7 @@ export interface UseSettingsFormProps {
   autoScheduleOptions: AutoScheduleOptions;
   maxDebt: number;
   printMaxRows: number;
+  printDutyTableShowAllUsers: boolean;
   ignoreHistoryInLogic: boolean;
   uiScale: number;
   onSave: (w: DayWeights) => Promise<void>;
@@ -26,6 +27,7 @@ export interface UseSettingsFormProps {
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
   onSaveMaxDebt: (value: number) => Promise<void>;
   onSavePrintMaxRows: (value: number) => Promise<void>;
+  onSavePrintDutyTableShowAllUsers: (value: boolean) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
   refreshData: () => Promise<void>;
@@ -47,6 +49,7 @@ export const useSettingsForm = ({
   autoScheduleOptions,
   maxDebt,
   printMaxRows,
+  printDutyTableShowAllUsers,
   ignoreHistoryInLogic,
   uiScale,
   onSave,
@@ -55,6 +58,7 @@ export const useSettingsForm = ({
   onSaveAutoScheduleOptions,
   onSaveMaxDebt,
   onSavePrintMaxRows,
+  onSavePrintDutyTableShowAllUsers,
   onSaveIgnoreHistoryInLogic,
   onSaveUiScale,
   refreshData,
@@ -67,6 +71,7 @@ export const useSettingsForm = ({
   const [autoOpts, setAutoOpts] = useState<AutoScheduleOptions>(autoScheduleOptions);
   const [debt, setDebt] = useState<number>(maxDebt);
   const [maxRows, setMaxRows] = useState<number>(printMaxRows);
+  const [printAllUsers, setPrintAllUsers] = useState<boolean>(printDutyTableShowAllUsers);
   const [ignoreHistory, setIgnoreHistory] = useState<boolean>(ignoreHistoryInLogic);
   const [scale, setScale] = useState<number>(uiScale);
   const [isSaving, setIsSaving] = useState(false);
@@ -96,6 +101,9 @@ export const useSettingsForm = ({
     setMaxRows(printMaxRows);
   }, [printMaxRows]);
   useEffect(() => {
+    setPrintAllUsers(printDutyTableShowAllUsers);
+  }, [printDutyTableShowAllUsers]);
+  useEffect(() => {
     setIgnoreHistory(ignoreHistoryInLogic);
   }, [ignoreHistoryInLogic]);
   useEffect(() => {
@@ -120,6 +128,7 @@ export const useSettingsForm = ({
   const dutiesChanged = perDay !== dutiesPerDay;
   const debtChanged = debt !== maxDebt;
   const maxRowsChanged = maxRows !== printMaxRows;
+  const printAllUsersChanged = printAllUsers !== printDutyTableShowAllUsers;
   const ignoreHistoryChanged = ignoreHistory !== ignoreHistoryInLogic;
   const scaleChanged = scale !== uiScale;
   const hasUnsavedChanges =
@@ -129,6 +138,7 @@ export const useSettingsForm = ({
     autoOptionsChanged ||
     debtChanged ||
     maxRowsChanged ||
+    printAllUsersChanged ||
     ignoreHistoryChanged ||
     scaleChanged;
 
@@ -173,6 +183,12 @@ export const useSettingsForm = ({
         await onSavePrintMaxRows(maxRows);
         sections.push('параметри друку');
       }
+      if (printAllUsersChanged) {
+        await onSavePrintDutyTableShowAllUsers(printAllUsers);
+        if (!maxRowsChanged) {
+          sections.push('параметри друку');
+        }
+      }
       await refreshData();
       await logAction('SETTINGS', `Збережено налаштування: ${sections.join(', ')}`);
       await showAlert('Налаштування збережено');
@@ -191,6 +207,7 @@ export const useSettingsForm = ({
     logAction,
     maxRows,
     maxRowsChanged,
+    onSavePrintDutyTableShowAllUsers,
     onSave,
     onSaveAutoScheduleOptions,
     onSaveDutiesPerDay,
@@ -200,6 +217,8 @@ export const useSettingsForm = ({
     onSaveSignatories,
     onSaveUiScale,
     perDay,
+    printAllUsers,
+    printAllUsersChanged,
     refreshData,
     scale,
     scaleChanged,
@@ -269,6 +288,8 @@ export const useSettingsForm = ({
     setDebt,
     maxRows,
     setMaxRows,
+    printAllUsers,
+    setPrintAllUsers,
     ignoreHistory,
     setIgnoreHistory,
     scale,

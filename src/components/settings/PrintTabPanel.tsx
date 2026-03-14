@@ -13,6 +13,8 @@ interface PrintTabPanelProps {
   onSigsChange: (s: Signatories) => void;
   maxRows: number;
   onMaxRowsChange: (n: number) => void;
+  printAllUsers: boolean;
+  onPrintAllUsersChange: (value: boolean) => void;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
 }
 
@@ -25,6 +27,8 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
   onSigsChange,
   maxRows,
   onMaxRowsChange,
+  printAllUsers,
+  onPrintAllUsersChange,
   onExportExcel,
 }) => (
   <>
@@ -261,8 +265,25 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
         </h5>
       </div>
       <div className="card-body">
+        <div className="form-check form-switch mb-4">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="printDutyTableShowAllUsers"
+            checked={printAllUsers}
+            onChange={(e) => onPrintAllUsersChange(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="printDutyTableShowAllUsers">
+            <strong>У режимі «Графік (таблиця)» друкувати всіх активних осіб</strong>
+            <div className="text-muted small">
+              Увімкнено за замовчуванням. Якщо людей багато, таблиця автоматично продовжиться на
+              наступних сторінках.
+            </div>
+          </label>
+        </div>
+
         <div className="row">
-          <div className="col-md-4">
+          <div className="col-md-5">
             <label className="form-label fw-bold">Максимум осіб на сторінці</label>
             <input
               type="number"
@@ -280,8 +301,8 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
               }
             />
             <div className="form-text">
-              Якщо осіб не більше ліміту — друкуються всі. Якщо більше — тільки ті, хто призначений
-              на цей тиждень (завжди одна сторінка).
+              Ліміт рядків для однієї сторінки. Якщо друкувати всіх, таблиця буде розбита на
+              декілька сторінок.
             </div>
           </div>
         </div>
