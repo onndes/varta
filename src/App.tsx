@@ -259,7 +259,9 @@ const App = () => {
           show={showPrintWeekRangeModal}
           initialRange={printWeekRange}
           title={
-            weekRangeAction === 'excel' ? 'Експорт Excel: тижневий календар' : 'Друк: тижневий календар'
+            weekRangeAction === 'excel'
+              ? 'Експорт Excel: тижневий календар'
+              : 'Друк: тижневий календар'
           }
           description="Оберіть рік і діапазон ISO-тижнів. Наприклад: 2026, з 1 по 13 тиждень."
           confirmLabel={weekRangeAction === 'excel' ? 'Експортувати в Excel' : 'Друкувати'}
@@ -365,7 +367,7 @@ const App = () => {
             />
           )}
           {activeTab === 'logs' && <AuditLogView key={workspaceVersion} />}
-          {activeTab === 'dev' && import.meta.env.DEV && <DevTools refreshData={refreshData} />}
+          {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
         </main>
 
         <footer className="app-footer no-print">

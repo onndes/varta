@@ -16,6 +16,7 @@ const NAV_TABS: NavTab[] = [
   { id: 'stats', icon: 'fa-chart-bar', label: 'Статистика' },
   { id: 'settings', icon: 'fa-cog', label: 'Налаштування' },
   { id: 'logs', icon: 'fa-history', label: 'Журнал' },
+  { id: 'dev', icon: 'fa-flask', label: 'Dev' },
 ];
 
 interface AppSidebarProps {
