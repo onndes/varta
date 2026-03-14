@@ -129,11 +129,18 @@ export const useAutoScheduler = (
           await scheduleService.bulkDeleteSchedule(datesToClear);
         }
 
+        // Use a fresh in-memory schedule snapshot so autoFillSchedule
+        // does not see deleted auto entries from stale React state.
+        const freshSchedule = { ...schedule };
+        for (const date of datesToClear) {
+          delete freshSchedule[date];
+        }
+
         // Generate new schedule
         const updates = await autoScheduler.autoFillSchedule(
           validDates,
           users,
-          schedule,
+          freshSchedule,
           dayWeights,
           dutiesPerDay,
           autoScheduleOptions,
