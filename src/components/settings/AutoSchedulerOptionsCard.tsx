@@ -240,7 +240,7 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
           className="form-check-input"
           type="checkbox"
           id="useExperimentalStatsView"
-          checked={autoOpts.useExperimentalStatsView}
+          checked={!!autoOpts.useExperimentalStatsView}
           onChange={(e) =>
             onAutoOptsChange({ ...autoOpts, useExperimentalStatsView: e.target.checked })
           }
