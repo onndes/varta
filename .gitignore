@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 project-all.md
 docs/VARTA-2.0-Scheduler-Spec.md
+commit_history.txt

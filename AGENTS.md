@@ -374,12 +374,41 @@ Any change to the following will likely affect scheduler output:
 | ------------------------------------------------------- | ----------------------------------------------------------------------- |
 | All TypeScript code comments                            | **English only**                                                        |
 | Ukrainian strings in UI components and `decisionLog.ts` | **Keep as-is** — do not translate to English, do not "improve" phrasing |
-| `README.md`, `docs/`                                    | Do not modify                                                           |
+| `README.md`, `README.uk.md`                             | English / Ukrainian respectively — update when features change          |
 | `AGENTS.md`                                             | **English only**                                                        |
 
 ---
 
-## 11. Before You Change Anything — Checklist
+## 11. Documentation Sync Rule
+
+After **every code change**, check whether documentation needs updating. This is mandatory —
+documentation drift is a known source of confusion for both agents and human operators.
+
+### What to update after a change
+
+| Trigger                                                 | Files to update                                                                                            |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Tech stack, architecture, new/removed files             | `README.md`, `README.uk.md`                                                                                |
+| New or removed feature visible to the user              | `README.md`, `README.uk.md`, `InfoModalContent.tsx`                                                        |
+| New `AutoScheduleOptions` parameter                     | `README.md` (options table), `README.uk.md` (options table), `InfoModalContent.tsx` (налаштування section) |
+| Scheduler logic, comparator priorities, filter behavior | `README.md`, `README.uk.md`, `AGENTS.md` (relevant section)                                                |
+| New interface tab, button, or major UI element          | `InfoModalContent.tsx` (Вкладки / Інтерфейс), `InfoLegendTables.tsx` if it affects legends                 |
+| Cell type, icon type, or print mode added/removed       | `InfoLegendTables.tsx` (`CellLegendTable`, `IconLegendTable`, `TabsTable`)                                 |
+
+### Rules
+
+- **Do NOT** update docs for pure refactoring with zero behavior change.
+- **Do NOT** update docs for style/SCSS-only changes.
+- **Do NOT** update docs for test-only changes.
+- When updating `README.md` / `README.uk.md`, follow the existing section structure and language
+  (English / Ukrainian respectively).
+- When updating in-app help (`InfoModalContent.tsx`, `InfoLegendTables.tsx`), match the existing
+  tone and Ukrainian language. Do not translate existing Ukrainian strings to English.
+- The checklist in Section 12 includes a documentation step — do not skip it.
+
+---
+
+## 12. Before You Change Anything — Checklist
 
 Run through every item below before writing a single line:
 
@@ -396,3 +425,5 @@ Run through every item below before writing a single line:
 - [ ] Did I run `npx vitest run` and confirm no new test failures?
 - [ ] If I changed a weight or threshold, did I test on at least one real exported backup (`.json`)
       by comparing the before/after schedule for a full 4-week window?
+- [ ] Did I apply the Documentation Sync Rule (Section 11) — updated `README.md`, `README.uk.md`,
+      `InfoModalContent.tsx`, and/or `InfoLegendTables.tsx` as required by the change?

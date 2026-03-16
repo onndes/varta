@@ -50,11 +50,15 @@ export const InfoModalContent: React.FC = () => (
         чергування поспіль. Наступний день — «відсипний».
       </li>
       <li>
-        <strong>Urgency Score</strong> — пріоритет підвищується для тих, хто має «борг».
+        <strong>
+          Облік боргу (<code>owedDays</code>)
+        </strong>{' '}
+        — знятий «за проханням» боргує за конкретний день тижня; борг підвищує пріоритет при
+        наступному розподілі на цей день.
       </li>
       <li>
-        <strong>Агресивна балансировка</strong> — опціональний режим, що пріоритизує вирівнювання
-        навантаження (може ігнорувати інші пріоритети).
+        <strong>Агресивна балансировка</strong> — опціональна настройка для посиленого вирівнювання
+        навантаження; зберігається в налаштуваннях.
       </li>
     </ul>
 
@@ -112,13 +116,14 @@ export const InfoModalContent: React.FC = () => (
         <strong>&lt; 2 особи</strong> — попередження про неможливість побудови графіка.
       </li>
       <li>
-        <strong>2 особи</strong> — чергування через день, без складної логіки.
+        <strong>2 особи</strong> — повний алгоритм; при <code>minRestDays=1</code> особи природно
+        чергуються через день.
       </li>
       <li>
         <strong>3+ осіб</strong> — повний зважений алгоритм з боргами та «драбиною».
       </li>
       <li>
-        <strong>is_extra</strong> — спеціальні учасники (стажери, водії) — лише ручне призначення.
+        <strong>isExtra</strong> — спеціальні учасники (стажери, водії) — лише ручне призначення.
       </li>
     </ul>
 
@@ -152,7 +157,7 @@ export const InfoModalContent: React.FC = () => (
     <IconLegendTable />
 
     <h6 className="fw-bold mt-4 mb-2">
-      <i className="fas fa-print me-2 text-secondary"></i>Друк (3 режими)
+      <i className="fas fa-print me-2 text-secondary"></i>Друк (4 режими)
     </h6>
     <ul className="mb-3">
       <li>
@@ -160,8 +165,12 @@ export const InfoModalContent: React.FC = () => (
         підписами.
       </li>
       <li>
-        <strong>Таблиця чергувань</strong> — офіційна таблиця з прізвищами, званнями та підсвіченими
+        <strong>Графік (таблиця)</strong> — офіційна таблиця з прізвищами, званнями та підсвіченими
         днями чергувань. Кількість рядків на сторінку налаштовується.
+      </li>
+      <li>
+        <strong>Графік (тижні таблицею)</strong> — зведена таблиця по тижнях за обраний діапазон
+        дат; підтримує друк і експорт у Excel.
       </li>
       <li>
         <strong>Довідка по складу</strong> — статуси, заблоковані дні з причинами, заміни/обміни,
@@ -192,7 +201,7 @@ export const InfoModalContent: React.FC = () => (
         <strong>Резервне копіювання</strong> — нагадування, якщо дані не збережені &gt; 3 дні.
       </li>
       <li>
-        <strong>Excel (.xlsx)</strong> — <em>заплановано</em>.
+        <strong>Excel (.xlsx)</strong> — підтримується (таблиця та тижнева таблиця).
       </li>
     </ul>
 
@@ -218,6 +227,7 @@ export const InfoModalContent: React.FC = () => (
     <ul className="mb-3">
       <li>React 19 + TypeScript 5.9 + Bootstrap 5.3</li>
       <li>Dexie.js (IndexedDB) — повністю офлайн, PWA</li>
+      <li>Tauri 2 — десктопна оболонка (нативний застосунок)</li>
       <li>Vite — збірка та dev-сервер</li>
       <li>Vitest — тестування</li>
     </ul>

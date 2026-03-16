@@ -1,100 +1,116 @@
-# ВАРТА — Автоматичний планувальник чергувань
+<p align="center">
+  <img src="./src/assets/preview.png" width="800" alt="Schedule view" />
+</p>
 
-> **PWA / Tauri-застосунок** для справедливого та автоматичного розподілу чергувань у військовому
-> підрозділі.
+# VARTA — Automatic Duty Scheduling Planner
 
----
+> **PWA / Tauri desktop application** for fair and automatic duty scheduling in a military unit.  
+> Built with React 19 + TypeScript + Vite. Data stored locally in IndexedDB (Dexie.js). No server.
 
-## Зміст
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-1. [Про застосунок](#1-про-застосунок)
-2. [Технічний стек та архітектура](#2-технічний-стек-та-архітектура)
-3. [Сховище даних](#3-сховище-даних)
-4. [Структура бійця](#4-структура-бійця)
-5. [Запис розкладу](#5-запис-розкладу)
-6. [Інтерфейс — вкладки](#6-інтерфейс--вкладки)
-7. [Логіка автопланувальника](#7-логіка-автопланувальника)
-8. [Жорсткі обмеження](#8-жорсткі-обмеження)
-9. [Фільтри кандидатів](#9-фільтри-кандидатів)
-10. [10-пріоритетний компаратор](#10-10-пріоритетний-компаратор)
-11. [Глобальна цільова функція Z](#11-глобальна-цільова-функція-z)
-12. [Трифазна оптимізація свопів](#12-трифазна-оптимізація-свопів)
-13. [Відпустки, відрядження та статуси](#13-відпустки-відрядження-та-статуси)
-14. [Система карми (debt / owedDays)](#14-система-карми-debt--oweddays)
-15. [Load Rate та Anti-Catch-Up](#15-load-rate-та-anti-catch-up)
-16. [Ваги днів тижня](#16-ваги-днів-тижня)
-17. [Налаштування логіки (AutoScheduleOptions)](#17-налаштування-логіки-autoscheduleoptions)
-18. [Каскадний перерахунок](#18-каскадний-перерахунок)
-19. [DecisionLog — кнопка «i»](#19-decisionlog--кнопка-i)
-20. [Мультибаза (підрозділи)](#20-мультибаза-підрозділи)
-21. [Експорт / Імпорт](#21-експорт--імпорт)
-22. [Запуск і збірка](#22-запуск-і-збірка)
+> _Screenshot placeholder — add a screenshot or GIF of the main schedule view here._
 
 ---
 
-## 1. Про застосунок
+## Contents
 
-**ВАРТА** — це інструмент для автоматичного та напівавтоматичного складання графіків чергувань.
-Основна мета — **справедливий розподіл навантаження** з урахуванням:
-
-- статусів бійців (відпустка, відрядження, лікарняний, відсутність);
-- вагових коефіцієнтів днів (вихідні важчі за будні);
-- карми (боргів) — хто недоотримав нарядів у минулому;
-- несумісних пар (не ставити поряд певних бійців);
-- заблокованих днів тижня для конкретного бійця;
-- декількох баз даних (підрозділів).
-
-Застосунок підтримує два режими розгортання: **PWA** (браузер) та **Tauri** (нативний десктопний).
+1. [About the application](#1-about-the-application)
+2. [Tech stack and architecture](#2-tech-stack-and-architecture)
+3. [Data storage](#3-data-storage)
+4. [User structure](#4-user-structure)
+5. [Schedule entry](#5-schedule-entry)
+6. [Interface tabs](#6-interface-tabs)
+7. [Auto-scheduler logic](#7-auto-scheduler-logic)
+8. [Hard constraints](#8-hard-constraints)
+9. [Candidate filters](#9-candidate-filters)
+10. [10-priority comparator](#10-10-priority-comparator)
+11. [Global objective function Z](#11-global-objective-function-z)
+12. [Three-phase swap optimization](#12-three-phase-swap-optimization)
+13. [Vacations, trips, and statuses](#13-vacations-trips-and-statuses)
+14. [Karma system (debt / owedDays)](#14-karma-system-debt--oweddays)
+15. [Load Rate and Anti-Catch-Up](#15-load-rate-and-anti-catch-up)
+16. [Weekday weights](#16-weekday-weights)
+17. [Logic settings (AutoScheduleOptions)](#17-logic-settings-autoscheduleoptions)
+18. [Cascade recalculation](#18-cascade-recalculation)
+19. [DecisionLog - the "i" button](#19-decisionlog---the-i-button)
+20. [Multi-database (units)](#20-multi-database-units)
+21. [Export / Import](#21-export--import)
+22. [Run and build](#22-run-and-build)
 
 ---
 
-## 2. Технічний стек та архітектура
+## 1. About the application
 
-```
-React 18 + TypeScript + Vite
+**VARTA** is a tool for automatic and semi-automatic duty schedule generation. Its main goal is a
+**fair distribution of workload** that takes into account:
+
+- user statuses (vacation, trip, sick leave, absence);
+- weekday weight coefficients (weekends are heavier than weekdays);
+- karma / debt - who missed or lost duties in the past;
+- incompatible pairs (do not place certain users on adjacent days);
+- blocked weekdays for a specific user;
+- multiple databases (units).
+
+The application supports two deployment modes: **PWA** (browser) and **Tauri** (native desktop).
+
+---
+
+## 2. Tech stack and architecture
+
+```text
+React 19 + TypeScript + Vite
 ├── PWA (manifest + service worker)
-├── Tauri 2 (нативна обгортка для десктопу)
-├── IndexedDB / Dexie.js v9 — локальне сховище
-├── SCSS — стилі з підтримкою темної теми
-└── Vitest — тести
+├── Tauri 2 (native desktop wrapper)
+├── IndexedDB / Dexie.js v9 - local storage
+├── SCSS - styles with dark theme support
+└── Vitest - tests
 ```
 
-```
+```text
 src/
-├── components/       — UI-компоненти (таблиця, модалки, навігація)
-│   ├── schedule/     — компоненти основного екрану
-│   └── users/        — компоненти особового складу
-├── hooks/            — бізнес-логіка (React hooks)
+├── components/       - UI components (table, modals, navigation)
+│   ├── schedule/     - main schedule screen components
+│   └── users/        - personnel components
+├── hooks/            - business logic (React hooks)
 ├── services/
 │   ├── autoScheduler/
-│   │   ├── scheduler.ts    — жадний прохід + запуск оптимізації
-│   │   ├── comparator.ts   — 10-пріоритетний компаратор + фільтри
-│   │   ├── helpers.ts      — Load Rate, дні активності, SSE
-│   │   └── index.ts        — публічний API планувальника
-│   ├── scheduleService.ts  — CRUD для розкладу (IndexedDB)
-│   ├── userService.ts      — CRUD для бійців + перевірка доступності
-│   └── auditService.ts     — журнал дій
-├── types/index.ts    — всі TypeScript-типи
-└── utils/            — дати, константи, fairness-метрики
+│   │   ├── scheduler.ts       - greedy pass + optimization entry point
+│   │   ├── comparator.ts      - 10-priority comparator + filters
+│   │   ├── helpers.ts         - Load Rate, active days, SSE, objective Z
+│   │   ├── swapOptimizer.ts   - three-phase swap optimization
+│   │   ├── decisionLog.ts     - "i" button decision text builder
+│   │   └── index.ts           - public scheduler API
+│   ├── scheduleService.ts  - IndexedDB schedule CRUD
+│   ├── userService.ts      - user CRUD + availability checks
+│   └── auditService.ts     - action log
+├── types/index.ts    - all TypeScript types
+└── utils/            - dates, constants, fairness metrics
 ```
 
+This project was developed with AI-assisted development tools, including Claude, GPT-4, and Gemini.
+
 ---
 
-## 3. Сховище даних
+## 3. Data storage
 
-Кожне підрозділення зберігається у **окремій IndexedDB** (через Dexie.js). Метадані підрозділень — у
+Each unit is stored in a **separate IndexedDB database** via Dexie.js. Unit metadata is stored in
 `localStorage`.
 
-| Таблиця    | Вміст                                     |
-| ---------- | ----------------------------------------- |
-| `users`    | Особовий склад                            |
-| `schedule` | Записи чергувань                          |
-| `auditLog` | Журнал всіх дій (зміни, генерації, ручні) |
-| `appState` | Налаштування застосунку (ключ-значення)   |
+| Table      | Contents                                      |
+| ---------- | --------------------------------------------- |
+| `users`    | Personnel roster                              |
+| `schedule` | Duty schedule entries                         |
+| `auditLog` | Full action log (changes, generation, manual) |
+| `appState` | Application settings (key-value storage)      |
 
 ---
 
-## 4. Структура бійця
+## 4. User structure
 
 ```typescript
 interface User {
@@ -102,611 +118,608 @@ interface User {
   name: string;
   rank: string;
 
-  // Статус та його дати
+  // Status and status dates
   status: 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT' | 'OTHER';
   statusFrom?: string; // 'YYYY-MM-DD'
   statusTo?: string;
 
-  isActive: boolean; // false = звільнений (показується у окремій вкладці)
-  excludeFromAuto: boolean; // тільки ручне призначення
-  isExtra: boolean; // стажер/водій — тільки ручне
+  isActive: boolean; // false = dismissed/inactive (shown in a separate tab)
+  excludeFromAuto: boolean; // manual assignment only
+  isExtra: boolean; // trainee/driver - manual only
 
-  // Карма
-  debt: number; // < 0 — боєць «должен» системі
-  owedDays: Record<string, number>; // борг по конкретному дню тижня
+  // Karma
+  debt: number; // < 0 means the user "owes" duties to the system
+  owedDays: Record<string, number>; // debt for a specific weekday
 
-  // Блокування
-  blockedDays: number[]; // ISO DOW: 1=Пн … 7=Нд
+  // Blocks
+  blockedDays: number[]; // ISO DOW: 1=Mon ... 7=Sun
   blockedDaysFrom?: string;
   blockedDaysTo?: string;
 
-  // Відпочинок навколо статусного періоду
-  restBeforeStatus: boolean; // день перед початком — недоступний
-  restAfterStatus: boolean; // день після закінчення — недоступний
+  // Rest around status periods
+  restBeforeStatus: boolean; // unavailable on the day before a status starts
+  restAfterStatus: boolean; // unavailable on the day after a status ends
 
-  incompatibleWith: number[]; // ID бійців, яких не ставити поряд
-  dateAddedToAuto?: string; // дата початку обліку в авто-планувальнику
+  incompatibleWith: number[]; // IDs of users who cannot stand on adjacent days
+  dateAddedToAuto?: string; // date when the user joined auto-scheduling
 
-  // Масив статусних періодів (відпустки, відрядження тощо)
+  // Array of status periods (vacations, trips, sick leave, etc.)
   statusPeriods?: UserStatusPeriod[];
+}
+
+interface UserStatusPeriod {
+  status: 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT';
+  from?: string;
+  to?: string;
+  restBefore?: boolean; // rest day before this period
+  restAfter?: boolean; // rest day after this period
+  comment?: string;
 }
 ```
 
 ---
 
-## 5. Запис розкладу
+## 5. Schedule entry
 
 ```typescript
 interface ScheduleEntry {
   date: string; // 'YYYY-MM-DD'
-  userId: number | number[]; // один або декілька (dutiesPerDay > 1)
+  userId: number | number[]; // one or multiple assignees (dutiesPerDay > 1)
   type: 'auto' | 'manual' | 'replace' | 'swap' | 'history' | 'import';
   isLocked: boolean;
-  decisionLog?: DecisionLog; // чому саме цей боєць (кнопка «i»)
+  decisionLog?: DecisionLog; // why this user was selected ("i" button)
 }
 ```
 
-**Типи записів:**
+**Entry types:**
 
-| Тип                  | Поведінка                                                                       |
-| -------------------- | ------------------------------------------------------------------------------- |
-| `auto`               | Створений автопланувальником; може бути перезаписаний при регенерації           |
-| `manual`             | Ручне призначення; автоматична перезапис заборонена                             |
-| `replace`            | Ручна заміна; захищений від авто                                                |
-| `swap`               | Обмін; захищений від авто                                                       |
-| `history` / `import` | Історичний; може виключатися з розрахунку навантаження (`ignoreHistoryInLogic`) |
-
----
-
-## 6. Інтерфейс — вкладки
-
-### Графік (ScheduleView)
-
-Основний екран. Містить:
-
-- **WeekNavigator** — візуальна карта всього року: квадрати-тижні, згруповані по місяцях. Зелені = є
-  розклад, сірі = минулі, синій = поточний, жирна рамка = вибраний.
-- **ScheduleControls** — панель управління:
-
-| Кнопка                 | Дія                                         |
-| ---------------------- | ------------------------------------------- |
-| `← / → / Сьогодні`     | Навігація по тижнях                         |
-| `Заповнити прогалини`  | Автозаповнення порожніх днів                |
-| `Виправити конфлікти`  | Виправити дні з недоступними бійцями        |
-| `Генерувати тиждень`   | Повна регенерація поточного тижня           |
-| `Очистити тиждень`     | Видалити всі призначення тижня              |
-| `Оптимізація (каскад)` | Перерахунок від дати зміни вперед           |
-| `↩ / ↪`                | Undo / Redo (до 25 кроків, Ctrl+Z / Ctrl+Y) |
-| `Імпорт`               | Імпорт старого розкладу текстом             |
-
-- **ScheduleTable** — основна таблиця: рядки = бійці, стовпці = дні тижня. При > 20 бійцях
-  переходить у **day-centric** режим (один стовпець = список бійців дня).
-
-- **AssignmentModal** — модальне вікно призначення: `Замінити / Обмін / Зняти`, список вільних
-  бійців з метриками (навантаження, дні очікування, борги), фільтр пошуку.
-
-### Особовий склад (UsersView)
-
-Таблиця бійців (активні + неактивні), редагування, видалення, **UserStatsModal** — детальна
-статистика.
-
-### Статистика (StatsView)
-
-Таблиця всіх бійців: кількість чергувань, зважене навантаження, борг, останнє чергування, статус
-доступності.
-
-### Налаштування (SettingsView)
-
-Три під-вкладки: **Логіка** (ваги, параметри AutoScheduleOptions), **Інтерфейс** (масштаб, тема),
-**Друк** (підписанти, режими друку).
-
-### Журнал (AuditLogView)
-
-Всі дії з фільтрацією по типу. Очищення логів старше 90 днів.
+| Type                 | Behavior                                                                |
+| -------------------- | ----------------------------------------------------------------------- |
+| `auto`               | Created by the auto-scheduler; may be overwritten during regeneration   |
+| `manual`             | Manual assignment; protected from automatic overwrite                   |
+| `replace`            | Manual replacement; protected from auto                                 |
+| `swap`               | Swap operation; protected from auto                                     |
+| `history` / `import` | Historical entry; may be excluded from logic via `ignoreHistoryInLogic` |
 
 ---
 
-## 7. Логіка автопланувальника
+## 6. Interface tabs
 
-Планувальник реалізований як **двохпрохідний алгоритм CSP** (Constraint Satisfaction Problem):
+### Schedule (ScheduleView)
 
-```
-Draft (Жадний прохід)  →  Swap Optimization (3 фази)
-```
+Main screen. Includes:
 
-### 7.1. Draft — жадний прохід
+- **WeekNavigator** - visual year map: week squares grouped by month. Green = has schedule, gray =
+  past, blue = current, bold border = selected week.
+- **ScheduleControls** - control panel:
 
-Для кожної дати послідовно:
+| Button                   | Action                                          |
+| ------------------------ | ----------------------------------------------- |
+| `← / → / Today`          | Week navigation                                 |
+| `Fill gaps`              | Auto-fill empty days                            |
+| `Fix conflicts`          | Fix days with unavailable assignees             |
+| `Generate week`          | Full regeneration of the current week           |
+| `Clear week`             | Delete all assignments for the current week     |
+| `Optimization (cascade)` | Recalculate forward starting from a change date |
+| `↩ / ↪`                  | Undo / Redo (up to 25 steps, Ctrl+Z / Ctrl+Y)   |
+| `Import`                 | Import legacy schedule text                     |
 
-```
-Всі бійці
-    │
-    ▼ [Жорстке] isAutoParticipant: isActive ∧ ¬isExtra ∧ ¬excludeFromAuto
-    │
-    ▼ [Жорстке] isHardEligible: доступний на цю дату
-    │
-    ▼ [М'яке → Жорстке fallback] filterByRestDays: мінімальний відпочинок
-    │
-    ▼ [Жорстке] filterByIncompatiblePairs: несумісні пари на сусідніх датах
-    │
-    ▼ [М'яке → Жорстке fallback] filterByWeeklyCap: ≤ 1 наряд/тиждень (≥7 бійців)
-    │
-    ▼ [Жорстке] filterForceUseAllWhenFew: при ≤7 — тільки бійці з 0 нарядів за тиждень
-    │
-    ▼ [Starvation Fallback] Якщо пул порожній → відкат до всіх hard-eligible
-    │
-    ▼ Ранжування (10-пріоритетний компаратор)
-    │
-    ▼ Обрати найкращого кандидата
+- **ScheduleTable** - main table: rows = users, columns = days of the week. When there are more than
+  20 users, it switches to a **day-centric** mode (one column = list of users for that day).
+
+- **AssignmentModal** - assignment modal with `Replace / Swap / Remove`, a list of free users with
+  metrics (load, wait days, debts), and search filtering.
+
+### Personnel (UsersView)
+
+Personnel table (active + inactive), editing, deletion, and **UserStatsModal** for detailed stats.
+
+### Statistics (StatsView)
+
+All-user table: number of duties, weighted load, debt, last duty date, and availability status.
+
+### Settings (SettingsView)
+
+Three sub-tabs: **Logic** (weights, AutoScheduleOptions), **Interface** (scale, theme), and
+**Print** (signatories, print modes).
+
+### Audit Log (AuditLogView)
+
+All actions with filtering by type. Log cleanup for entries older than 90 days.
+
+### Dev (DevTools)
+
+Developer tools tab (always visible). Contains: data generators, test scenarios (standard group,
+vacations, blocked days, incompatible pairs, small group, debt/karma), schedule generator with
+fairness statistics, quick user status editor, chaos mode, and database wipe.
+
+---
+
+## 7. Auto-scheduler logic
+
+The scheduler is implemented as a **two-pass CSP algorithm** (Constraint Satisfaction Problem):
+
+```text
+Draft (Greedy pass) -> Swap Optimization (3 phases)
 ```
 
-> **Принцип Starvation Fallback**: якщо м'які фільтри спустошили пул, система відкочується до
-> будь-якого hard-eligible кандидата. Слот залишається порожнім (`critical`) лише при повній
-> відсутності доступних бійців.
+### 7.1. Draft - greedy pass
+
+For each date, sequentially:
+
+```text
+All users
+    │
+    ▼ [Hard] isAutoParticipant: isActive ∧ ¬isExtra ∧ ¬excludeFromAuto
+    │
+    ▼ [Hard] isHardEligible: available on this date
+    │
+    ▼ [Soft -> Hard fallback] filterByRestDays: minimum rest distance
+    │
+    ▼ [Hard] filterByIncompatiblePairs: incompatible neighbors on adjacent dates
+    │
+    ▼ [Soft -> Hard fallback] filterByWeeklyCap: <= 1 duty/week (for >=7 users)
+    │
+    ▼ [Hard] filterForceUseAllWhenFew: for <=7 users, only users with 0 duties this week
+    │
+    ▼ [Starvation Fallback] If the pool is empty -> roll back to all hard-eligible users
+    │
+    ▼ Rank candidates (10-priority comparator)
+    │
+    ▼ Select the best candidate
+```
+
+> **Starvation Fallback principle:** if soft filters empty the pool, the system rolls back to any
+> hard-eligible candidate. A slot is left empty (`critical`) only when there are no available users
+> at all.
+
+### General workflow
+
+```text
+User clicks "Fill gaps"
+    ↓
+useScheduleActions.runFillGaps()
+    ↓
+pushHistory() -> save snapshot for undo
+    ↓
+useAutoScheduler.fillGaps(dates)
+    ↓
+autoFillSchedule(dates, users, schedule, options, dayWeights)
+    ├── for each date:
+    │   ├── build candidate pool (isUserAvailable)
+    │   ├── apply filterByRestDays / filterByWeeklyCap / filterByIncompatiblePairs
+    │   └── sortBy(buildUserComparator) -> take the first candidate
+    └── performSwapOptimization()
+        ├── Phase 1: Pair-Exchange Swaps
+        ├── Phase 2: Single-Replacement
+        └── Phase 3: Same-DOW Resolution
+    ↓
+saveAutoSchedule(entries, dayWeights)
+    ├── db.schedule.put(entry)
+    └── repayOwedDay() for each assigned user
+    ↓
+logAction('AUTO_FILL', ...)
+    ↓
+refreshData() -> rerender
+```
 
 ---
 
-## 8. Жорсткі обмеження
+## 8. Hard constraints
 
-Перевіряються в `isHardUnavailable()`. Боєць **гарантовано недоступний**, якщо:
+Checked in `isHardUnavailable()`. A user is **guaranteed unavailable** if:
 
-| Причина           | Код                | Опис                                                       |
-| ----------------- | ------------------ | ---------------------------------------------------------- |
-| Неактивний        | `hard_inactive`    | `user.isActive === false`                                  |
-| Виключений з авто | `hard_excluded`    | `user.excludeFromAuto === true`                            |
-| Статус зайнятий   | `hard_status_busy` | VACATION / SICK / TRIP / ABSENT на цю дату                 |
-| Заблокований день | `hard_day_blocked` | `blockedDays` містить цей DOW (у діапазоні дат)            |
-| День відпочинку   | `hard_rest_day`    | `restBefore` / `restAfter` — буферний день навколо статусу |
+| Reason             | Code               | Description                                                 |
+| ------------------ | ------------------ | ----------------------------------------------------------- |
+| Inactive           | `hard_inactive`    | `user.isActive === false`                                   |
+| Excluded from auto | `hard_excluded`    | `user.excludeFromAuto === true`                             |
+| Busy status        | `hard_status_busy` | VACATION / SICK / TRIP / ABSENT on this date                |
+| Blocked weekday    | `hard_day_blocked` | `blockedDays` contains this DOW within the configured range |
+| Rest day           | `hard_rest_day`    | `restBefore` / `restAfter` around a status period           |
 
-Ці обмеження **ніколи не порушуються** — ні під час Draft, ні під час Swap-оптимізації.
-
----
-
-## 9. Фільтри кандидатів
-
-Після жорстких обмежень пул проходить м'які фільтри:
-
-| Фільтр             | Функція                       | Логіка                                                       |
-| ------------------ | ----------------------------- | ------------------------------------------------------------ |
-| Rest Days          | `filterByRestDays`            | Виключає бійців, що чергували в межах `minRestDays`          |
-| Incompatible Pairs | `filterByIncompatiblePairs`   | Перевіряє сусідні дати на несумісні пари                     |
-| Weekly Cap         | `filterByWeeklyCap`           | Для ≥7 бійців: макс. 1 наряд на тиждень (виняток — боржники) |
-| Force Use All      | `filterForceUseAllWhenFew`    | При малому пулі — тільки бійці з 0 нарядів цього тижня       |
-| Same Weekday       | `filterBySameWeekdayLastWeek` | Виключає бійців, що чергували той самий DOW минулого тижня   |
-
-Фільтри застосовуються послідовно. Якщо фільтр спустошує пул — повертається попередній стан
-(fail-safe).
+These constraints are **never violated** - neither during Draft nor during swap optimization.
 
 ---
 
-## 10. 10-пріоритетний компаратор
+## 9. Candidate filters
 
-Компаратор (`buildComparator`) порівнює двох кандидатів за 10 ознаками у порядку пріоритету:
+After hard constraints, the candidate pool goes through soft filters:
 
-| #   | Критерій               | Тип                       | Опис                                                                                                  |
-| --- | ---------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| −2  | Cross-DOW Zero Guard   | Жорсткий штраф            | Якщо в бійця є 0 нарядів по якомусь DOW, а макс. ≥ 1, і поточний — максимальний → астрономічний штраф |
-| −1  | forceUseAllWhenFew     | Жорстке переключення      | При ≤7 бійців: бійці з 0 нарядів за тиждень завжди попереду                                           |
-| 0   | DOW Count              | Fairness Account          | Менше призначень на цей DOW → вищий пріоритет                                                         |
-| 1   | DOW SSE Objective      | SSE мінімізація           | Кандидат, що мінімізує SSE_d після призначення                                                        |
-| 2   | Same-DOW Penalty       | М'який (експоненціальний) | Штраф за недавнє чергування у цей самий DOW                                                           |
-| 3   | +1 Shift Rotation      | М'яка перевага            | Перевага наступного DOW («сходинка»: Пн→Вт→Ср→…)                                                      |
-| 4   | Weekly Cap             | Tie-break                 | Менше нарядів за тиждень → вищий                                                                      |
-| 5   | DOW Recency            | Tie-break                 | Більше днів з останнього призначення на цей DOW → вищий                                               |
-| 6   | Remaining Availability | forceUse mode             | Менше доступних днів → вищий (терміновість)                                                           |
-| 7   | Load Rate              | Anti-catch-up             | `Rate = assignments / daysActive`                                                                     |
-| 8   | Effective Load         | Зважений баланс           | `Load + debt` (при увімкненому `considerLoad`)                                                        |
-| 9   | Wait Days              | Tie-break                 | Більше днів з останнього наряду → вищий                                                               |
-| 10  | Stable ID              | Детермінізм               | `a.id − b.id` для відтворюваності                                                                     |
+| Filter             | Function                      | Logic                                                       |
+| ------------------ | ----------------------------- | ----------------------------------------------------------- |
+| Rest Days          | `filterByRestDays`            | Excludes users who served within `minRestDays`              |
+| Incompatible Pairs | `filterByIncompatiblePairs`   | Checks adjacent dates for incompatible pairs                |
+| Weekly Cap         | `filterByWeeklyCap`           | For >=7 users: max 1 duty per week (debt users excepted)    |
+| Force Use All      | `filterForceUseAllWhenFew`    | With a small pool, only users with 0 duties this week       |
+| Same Weekday       | `filterBySameWeekdayLastWeek` | Excludes users who served the same DOW in the previous week |
+
+Filters are applied sequentially. If a filter empties the pool, the previous state is restored
+(fail-safe behavior).
 
 ---
 
-## 11. Глобальна цільова функція Z
+## 10. 10-priority comparator
+
+The comparator (`buildUserComparator`) compares two candidates across 12 features in priority order:
+
+| #   | Criterion              | Type               | Description                                                                         |
+| --- | ---------------------- | ------------------ | ----------------------------------------------------------------------------------- |
+| -2  | Cross-DOW Zero Guard   | Hard penalty       | If a user has more duties on this DOW than the group minimum — heavy penalty        |
+| -1  | forceUseAllWhenFew     | Hard switch        | For <=7 users: users with 0 duties this week always come first                      |
+| 0   | DOW Count              | Fairness account   | Fewer assignments on this DOW -> higher priority                                    |
+| 1   | DOW SSE Objective      | SSE minimization   | Candidate that minimizes post-assignment SSE for this DOW                           |
+| 2   | Same-DOW Penalty       | Soft (exponential) | 7d=100, 14d=25, 21d=6.25, >28d=0                                                    |
+| 3   | Weekly Cap Tie-break   | Tie-break          | Fewer duties this week -> higher priority (when `limitOneDutyPerWeekWhenSevenPlus`) |
+| 4   | DOW Recency            | Tie-break          | More days since the last assignment on this DOW -> higher                           |
+| 5   | Remaining Availability | forceUse mode      | Fewer remaining available days -> higher urgency                                    |
+| 6   | Load Rate              | Anti-catch-up      | `Rate = assignments / daysActive` — lower rate first                                |
+| 7   | Effective Load         | Weighted balance   | `Load + debt` when `considerLoad` is enabled                                        |
+| 8   | Wait Days              | Tie-break          | More days since the last duty -> higher                                             |
+| 9   | Stable ID              | Determinism        | `a.id - b.id` for reproducibility                                                   |
+
+---
+
+## 11. Global objective function Z
 
 $$
 Z = W_{\text{sameDOW}} \cdot P + W_{\text{SSE}} \cdot \text{SSE}_{\text{system}} + W_{\text{within}} \cdot V_{\text{within}} + W_{\text{load}} \cdot R_{\text{load}} + W_{\text{zero}} \cdot G_{\text{zero}} + W_{\text{total}} \cdot \text{SSE}_{\text{total}}
 $$
 
-### Компоненти
+### Components
 
-| Символ       | Опис                                   | Формула                                                  |
-| ------------ | -------------------------------------- | -------------------------------------------------------- |
-| `P`          | Same-DOW consecutive penalty           | Кількість пар: один боєць, той самий DOW, різниця 7 днів |
-| `SSE_system` | Між-користувацький DOW SSE             | Для кожного DOW: Σ(count − mean)² по всіх бійцях         |
-| `V_within`   | Внутрішньо-користувацька DOW дисперсія | Для кожного бійця: Σ(dowCount − mean)² по 7 DOW          |
-| `R_load`     | Max − Min навантаження                 | Різниця між найбільш і найменш навантаженим              |
-| `G_zero`     | Zero Guard                             | Якщо min DOW = 0 та max DOW ≥ 2: `1000 × (max − min)`    |
-| `SSE_total`  | Total assignment SSE                   | Σ(totalDuties − meanDuties)² — запобігає концентрації    |
+| Symbol       | Description                  | Formula                                                    |
+| ------------ | ---------------------------- | ---------------------------------------------------------- |
+| `P`          | Same-DOW consecutive penalty | Number of pairs with the same user, same DOW, 7 days apart |
+| `SSE_system` | Inter-user DOW SSE           | For each DOW: Σ(count - mean)² across all users            |
+| `V_within`   | Intra-user DOW variance      | For each user: Σ(dowCount - mean)² across 7 DOWs           |
+| `R_load`     | Max - Min load               | Difference between the most and least loaded users         |
+| `G_zero`     | Zero Guard                   | If min DOW = 0 and max DOW >= 2: `1000 × (max - min)`      |
+| `SSE_total`  | Total assignment SSE         | Σ(totalDuties - meanDuties)² to prevent concentration      |
 
-### Ваги
+### Weights
 
-| Вага            | Значення | Обґрунтування                                                 |
-| --------------- | -------- | ------------------------------------------------------------- |
-| `W_SAME_DOW`    | 50.0     | Найвища ціна: уникнення одного DOW двічі поспіль              |
-| `W_TOTAL_SSE`   | 10.0     | Сильний: запобігає концентрації нарядів на одному бійці       |
-| `W_WITHIN_USER` | 8.0      | Внутрішньокористувацький DOW-баланс («паттерн 1-1-1-1-1-1-1») |
-| `W_SYSTEM_SSE`  | 3.0      | Базова між-користувацька DOW-справедливість                   |
-| `W_LOAD_RANGE`  | 1.0      | М'який тиск на рівномірність навантаження                     |
-| `W_ZERO_GUARD`  | 1.0      | Множник (всередині вже масштабовано ×1000)                    |
-
-> **Ключове рішення:** Висока вага `W_WITHIN_USER` гарантує, що індивідуальний DOW-баланс кожного
-> бійця домінує над системним. Разом з `W_TOTAL_SSE` це запобігає концентрації нарядів на малій
-> кількості бійців задля «ідеального» розподілу по днях.
+| Weight          | Value | Rationale                                                                                     |
+| --------------- | ----- | --------------------------------------------------------------------------------------------- |
+| `W_SAME_DOW`    | 50.0  | Highest cost: avoid the same weekday back-to-back                                             |
+| `W_TOTAL_SSE`   | 100.0 | Anti-concentration: prevents the optimizer loading one user on all duties                     |
+| `W_WITHIN_USER` | 300.0 | Intra-user DOW balance — dominates `W_SYSTEM_SSE` so personal balance is always maintained    |
+| `W_SYSTEM_SSE`  | 3.0   | Base cross-user weekday fairness                                                              |
+| `W_LOAD_RANGE`  | 1.0   | Soft pressure toward balanced load                                                            |
+| `W_ZERO_GUARD`  | 10.0  | Multiplier on the internal zero-guard penalty (5000+), effective minimum 50 000 per violation |
 
 ---
 
-## 12. Трифазна оптимізація свопів
+## 12. Three-phase swap optimization
 
-Після жадного заповнення запускається ітеративна оптимізація (до `MAX_SWAP_ITERATIONS = 1500`).
+After the greedy draft, the system runs iterative optimization (up to `MAX_SWAP_ITERATIONS = 1500`).
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
-│             Draft (Жадний прохід)                   │
-│  Для кожної дати: Filter → Rank → Обрати кандидата  │
+│ Draft (Greedy pass)                                 │
+│ For each date: Filter -> Rank -> Select candidate   │
 └────────────────────────┬────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────┐
-│  Фаза 1: Pair-Exchange Swaps (Вирішення конфліктів) │
-│  U₁(d₁) ↔ U₂(d₂) якщо Z↓ ∧ Hard Constraints OK   │
-│  Властивість: нейтральний до тижневого балансу      │
+│ Phase 1: Pair-Exchange Swaps                        │
+│ U₁(d₁) ↔ U₂(d₂) if Z↓ and hard constraints are OK   │
 └────────────────────────┬────────────────────────────┘
-                         │ покращення? → цикл
+                         │ improvement? -> loop
                          ▼
 ┌─────────────────────────────────────────────────────┐
-│  Фаза 2: Single-Replacement (Вирівнювання SSE)      │
-│  U_old(d) → U_new(d) якщо Z↓ ∧ forceUseAll OK      │
-│  Ціль: min Σ(x_{i,d} − avg_d)²                     │
+│ Phase 2: Single-Replacement                         │
+│ U_old(d) -> U_new(d) if Z↓ and forceUseAll stays OK │
 └────────────────────────┬────────────────────────────┘
-                         │ покращення? → повернутись до Фази 1
+                         │ improvement? -> back to Phase 1
                          ▼
 ┌─────────────────────────────────────────────────────┐
-│  Фаза 3: Same-DOW Resolution (Карма)                │
-│  Пошук back-to-back (gap=7д, той самий DOW)         │
-│  → парний своп; використовує накопичений Load 3міс  │
+│ Phase 3: Same-DOW Resolution                        │
+│ Search for back-to-back same DOW assignments        │
+│ and resolve them through objective-improving swaps  │
 └────────────────────────┬────────────────────────────┘
-                         │ покращення? → повернутись до Фази 1
+                         │ improvement? -> back to Phase 1
                          ▼
-                    Стабільне Z
+                      Stable Z
 ```
 
-### Умова допустимості свопу
+### Swap acceptance rule
 
-Кожен своп перевіряється на дотримання жорстких обмежень:
+Each swap must satisfy:
 
-- `isHardEligible(u, d')` — боєць доступний на нову дату
-- не порушує `minRestDays`
-- не порушує несумісні пари
+- `isHardEligible(u, d')` - the user is available on the new date
+- no `minRestDays` violation
+- no incompatible pair violation
 
-Своп приймається **тільки** при строгому покращенні:
-$Z_{\text{new}} < Z_{\text{old}} - \varepsilon$, де $\varepsilon = 10^{-9}$.
+The swap is accepted **only** on strict improvement:
+$Z_{\text{new}} < Z_{\text{old}} - \varepsilon$, where $\varepsilon = 10^{-9}$.
 
 ---
 
-## 13. Відпустки, відрядження та статуси
+## 13. Vacations, trips, and statuses
 
-### Типи статусів
+### Status types
 
-| Статус     | Блокування                       | Опис                                  |
-| ---------- | -------------------------------- | ------------------------------------- |
-| `VACATION` | STATUS_BUSY `[from, to]`         | Відпустка — повна блокування          |
-| `SICK`     | STATUS_BUSY `[from, to]`         | Лікарняний — повна блокування         |
-| `ABSENT`   | STATUS_BUSY `[from, to]`         | Відсутність — повна блокування        |
-| `TRIP`     | STATUS_BUSY `[from, to]` + буфер | Відрядження + дні відпочинку до/після |
-| `OTHER`    | STATUS_BUSY (якщо є дати)        | Інший статус                          |
+| Status     | Blocking behavior                 | Description                               |
+| ---------- | --------------------------------- | ----------------------------------------- |
+| `VACATION` | STATUS_BUSY `[from, to]`          | Full vacation block                       |
+| `SICK`     | STATUS_BUSY `[from, to]`          | Full sick leave block                     |
+| `ABSENT`   | STATUS_BUSY `[from, to]`          | Full absence block                        |
+| `TRIP`     | STATUS_BUSY `[from, to]` + buffer | Trip plus optional rest days before/after |
+| `OTHER`    | STATUS_BUSY (if dates are set)    | Other custom status                       |
 
-### Механізм restBefore / restAfter
+### restBefore / restAfter
 
-Навколо кожного статусного періоду можна налаштувати **буферні дні відпочинку**:
+Each status period may define **buffer rest days**:
 
-```
-         restBefore      Статусний період       restAfter
+```text
+         restBefore       Status period          restAfter
     ┌─────────┐  ┌──────────────────────────┐  ┌─────────┐
-    │  1 день │  │  period.from … period.to │  │  1 день │
+    │  1 day  │  │  period.from .. period.to │  │  1 day │
     └─────────┘  └──────────────────────────┘  └─────────┘
-    НЕДОСТУПНИЙ          STATUS_BUSY            НЕДОСТУПНИЙ
+    UNAVAILABLE        STATUS_BUSY               UNAVAILABLE
 ```
 
-- **`restBeforeStatus`** — день перед початком статусу → `PRE_STATUS_DAY`
-- **`restAfterStatus`** — день після закінчення статусу → `REST_DAY`
-- Пріоритет: per-period налаштування > per-user налаштування
+- **`restBeforeStatus`** - the day before the period starts -> `PRE_STATUS_DAY`
+- **`restAfterStatus`** - the day after the period ends -> `REST_DAY`
+- Priority: per-period configuration > per-user configuration
 
-Ці дні є **жорсткими блокуваннями** і враховуються у формулі `daysActive` — боєць не отримує
-«штрафу» за нагін після повернення.
+These days are treated as **hard blocks** and are subtracted from `daysActive`, so users are not
+penalized with catch-up load after returning.
 
-### Компенсаційна пам'ять
+### Compensation memory
 
-Коли боєць пропускає важкі зміни (наприклад, суботи) через TRIP, система **автоматично**
-запам'ятовує це через:
+When a user misses hard or rare days (for example Saturdays) because of TRIP, the system
+**automatically** remembers that through:
 
-1. **DOW Fairness Deficit** — персональний дефіцит дня тижня: якщо суботи «запущені», наступного
-   разу боєць отримає пріоритет на суботу
+1. **DOW Fairness Deficit** - personal weekday deficit increases the priority for that weekday later
+2. **DOW SSE Objective** - assigning the user on the missed weekday reduces SSE and raises priority
+3. **Exponential recency penalty** (`getSameDowPenalty`)
 
-2. **DOW SSE Objective** — при малому `count_Sat` у бійця його призначення у суботу мінімізує SSE →
-   підвищений пріоритет
+| Days since last assignment on this DOW | Penalty |
+| -------------------------------------- | ------- |
+| <= 7 days                              | 100     |
+| <= 14 days                             | 25      |
+| <= 21 days                             | 6.25    |
+| > 21 days                              | 0       |
 
-3. **Експоненціальний штраф давності** (`getSameDowPenalty`):
-
-| Днів з останнього призначення на цей DOW | Штраф |
-| ---------------------------------------- | ----- |
-| ≤ 7 днів                                 | 100   |
-| ≤ 14 днів                                | 25    |
-| ≤ 21 дня                                 | 6.25  |
-| > 21 дня                                 | 0     |
-
-> Якщо відрядження тривало 3 тижні — штраф = 0 → підвищений пріоритет. **Компенсаційна пам'ять** —
-> це емерджентна властивість системи, а не окремий механізм.
+This **compensation memory** is an emergent property of the scoring system, not a separate feature.
 
 ---
 
-## 14. Система карми (debt / owedDays)
+## 14. Karma system (debt / owedDays)
 
-**Карма** дозволяє відстежувати «борги» бійців та відновити справедливість після нерегулярних
-ситуацій.
+**Karma** tracks user debt and restores fairness after irregular events.
 
-### Поля
+### Fields
 
-| Поле                           | Опис                                                   |
-| ------------------------------ | ------------------------------------------------------ |
-| `debt: number`                 | Загальний борг: `< 0` — боєць «должен» системі нарядів |
-| `owedDays: Record<DOW, count>` | Борг по конкретному дню тижня                          |
+| Field                          | Description                                    |
+| ------------------------------ | ---------------------------------------------- |
+| `debt: number`                 | Overall debt: `< 0` means the user owes duties |
+| `owedDays: Record<DOW, count>` | Debt for a specific weekday                    |
 
-### Як змінюється debt
+### How debt changes
 
-| Подія                                | Зміна                                     |
-| ------------------------------------ | ----------------------------------------- |
-| Знятий з наряду (`reason='request'`) | `debt -= dayWeight`, `owedDays[dayIdx]++` |
-| Знятий з наряду (`reason='work'`)    | Карма не змінюється                       |
-| Призначений авто на «свій» день      | `owedDays[dayIdx]--`, `debt += weight`    |
-| Перенесений на важчий день           | `debt += (toWeight - fromWeight)`         |
-| Ручне скидання боргу                 | `debt = 0`                                |
+| Event                                  | Change                                    |
+| -------------------------------------- | ----------------------------------------- |
+| Removed from duty (`reason='request'`) | `debt -= dayWeight`, `owedDays[dayIdx]++` |
+| Removed from duty (`reason='work'`)    | Karma does not change                     |
+| Auto-assigned on the owed weekday      | `owedDays[dayIdx]--`, `debt += weight`    |
+| Moved to a heavier weekday             | `debt += (toWeight - fromWeight)`         |
+| Manual debt reset                      | `debt = 0`                                |
 
-> **Обмеження:** `debt` обмежений знизу значенням `-maxDebt`.
+> **Limit:** `debt` is capped from below by `-maxDebt`.
 
-### Вплив на планувальник
+### How it affects the scheduler
 
-- **Пріоритет у компараторі:** боржники отримують пріоритет при `respectOwedDays = true`
-- **Розширений тижневий ліміт:** при `allowDebtUsersExtraWeeklyAssignments = true` боржники можуть
-  чергувати частіше (до `debtUsersWeeklyLimit` нарядів на тиждень)
-- **Прискорене погашення:** `prioritizeFasterDebtRepayment = true` → ще вищий пріоритет
+- **Comparator priority:** debt users receive priority when `respectOwedDays = true`
+- **Extended weekly cap:** with `allowDebtUsersExtraWeeklyAssignments = true`, debt users may serve
+  more frequently (up to `debtUsersWeeklyLimit` duties per week)
+- **Faster repayment:** `prioritizeFasterDebtRepayment = true` raises their priority further
 
 ---
 
-## 15. Load Rate та Anti-Catch-Up
+## 15. Load Rate and Anti-Catch-Up
 
-### Формула Load Rate
+### Load Rate formula
 
 $$
 \text{LoadRate}(u) = \frac{\text{totalAssignments}(u)}{\text{daysActive}(u)}
 $$
 
-де `daysActive` = кількість днів від `dateAddedToAuto` до сьогодні **мінус** дні недоступності
-(VACATION, SICK, TRIP, ABSENT, DAY_BLOCKED, PRE_STATUS_DAY, REST_DAY).
+where `daysActive` is the number of days from `dateAddedToAuto` until today **minus** unavailable
+days (VACATION, SICK, TRIP, ABSENT, DAY_BLOCKED, PRE_STATUS_DAY, REST_DAY).
 
-### Проблема «нагону» та її вирішення
+### The catch-up problem and the solution
 
-**Без Anti-Catch-Up (стара логіка):**
+**Without Anti-Catch-Up:**
 
-```
-Боєць повернувся після 14-денної відпустки.
-daysActive = 30 (календарних)
+```text
+The user returns after a 14-day vacation.
+daysActive = 30 (calendar days)
 totalAssignments = 2
-LoadRate = 2/30 = 0.067 — «недопрацював»!
-→ Система перевантажувала його, щоб «нагнати»
+LoadRate = 2/30 = 0.067 -> looks "underused"
+→ The system overloads the user to "catch up"
 ```
 
-**Anti-Catch-Up:**
+**With Anti-Catch-Up:**
 
-```
-daysActive = 30 − 14 (відпустка) = 16 (доступних днів)
+```text
+daysActive = 30 - 14 (vacation) = 16 available days
 totalAssignments = 2
-LoadRate = 2/16 = 0.125 — справедливо порівнюється з колегами
-→ Жодного «нагону», навантаження пропорційне доступності
+LoadRate = 2/16 = 0.125 -> fairly compared against others
+→ No artificial catch-up, load stays proportional to availability
 ```
 
-**Висновок:** після відпустки, відрядження, лікарняного боєць **не отримує підвищеної кількості
-нарядів** для «відпрацювання» пропущеного. Він повертається у загальний ротаційний цикл нарівні з
-усіма.
+After vacation, trip, or sick leave, a user **does not receive extra duties** just to "make up" for
+lost time. They simply return to the normal rotation.
 
 ---
 
-## 16. Ваги днів тижня
+## 16. Weekday weights
 
-За замовчуванням:
+Default weights:
 
 ```typescript
 DayWeights = {
-  0: 1.5, // Нд
-  1: 1.0, // Пн
-  2: 1.0, // Вт
-  3: 1.0, // Ср
-  4: 1.0, // Чт
-  5: 1.5, // Пт
-  6: 2.0, // Сб
+  0: 1.5, // Sun
+  1: 1.0, // Mon
+  2: 1.0, // Tue
+  3: 1.0, // Wed
+  4: 1.0, // Thu
+  5: 1.5, // Fri
+  6: 2.0, // Sat
 };
 ```
 
-Ваги використовуються для розрахунку **зваженого навантаження**:
+Weights are used to calculate **weighted load**:
 `weightedLoad = Σ(dayWeight[dow] × assigned_on_dow)`.
 
-### Коли ваги перестають впливати
+### When weights stop affecting relative balance
 
-При досягненні ідеального паттерну **1-1-1-1-1-1-1** (рівно по одному наряду на кожен день тижня)
-ваги **не впливають на відносний баланс**:
+At the ideal **1-1-1-1-1-1-1** pattern (exactly one duty on each weekday per user), weights no
+longer affect the relative balance:
 
-```
-Якщо кожен боєць має рівно по 1 наряду на кожен DOW:
+```text
+If every user has exactly 1 duty on each DOW:
   weightedLoad(A) = weightedLoad(B) = Σ(all weights) = const
-  → Різниця = 0, незалежно від ваг
+  -> Difference = 0, regardless of the chosen weights
 ```
 
-Ваги **мають значення** лише коли ідеальний баланс недосяжний (мало бійців, багато нарядів, часті
-відсутності).
+Weights matter only when the ideal balance is impossible (small pool, many duties, frequent
+absence).
 
 ---
 
-## 17. Налаштування логіки (AutoScheduleOptions)
+## 17. Logic settings (AutoScheduleOptions)
 
-Центральний конфіг алгоритму. Всі параметри використовуються у `autoFillSchedule` та
-`buildUserComparator`:
+Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 
-| Параметр                               | Що робить                                                     |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `avoidConsecutiveDays`                 | Не ставити підряд (`filterByRestDays`)                        |
-| `minRestDays`                          | Мінімум днів відпочинку (1 = не підряд, 2 = через день)       |
-| `respectOwedDays`                      | Пріоритет бійцям з `owedDays` для цього дня                   |
-| `considerLoad`                         | Враховувати навантаження при сортуванні                       |
-| `aggressiveLoadBalancing`              | Примусово переставляти при великому розриві навантаження      |
-| `aggressiveLoadBalancingThreshold`     | Поріг розриву для агресивного балансування (0.2 = 20%)        |
-| `limitOneDutyPerWeekWhenSevenPlus`     | 1 наряд на тиждень при 7+ доступних бійцях                    |
-| `allowDebtUsersExtraWeeklyAssignments` | Боржники можуть чергувати частіше                             |
-| `debtUsersWeeklyLimit`                 | Максимум нарядів на тиждень для боржників (1–4)               |
-| `prioritizeFasterDebtRepayment`        | Прискорене погашення боргу                                    |
-| `forceUseAllWhenFew`                   | При ≤7 бійців — використовувати всіх циклічно                 |
-| `ignoreHistoryInLogic`                 | Виключати `history`/`import` записи з розрахунку навантаження |
-
----
-
-## 18. Каскадний перерахунок
-
-При зміні бійця або розкладу записується `cascadeStartDate`. На панелі управління з'являється кнопка
-**Оптимізація**.
-
-При натисканні:
-
-1. Береться всі AUTO-записи починаючи з `cascadeStartDate`
-2. Видаляються з БД
-3. Запускається `autoFillSchedule` заново для цих дат
-4. Результат зберігається
-
-Ручні записи (`manual` / `replace` / `swap`) **не зачіпаються**.
+| Parameter                              | What it does                                                     |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `avoidConsecutiveDays`                 | Avoid adjacent duties (`filterByRestDays`)                       |
+| `minRestDays`                          | Minimum rest in days (1 = not back-to-back, 2 = every other day) |
+| `respectOwedDays`                      | Prioritize users with `owedDays` for the current weekday         |
+| `considerLoad`                         | Include load in sorting                                          |
+| `aggressiveLoadBalancing`              | Force balancing when load gaps become too large                  |
+| `aggressiveLoadBalancingThreshold`     | Gap threshold for aggressive balancing (0.2 = 20%)               |
+| `limitOneDutyPerWeekWhenSevenPlus`     | 1 duty per week when 7+ users are available                      |
+| `allowDebtUsersExtraWeeklyAssignments` | Debt users may serve more often                                  |
+| `debtUsersWeeklyLimit`                 | Maximum weekly duties for debt users (1-4)                       |
+| `prioritizeFasterDebtRepayment`        | Speed up debt repayment                                          |
+| `forceUseAllWhenFew`                   | With <=7 users, rotate through everyone                          |
+| `ignoreHistoryInLogic`                 | Exclude `history` / `import` entries from load calculations      |
 
 ---
 
-## 19. DecisionLog — кнопка «i»
+## 18. Cascade recalculation
 
-Кожен автоматично заповнений `ScheduleEntry` містить поле `decisionLog` з поясненням — **чому саме
-цей боєць** призначений на цю дату.
+When a user or schedule change happens, the system stores `cascadeStartDate`. The control panel then
+shows an **Optimization** button.
+
+When pressed:
+
+1. Take all AUTO entries starting from `cascadeStartDate`
+2. Remove them from the database
+3. Run `autoFillSchedule` again for those dates
+4. Save the new result
+
+Manual entries (`manual` / `replace` / `swap`) are **not affected**.
+
+---
+
+## 19. DecisionLog - the "i" button
+
+Each auto-generated `ScheduleEntry` contains a `decisionLog` field that explains **why this user**
+was assigned to this date.
 
 ```typescript
 interface DecisionLog {
-  userText: string;   // Людиночитабельний текст (українською)
+  userText: string; // Human-readable explanation
   debug: {
-    winningCriterion: string;       // "dowCount" | "loadRate" | ...
+    winningCriterion: string; // "dowCount" | "loadRate" | ...
     assignedUserId: number;
-    dowCount: number;               // Скільки разів цей DOW
-    dowSSE: number;                 // DOW fairness для цього дня
-    sameDowPenalty: number;         // 0 / 6.25 / 25 / 100
-    loadRate: number;               // Нормалізоване навантаження
-    waitDays: number;               // Дні з останнього наряду
-    weeklyCount: number;            // Нарядів цього тижня
+    dowCount: number;
+    dowSSE: number;
+    sameDowPenalty: number;
+    loadRate: number;
+    waitDays: number;
+    weeklyCount: number;
     poolSizes: { initial, afterHardEligible, afterRestDays, ... };
     alternatives: CandidateSnapshot[];
   };
 }
 ```
 
-Приклад `userText`:
+Example `userText`:
 
+```text
+Assigned on Wednesday because:
+• 1 Wednesday duty (group average: 1.4)
+• Last duty was 5 days ago
 ```
-Призначено на середу, бо:
-• 1 чергування у середу (середнє групи: 1.4)
-• Останнє чергування 5 дн. тому
-```
 
 ---
 
-## 20. Мультибаза (підрозділи)
+## 20. Multi-database (units)
 
-- Кожне підрозділення — **окрема IndexedDB** з власними бійцями, розкладом і налаштуваннями.
-- Метадані підрозділень зберігаються у `localStorage`.
-- Компонент **WorkspaceSelector** дозволяє перемикатися між підрозділеннями.
-- Форматах бекапу: `v7` — одна база; `v8` — всі бази + metadata.
-
----
-
-## 21. Експорт / Імпорт
-
-**Бекап** зберігається як JSON-файл. Підтримуються версії `v6`, `v7`, `v8`.
-
-| Версія | Вміст                                              |
-| ------ | -------------------------------------------------- |
-| `v7`   | Одна база (одне підрозділення)                     |
-| `v8`   | Всі бази (всі підрозділення) + metadata workspaces |
-
-**Індикація бекапу:** кнопка експорту пульсує червоним, якщо є незбережені зміни. Бекап-алерт
-з'являється якщо пройшло > 3 днів з останнього експорту.
-
-**Імпорт старого розкладу** — через кнопку `Імпорт` у вигляді тексту (парсинг у
-`importScheduleService.ts`).
+- Each unit is stored in a **separate IndexedDB database** with its own users, schedule, and
+  settings
+- Unit metadata is stored in `localStorage`
+- **WorkspaceSelector** allows switching between units
+- Backup formats: `v7` for a single database, `v8` for all databases plus workspace metadata
 
 ---
 
-## 22. Запуск і збірка
+## 21. Export / Import
 
-### Розробка
+Backups are stored as JSON files. Versions `v6`, `v7`, and `v8` are supported.
+
+| Version | Contents                                       |
+| ------- | ---------------------------------------------- |
+| `v7`    | One database (one unit)                        |
+| `v8`    | All databases (all units) + workspace metadata |
+
+**Backup indicator:** the export button pulses red when there are unsaved changes. A backup alert
+appears if more than 3 days have passed since the last export.
+
+**Legacy schedule import** is available through the `Import` button and is parsed by
+`importScheduleService.ts`.
+
+---
+
+## 22. Run and build
+
+### Development
 
 ```bash
 npm install
-npm run dev         # запуск dev-сервера (PWA)
+npm run dev
 ```
 
-### Тести
+### Tests
 
 ```bash
-npm run test                    # всі тести
-npx vitest run                  # одноразовий запуск
-npx tsc --noEmit                # перевірка TypeScript
+npm run test
+npx vitest run
+npx tsc --noEmit
 ```
 
-### Збірка
+### Build
 
 ```bash
-npm run build       # PWA-збірка в dist/
-./build.sh          # збірка + синхронізація версії
+npm run build
+./build.sh
 ```
 
-### Tauri (нативний десктопний)
+### Tauri (native desktop)
 
 ```bash
-npm run tauri dev   # розробка
-npm run tauri build # нативна збірка
+npm run tauri dev
+npm run tauri build
 ```
 
 ---
 
-## Схема загального потоку роботи
+## License
 
-```
-Користувач натискає «Заповнити прогалини»
-    ↓
-useScheduleActions.runFillGaps()
-    ↓
-pushHistory() → зберегти знімок для undo
-    ↓
-useAutoScheduler.fillGaps(dates)
-    ↓
-autoFillSchedule(dates, users, schedule, options, dayWeights)
-    ├── для кожної дати:
-    │   ├── побудувати пул (isUserAvailable)
-    │   ├── filterByRestDays / filterByWeeklyCap / filterByIncompatiblePairs
-    │   └── sortBy(buildUserComparator) → взяти першого
-    └── performSwapOptimization()
-        ├── Фаза 1: Pair-Exchange Swaps (конфлікти)
-        ├── Фаза 2: Single-Replacement (SSE-вирівнювання)
-        └── Фаза 3: Same-DOW Resolution (Карма)
-    ↓
-saveAutoSchedule(entries, dayWeights)
-    ├── db.schedule.put(entry)
-    └── repayOwedDay() для кожного призначеного
-    ↓
-logAction('AUTO_FILL', ...)
-    ↓
-refreshData() → перерисовка
-```
-
----
-
-## Ліцензія
-
-Дивіться [LICENSE](LICENSE).
+See [LICENSE](LICENSE).
