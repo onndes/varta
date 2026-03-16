@@ -3,79 +3,92 @@
 // Dark / Military: body class + data-bs-theme="dark" on <html> (Bootstrap 5.3).
 
 :root {
+  // Bootstrap core tokens for the light theme
+  --bs-body-bg: #eef3f7;
+  --bs-body-color: #1f2937;
+  --bs-secondary-color: #667085;
+  --bs-border-color: #d6dde6;
+  --bs-card-bg: rgba(255, 255, 255, 0.94);
+  --bs-card-border-color: #dbe3ec;
+  --bs-secondary-bg: #f5f8fb;
+  --bs-tertiary-bg: #f7fafd;
+  --bs-emphasis-color: #111827;
+  --bs-dark: #243447;
+  --bs-dark-rgb: 36, 52, 71;
+
   // Layout
-  --app-bg: #f8f9fa;
-  --app-container-bg: #ffffff;
-  --app-header-bg: #ffffff;
-  --app-header-border: #dee2e6;
+  --app-bg: #eef3f7;
+  --app-container-bg: #f7fafc;
+  --app-header-bg: rgba(255, 255, 255, 0.82);
+  --app-header-border: #dbe3ec;
 
   // Table structure
-  --app-table-header-bg: #f8f9fa;
-  --app-table-weekend-bg: #e9ecef;
-  --app-table-border: #e0e0e0;
+  --app-table-header-bg: #f2f6fa;
+  --app-table-weekend-bg: #e8eef5;
+  --app-table-border: #d5dee8;
 
   // Schedule cell states
-  --app-cell-hover: #e3f2fd;
+  --app-cell-hover: #e7f0ff;
 
-  --app-cell-assigned-bg: #e8f5e9;
-  --app-cell-assigned-color: #1b5e20;
-  --app-cell-assigned-border: #a5d6a7;
+  --app-cell-assigned-bg: #e6f4ea;
+  --app-cell-assigned-color: #1f5f3b;
+  --app-cell-assigned-border: #8fcda4;
 
-  --app-cell-future-bg: #cff4fc;
-  --app-cell-future-color: #055160;
-  --app-cell-future-border: #9eeaf9;
+  --app-cell-future-bg: #e2f1fd;
+  --app-cell-future-color: #17597f;
+  --app-cell-future-border: #9dc6ea;
 
-  --app-cell-conflict-bg: #f8d7da;
-  --app-cell-conflict-color: #842029;
-  --app-cell-conflict-border: #f5c2c7;
+  --app-cell-conflict-bg: #fae7ea;
+  --app-cell-conflict-color: #972b3a;
+  --app-cell-conflict-border: #efb3bc;
 
-  --app-cell-past-locked-bg: #f0f0f0;
-  --app-cell-past-locked-color: #999999;
+  --app-cell-past-locked-bg: #f2f5f8;
+  --app-cell-past-locked-color: #8c96a3;
 
-  --app-cell-assigned-past-bg: #e6f4ea;
-  --app-cell-assigned-past-color: #2f6b3a;
-  --app-cell-assigned-past-border: #b9e0c2;
+  --app-cell-assigned-past-bg: #edf7f0;
+  --app-cell-assigned-past-color: #497155;
+  --app-cell-assigned-past-border: #c1dfca;
 
-  --app-cell-locked-bg: #fff9e6;
-  --app-cell-locked-color: #7a5c00;
-  --app-cell-locked-border: #ffc107;
+  --app-cell-locked-bg: #fff5d9;
+  --app-cell-locked-color: #7d5f0a;
+  --app-cell-locked-border: #e7b63a;
 
-  --app-cell-unavailable-bg: #f5f5f5;
-  --app-cell-unavailable-color: #888888;
+  --app-cell-unavailable-bg: #f4f6f8;
+  --app-cell-unavailable-color: #8892a0;
 
-  --app-cell-history-bg1: #e0e7ff;
-  --app-cell-history-bg2: #eef1ff;
-  --app-cell-history-color: #3730a3;
-  --app-cell-history-border: #818cf8;
+  --app-cell-history-bg1: #e5ebff;
+  --app-cell-history-bg2: #f1f4ff;
+  --app-cell-history-color: #3c49b7;
+  --app-cell-history-border: #8f9ef5;
 
-  --app-user-inactive-bg: #f8f9fa;
-  --app-loading-bg: rgba(255, 255, 255, 0.9);
+  --app-user-inactive-bg: #f5f7fa;
+  --app-loading-bg: rgba(247, 250, 252, 0.92);
 
   // Week navigator
-  --app-week-nav-bg: #f8f9fa;
+  --app-week-nav-bg: #f4f7fb;
   --app-week-square-bg: #ffffff;
-  --app-week-square-border: #dee2e6;
-  --app-week-square-color: #6c757d;
-  --app-week-square-has-schedule-bg: #e8f5e9;
-  --app-week-square-has-schedule-border: #28a745;
-  --app-week-square-has-schedule-color: #198754;
-  --app-week-square-selected-bg: #fff1c2;
-  --app-week-square-selected-border: #f0ad00;
-  --app-week-square-selected-color: #7a5600;
-  --app-week-square-past-bg: #e9ecef;
-  --app-week-square-past-border: #ced4da;
-  --app-week-square-past-color: #adb5bd;
-  --app-week-square-past-schedule-bg: #d4e7d4;
-  --app-week-square-past-schedule-border: #a6b9a5;
-  --app-week-square-past-schedule-color: #7b8d7b;
+  --app-week-square-border: #d7e0ea;
+  --app-week-square-color: #627082;
+  --app-week-square-has-schedule-bg: #e7f6ec;
+  --app-week-square-has-schedule-border: #4aab6f;
+  --app-week-square-has-schedule-color: #28784b;
+  --app-week-square-selected-bg: #e9f0ff;
+  --app-week-square-selected-border: #5f87ef;
+  --app-week-square-selected-color: #224fba;
+  --app-week-square-past-bg: #edf1f5;
+  --app-week-square-past-border: #d4dce5;
+  --app-week-square-past-color: #9ca6b4;
+  --app-week-square-past-schedule-bg: #dceee0;
+  --app-week-square-past-schedule-border: #b0cfb6;
+  --app-week-square-past-schedule-color: #68866d;
 
   // Sidebar
   --app-sidebar-width: 200px;
   --app-topbar-height: 56px;
-  --app-sidebar-bg: #f1f3f5;
-  --app-sidebar-hover: rgba(0, 0, 0, 0.04);
-  --app-sidebar-active-bg: rgba(13, 110, 253, 0.1);
-  --app-sidebar-active-color: #0d6efd;
+  --app-sidebar-bg: #f6f8fb;
+  --app-sidebar-hover: rgba(57, 91, 145, 0.06);
+  --app-sidebar-active-bg: #e6efff;
+  --app-sidebar-active-color: #1a5ede;
 }
 
 // ─── Dark Theme ───────────────────────────────────────────────────────────────
@@ -382,9 +395,9 @@ html[data-bs-theme='dark'] {
 // ── Stats filter buttons (base / light theme) ───────────────────────────────
 .stats-filter-btn {
   min-width: 130px;
-  border: 1px solid #ced4da;
+  border: 1px solid #ccd5e0;
   background-color: transparent;
-  color: #6c757d;
+  color: #607080;
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
@@ -392,13 +405,110 @@ html[data-bs-theme='dark'] {
 }
 
 .stats-filter-btn:hover {
-  background-color: #f3f5f7;
-  border-color: #c3c9d0;
-  color: #495057;
+  background-color: #f5f8fc;
+  border-color: #b8c6d4;
+  color: #334155;
 }
 
 .stats-filter-btn.is-on {
-  background-color: #e9ecef;
-  border-color: #c8ced6;
-  color: #212529;
+  background-color: #e7eefc;
+  border-color: #9db3d6;
+  color: #1d4f91;
+}
+
+body.theme-light {
+  .card {
+    background-color: var(--bs-card-bg);
+    border-color: var(--bs-card-border-color);
+    box-shadow: 0 10px 28px rgba(30, 41, 59, 0.06);
+  }
+
+  .card-header {
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafd 100%) !important;
+    border-bottom: 1px solid var(--bs-border-color) !important;
+  }
+
+  .dropdown-menu {
+    border-color: var(--bs-border-color);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  }
+
+  .btn-outline-secondary {
+    background-color: rgba(255, 255, 255, 0.82);
+    border-color: #c6d1dd;
+    color: #556270;
+  }
+
+  .btn-outline-secondary:hover {
+    background-color: #f4f8fc;
+    border-color: #9fb1c7;
+    color: #1f2937;
+  }
+
+  .btn-dark {
+    background-color: #243447;
+    border-color: #243447;
+    color: #f8fafc;
+  }
+
+  .btn-dark:hover {
+    background-color: #31475f;
+    border-color: #31475f;
+    color: #ffffff;
+  }
+
+  .app-sidebar__brand-icon {
+    background: linear-gradient(180deg, #111827 0%, #1f2937 100%);
+    box-shadow: 0 8px 20px rgba(17, 24, 39, 0.16);
+  }
+
+  .app-sidebar__item--active {
+    box-shadow:
+      inset 0 0 0 1px rgba(48, 93, 171, 0.14),
+      0 6px 18px rgba(48, 93, 171, 0.08);
+  }
+
+  .app-sidebar__collapse-btn {
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  }
+
+  .users-status-badge {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .users-status-badge--active {
+    background: #238a5b;
+    border-color: #62c38a;
+    color: #f4fff8;
+  }
+
+  .users-status-badge--trip {
+    background: #1b8097;
+    border-color: #5ab8cd;
+    color: #f1fbff;
+  }
+
+  .users-status-badge--vacation {
+    background: #ba901f;
+    border-color: #e2bf63;
+    color: #fff9ec;
+  }
+
+  .users-status-badge--sick {
+    background: #bf4554;
+    border-color: #de7581;
+    color: #fffafb;
+  }
+
+  .users-status-badge--absent {
+    background: #6b7684;
+    border-color: #97a3b1;
+    color: #f7f9fb;
+  }
+
+  .users-status-badge--inactive {
+    background: #7a8694;
+    border-color: #a7b2be;
+    color: #f7f9fb;
+  }
 }
