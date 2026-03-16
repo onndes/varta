@@ -1,9 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { db } from '../db/db';
-import { RANKS } from '../utils/constants';
-import type { User, UserStatusPeriod } from '../types';
+import { RANKS, DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
+import type { User, UserStatusPeriod, ScheduleEntry, DayWeights } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
 import { useDialog } from './useDialog';
+import * as autoScheduler from '../services/autoScheduler';
+import { countUserDaysOfWeek } from '../services/scheduleService';
+import { computeUserLoadRate, calculateUserFairnessIndex } from '../services/autoScheduler';
+import { daysSinceLastSameDowAssignment } from '../services/autoScheduler/helpers';
+
+interface ScheduleStatsRow {
+  name: string;
+  total: number;
+  dow: number[];
+  repeatDow: number;
+  fairness: number;
+}
 
 interface DevToolsProps {
   refreshData: () => Promise<void>;
@@ -16,6 +28,9 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [newAddedDate, setNewAddedDate] = useState<string>(toLocalISO(new Date()));
   const [isLoading, setIsLoading] = useState(false);
+  const [genWeeks, setGenWeeks] = useState(4);
+  const [scheduleStats, setScheduleStats] = useState<ScheduleStatsRow[] | null>(null);
+  const [chaosLog, setChaosLog] = useState<string[]>([]);
 
   const loadUsers = useCallback(async () => {
     const all = await db.users.toArray();
@@ -27,7 +42,7 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
   }, [selectedUserId]);
 
   useEffect(() => {
-    loadUsers(); // eslint-disable-line react-hooks/set-state-in-effect -- Initial data fetch on mount
+    loadUsers();
   }, [loadUsers]);
 
   const handleGenerate = async () => {
@@ -488,6 +503,215 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
       await db.users.bulkAdd(users6 as User[]);
     });
 
+  // ── Block 1: Schedule generator ─────────────────────────────────────────
+
+  const handleGenerateSchedule = async () => {
+    setIsLoading(true);
+    try {
+      const currentUsers = await db.users.toArray();
+      if (currentUsers.length === 0) {
+        await showAlert('Спочатку завантажте сценарій');
+        return;
+      }
+      await db.schedule.clear();
+      const allDates: string[] = [];
+      const cursor = new Date();
+      for (let i = 0; i < genWeeks * 7; i++) {
+        allDates.push(toLocalISO(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      const dayWeights: DayWeights = { 0: 1.5, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.5, 6: 2.0 };
+      const currentSchedule: Record<string, ScheduleEntry> = {};
+      for (let w = 0; w < genWeeks; w++) {
+        const weekDates = allDates.slice(w * 7, w * 7 + 7);
+        const updates = await autoScheduler.autoFillSchedule(
+          weekDates,
+          currentUsers,
+          currentSchedule,
+          dayWeights,
+          1,
+          DEFAULT_AUTO_SCHEDULE_OPTIONS,
+          false
+        );
+        await autoScheduler.saveAutoSchedule(updates, dayWeights);
+        for (const e of updates) currentSchedule[e.date] = e;
+      }
+      const todayStr = toLocalISO(new Date());
+      const rows: ScheduleStatsRow[] = currentUsers
+        .filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto)
+        .map((u) => {
+          const dowCounts = countUserDaysOfWeek(u.id!, currentSchedule);
+          const dow = [0, 1, 2, 3, 4, 5, 6].map((d) => dowCounts[d] || 0);
+          const total = dow.reduce((a, b) => a + b, 0);
+          const sortedDates = Object.keys(currentSchedule)
+            .filter((d) => {
+              const ids = currentSchedule[d].userId;
+              return Array.isArray(ids) ? ids.includes(u.id!) : ids === u.id;
+            })
+            .sort();
+          let repeatDow = 0;
+          for (let i = 1; i < sortedDates.length; i++) {
+            const d1 = new Date(sortedDates[i - 1]);
+            const d2 = new Date(sortedDates[i]);
+            const gap = (d2.getTime() - d1.getTime()) / 86400000;
+            if (gap === 7 && d1.getDay() === d2.getDay()) repeatDow++;
+          }
+          void daysSinceLastSameDowAssignment; // imported for future use
+          void computeUserLoadRate;
+          const fairness = calculateUserFairnessIndex(
+            u.id!,
+            currentUsers,
+            currentSchedule,
+            dayWeights,
+            todayStr
+          );
+          const parts = u.name.split(' ');
+          return { name: parts[0] + ' ' + (parts[1] || ''), total, dow, repeatDow, fairness };
+        })
+        .sort((a, b) => b.total - a.total);
+      setScheduleStats(rows);
+      await refreshData();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Block 2: Quick user status editor ────────────────────────────────────
+
+  const applyUserPatch = async (patch: Partial<User>) => {
+    if (!selectedUserId) return;
+    await db.users.update(selectedUserId, patch);
+    await refreshData();
+    await loadUsers();
+  };
+
+  const handleQuickVacation = async (days: number) => {
+    const user = await db.users.get(selectedUserId as number);
+    if (!user) return;
+    const period: UserStatusPeriod = {
+      status: 'VACATION',
+      from: relDate(0),
+      to: relDate(days),
+      restBefore: false,
+      restAfter: true,
+    };
+    await applyUserPatch({ statusPeriods: [...(user.statusPeriods || []), period] });
+  };
+
+  const handleQuickTrip = async (days: number) => {
+    const user = await db.users.get(selectedUserId as number);
+    if (!user) return;
+    const period: UserStatusPeriod = {
+      status: 'TRIP',
+      from: relDate(0),
+      to: relDate(days),
+      restBefore: false,
+      restAfter: false,
+    };
+    await applyUserPatch({ statusPeriods: [...(user.statusPeriods || []), period] });
+  };
+
+  const handleQuickSick = async (days: number) => {
+    const user = await db.users.get(selectedUserId as number);
+    if (!user) return;
+    const period: UserStatusPeriod = {
+      status: 'SICK',
+      from: relDate(0),
+      to: relDate(days),
+      restBefore: false,
+      restAfter: false,
+    };
+    await applyUserPatch({ statusPeriods: [...(user.statusPeriods || []), period] });
+  };
+
+  const handleQuickBlockWeekend = () => applyUserPatch({ blockedDays: [6, 7] });
+
+  const handleQuickReset = () => applyUserPatch({ statusPeriods: [], blockedDays: undefined });
+
+  // ── Block 3: Chaos mode ───────────────────────────────────────────────────
+
+  const DOW_NAMES_UA = [
+    'неділю',
+    'понеділок',
+    'вівторок',
+    'середу',
+    'четвер',
+    'п\u2019ятницю',
+    'суботу',
+  ];
+
+  const handleChaos = async () => {
+    const all = await db.users.toArray();
+    const active = all.filter((u) => u.isActive && !u.isExtra);
+    if (active.length < 2) {
+      await showAlert('Потрібно мінімум 2 бійці');
+      return;
+    }
+    const log: string[] = [];
+    for (const user of active) {
+      const patch: Partial<User> = {};
+      const periods: UserStatusPeriod[] = [...(user.statusPeriods || [])];
+      const r = Math.random;
+      if (r() < 0.2) {
+        const start = Math.floor(r() * 10) + 1;
+        const dur = Math.floor(r() * 12) + 3;
+        periods.push({
+          status: 'VACATION',
+          from: relDate(start),
+          to: relDate(start + dur),
+          restBefore: false,
+          restAfter: true,
+        });
+        log.push(
+          `${user.name.split(' ')[0]}: відпустка з ${relDate(start)} по ${relDate(start + dur)}`
+        );
+      }
+      if (r() < 0.15) {
+        const start = Math.floor(r() * 7);
+        const dur = Math.floor(r() * 6) + 2;
+        periods.push({
+          status: 'TRIP',
+          from: relDate(start),
+          to: relDate(start + dur),
+          restBefore: false,
+          restAfter: false,
+        });
+        log.push(
+          `${user.name.split(' ')[0]}: відрядження з ${relDate(start)} по ${relDate(start + dur)}`
+        );
+      }
+      if (r() < 0.1) {
+        const dur = Math.floor(r() * 5) + 1;
+        periods.push({
+          status: 'SICK',
+          from: relDate(0),
+          to: relDate(dur),
+          restBefore: false,
+          restAfter: false,
+        });
+        log.push(`${user.name.split(' ')[0]}: лікарняний до ${relDate(dur)}`);
+      }
+      if (periods.length !== (user.statusPeriods || []).length) patch.statusPeriods = periods;
+      if (r() < 0.15) {
+        const dow = Math.floor(r() * 7) + 1;
+        const blocked = [...(user.blockedDays || []), dow];
+        patch.blockedDays = [...new Set(blocked)];
+        log.push(`${user.name.split(' ')[0]}: заблоковано ${DOW_NAMES_UA[dow % 7]}`);
+      }
+      if (r() < 0.1) {
+        const newDebt = -(Math.random() * 3);
+        patch.debt = parseFloat(newDebt.toFixed(1));
+        log.push(`${user.name.split(' ')[0]}: борг ${patch.debt}`);
+      }
+      if (Object.keys(patch).length > 0) {
+        await db.users.update(user.id!, patch);
+      }
+    }
+    setChaosLog(log.length > 0 ? log : ['Нічого не змінилося (не пощастило з кубиком)']);
+    await refreshData();
+    await loadUsers();
+  };
+
   return (
     <div className="row justify-content-center">
       <div className="col-md-6 col-lg-7">
@@ -620,6 +844,184 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
               </button>
               <div className="small text-muted mt-1">6 осіб з різними боргами та owedDays</div>
             </div>
+
+            <hr />
+            {/* ── Block 1: Schedule generator ── */}
+            <h6 className="fw-bold">Генератор графіка</h6>
+            <div className="small text-muted mb-2">
+              Генерує розклад від сьогодні на вказану кількість тижнів. Імітує щотижневе натискання
+              кнопки «Генерація тижня».
+            </div>
+            <div className="input-group input-group-sm mb-2">
+              <span className="input-group-text">Тижнів:</span>
+              <input
+                type="number"
+                className="form-control"
+                min={1}
+                max={52}
+                value={genWeeks}
+                onChange={(e) => setGenWeeks(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+              <button
+                className="btn btn-outline-success"
+                onClick={handleGenerateSchedule}
+                disabled={isLoading}
+              >
+                ▶ Згенерувати та показати статистику
+              </button>
+            </div>
+            {scheduleStats !== null &&
+              (() => {
+                const totalAssigned = scheduleStats.reduce((s, r) => s + r.total, 0);
+                return (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table table-sm table-bordered small mt-2">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Боєць</th>
+                          <th>Всього</th>
+                          <th>Нд</th>
+                          <th>Пн</th>
+                          <th>Вт</th>
+                          <th>Ср</th>
+                          <th>Чт</th>
+                          <th>Пт</th>
+                          <th>Сб</th>
+                          <th>Повтори</th>
+                          <th>Fairness</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scheduleStats.map((row, i) => {
+                          const minDow = Math.min(...row.dow);
+                          const maxDow = Math.max(...row.dow);
+                          const fairPct = Math.round(row.fairness * 100);
+                          const fairCls =
+                            fairPct >= 85
+                              ? 'text-success'
+                              : fairPct >= 70
+                                ? 'text-warning'
+                                : 'text-danger';
+                          return (
+                            <tr key={i}>
+                              <td>{row.name}</td>
+                              <td className="fw-bold">{row.total}</td>
+                              {row.dow.map((cnt, di) => {
+                                const isMin = cnt === minDow;
+                                const isBad = cnt === maxDow && maxDow > minDow + 1;
+                                return (
+                                  <td
+                                    key={di}
+                                    style={{
+                                      color: isBad ? '#dc3545' : isMin ? '#198754' : undefined,
+                                    }}
+                                  >
+                                    {cnt}
+                                  </td>
+                                );
+                              })}
+                              <td>
+                                {row.repeatDow > 0 ? (
+                                  <span className="badge bg-danger">{row.repeatDow}</span>
+                                ) : (
+                                  <span className="text-muted">0</span>
+                                )}
+                              </td>
+                              <td className={fairCls}>{fairPct}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="small text-muted">Всього призначено: {totalAssigned}</div>
+                  </div>
+                );
+              })()}
+
+            <hr />
+            {/* ── Block 2: Quick user status editor ── */}
+            <h6 className="fw-bold">Швидкий редактор бійця</h6>
+            <div className="small text-muted mb-2">
+              Додати статус або заблокувати день без відкриття модалки.
+            </div>
+            <div className="mb-2">
+              <select
+                className="form-select form-select-sm mb-2"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value ? Number(e.target.value) : '')}
+              >
+                {users.length === 0 ? (
+                  <option value="">Немає користувачів</option>
+                ) : (
+                  users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className="d-flex flex-wrap gap-1">
+                <button
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => handleQuickVacation(7)}
+                  disabled={isLoading || !selectedUserId}
+                >
+                  🏖 Відпустка 7д
+                </button>
+                <button
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => handleQuickTrip(5)}
+                  disabled={isLoading || !selectedUserId}
+                >
+                  ✈ Відрядження 5д
+                </button>
+                <button
+                  className="btn btn-outline-warning btn-sm"
+                  onClick={() => handleQuickSick(3)}
+                  disabled={isLoading || !selectedUserId}
+                >
+                  🤒 Лікарняний 3д
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={handleQuickBlockWeekend}
+                  disabled={isLoading || !selectedUserId}
+                >
+                  🚫 Блок вихідних
+                </button>
+                <button
+                  className="btn btn-outline-danger btn-sm"
+                  onClick={handleQuickReset}
+                  disabled={isLoading || !selectedUserId}
+                >
+                  ↺ Скинути статуси
+                </button>
+              </div>
+            </div>
+
+            <hr />
+            {/* ── Block 3: Chaos mode ── */}
+            <h6 className="fw-bold">Хаос-режим 🎲</h6>
+            <div className="small text-muted mb-2">
+              Випадково додає статуси та обмеження поточним бійцям.
+            </div>
+            <button
+              className="btn btn-outline-danger btn-sm w-100"
+              onClick={handleChaos}
+              disabled={isLoading}
+            >
+              🎲 Випадковий хаос
+            </button>
+            {chaosLog.length > 0 && (
+              <div
+                className="small text-muted border rounded p-2 mt-1"
+                style={{ maxHeight: 120, overflowY: 'auto' }}
+              >
+                {chaosLog.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            )}
 
             <hr />
             <h6 className="fw-bold text-danger">Небезпечна зона</h6>
