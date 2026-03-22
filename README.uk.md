@@ -253,6 +253,8 @@ Draft (Жадний прохід)  →  Swap Optimization (3 фази)
     │
     ▼ [Жорстке] filterForceUseAllWhenFew: при ≤7 — тільки бійці з 0 нарядів за тиждень
     │
+    ▼ [Жорстке] filterEvenWeeklyDistribution: при ≤7 — тільки бійці з мінімальною кількістю нарядів
+    │
     ▼ [Starvation Fallback] Якщо пул порожній → відкат до всіх hard-eligible
     │
     ▼ Ранжування (10-пріоритетний компаратор)
@@ -286,13 +288,14 @@ Draft (Жадний прохід)  →  Swap Optimization (3 фази)
 
 Після жорстких обмежень пул проходить м'які фільтри:
 
-| Фільтр             | Функція                       | Логіка                                                       |
-| ------------------ | ----------------------------- | ------------------------------------------------------------ |
-| Rest Days          | `filterByRestDays`            | Виключає бійців, що чергували в межах `minRestDays`          |
-| Incompatible Pairs | `filterByIncompatiblePairs`   | Перевіряє сусідні дати на несумісні пари                     |
-| Weekly Cap         | `filterByWeeklyCap`           | Для ≥7 бійців: макс. 1 наряд на тиждень (виняток — боржники) |
-| Force Use All      | `filterForceUseAllWhenFew`    | При малому пулі — тільки бійці з 0 нарядів цього тижня       |
-| Same Weekday       | `filterBySameWeekdayLastWeek` | Виключає бійців, що чергували той самий DOW минулого тижня   |
+| Фільтр             | Функція                        | Логіка                                                       |
+| ------------------ | ------------------------------ | ------------------------------------------------------------ |
+| Rest Days          | `filterByRestDays`             | Виключає бійців, що чергували в межах `minRestDays`          |
+| Incompatible Pairs | `filterByIncompatiblePairs`    | Перевіряє сусідні дати на несумісні пари                     |
+| Weekly Cap         | `filterByWeeklyCap`            | Для ≥7 бійців: макс. 1 наряд на тиждень (виняток — боржники) |
+| Force Use All      | `filterForceUseAllWhenFew`     | При малому пулі — тільки бійці з 0 нарядів цього тижня       |
+| Even Distribution  | `filterEvenWeeklyDistribution` | При малому пулі — тільки бійці з мінімальною к-стю нарядів   |
+| Same Weekday       | `filterBySameWeekdayLastWeek`  | Виключає бійців, що чергували той самий DOW минулого тижня   |
 
 Фільтри застосовуються послідовно. Якщо фільтр спустошує пул — повертається попередній стан
 (fail-safe).
@@ -582,6 +585,7 @@ DayWeights = {
 | `debtUsersWeeklyLimit`                 | Максимум нарядів на тиждень для боржників (1–4)               |
 | `prioritizeFasterDebtRepayment`        | Прискорене погашення боргу                                    |
 | `forceUseAllWhenFew`                   | При ≤7 бійців — використовувати всіх циклічно                 |
+| `evenWeeklyDistribution`               | При ≤7 бійців — ніхто не отримує N+1 наряд, поки інший має N  |
 | `ignoreHistoryInLogic`                 | Виключати `history`/`import` записи з розрахунку навантаження |
 
 ---

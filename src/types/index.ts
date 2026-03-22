@@ -168,6 +168,7 @@ export interface AutoScheduleOptions {
   debtUsersWeeklyLimit: number;
   prioritizeFasterDebtRepayment: boolean;
   forceUseAllWhenFew: boolean; // When few users available (<=7), force cyclic use of ALL users regardless of load
+  evenWeeklyDistribution: boolean; // Extend forceUseAllWhenFew to all rounds: nobody gets N+1 duties while anyone has N
   useExperimentalStatsView?: boolean; // Optional for backward compatibility with old tests/backups
 }
 

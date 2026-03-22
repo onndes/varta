@@ -13,6 +13,7 @@ import {
   filterBySameWeekdayLastWeek,
   filterByWeeklyCap,
   filterForceUseAllWhenFew,
+  filterEvenWeeklyDistribution,
 } from './comparator';
 import {
   countEligibleUsersForDate,
@@ -85,6 +86,9 @@ export const getFreeUsersForDate = (
   const weekEligible = countEligibleUsersForWeek(users, schedule, dateStr);
   if (options.forceUseAllWhenFew && weekEligible <= MIN_USERS_FOR_WEEKLY_LIMIT) {
     candidatePool = filterForceUseAllWhenFew(candidatePool, dateStr, schedule);
+  }
+  if (options.evenWeeklyDistribution && weekEligible <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+    candidatePool = filterEvenWeeklyDistribution(candidatePool, dateStr, schedule);
   }
 
   // Сортуємо за спільним пріоритетним компаратором
@@ -190,6 +194,9 @@ export const calculateOptimalAssignment = (
   const weekEligibleOpt = countEligibleUsersForWeek(users, schedule, dateStr);
   if (options.forceUseAllWhenFew && weekEligibleOpt <= MIN_USERS_FOR_WEEKLY_LIMIT) {
     available = filterForceUseAllWhenFew(available, dateStr, schedule);
+  }
+  if (options.evenWeeklyDistribution && weekEligibleOpt <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+    available = filterEvenWeeklyDistribution(available, dateStr, schedule);
   }
 
   // Сортуємо за спільним пріоритетним компаратором

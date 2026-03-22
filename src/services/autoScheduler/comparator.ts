@@ -327,6 +327,34 @@ export const filterForceUseAllWhenFew = (
 };
 
 /**
+ * Even weekly distribution filter (multi-round round-robin):
+ * Restricts the pool to users with the minimum weekly assignment count.
+ * Nobody gets an (N+1)-th duty while someone else still has N.
+ *
+ * This extends forceUseAllWhenFew to all rounds, not just the first.
+ * When all users have equal weekly counts → returns the full pool (no effect).
+ * Falls back to the original pool if the restricted set is empty (safety only —
+ * for a non-empty pool this should never happen since minCount always has members).
+ *
+ * Gate: only active when options.evenWeeklyDistribution=true AND
+ * countEligibleUsersForWeek <= MIN_USERS_FOR_WEEKLY_LIMIT (applied in scheduler.ts).
+ */
+export const filterEvenWeeklyDistribution = (
+  pool: User[],
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>
+): User[] => {
+  const week = getWeekWindow(dateStr);
+  const withCounts = pool.map((u) => ({
+    user: u,
+    count: u.id ? countUserAssignmentsInRange(u.id, schedule, week.from, week.to) : Infinity,
+  }));
+  const minCount = Math.min(...withCounts.map((c) => c.count));
+  const minSet = withCounts.filter((c) => c.count === minCount).map((c) => c.user);
+  return minSet.length > 0 ? minSet : pool;
+};
+
+/**
  * Remove users with duties inside the rest window around target date.
  *
  * NOTE — forward check (checkAfter) during the greedy pass:

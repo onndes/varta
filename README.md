@@ -262,6 +262,8 @@ All users
     │
     ▼ [Hard] filterForceUseAllWhenFew: for <=7 users, only users with 0 duties this week
     │
+    ▼ [Hard] filterEvenWeeklyDistribution: for <=7 users, only users with minimum duties this week
+    │
     ▼ [Starvation Fallback] If the pool is empty -> roll back to all hard-eligible users
     │
     ▼ Rank candidates (10-priority comparator)
@@ -325,13 +327,14 @@ These constraints are **never violated** - neither during Draft nor during swap 
 
 After hard constraints, the candidate pool goes through soft filters:
 
-| Filter             | Function                      | Logic                                                       |
-| ------------------ | ----------------------------- | ----------------------------------------------------------- |
-| Rest Days          | `filterByRestDays`            | Excludes users who served within `minRestDays`              |
-| Incompatible Pairs | `filterByIncompatiblePairs`   | Checks adjacent dates for incompatible pairs                |
-| Weekly Cap         | `filterByWeeklyCap`           | For >=7 users: max 1 duty per week (debt users excepted)    |
-| Force Use All      | `filterForceUseAllWhenFew`    | With a small pool, only users with 0 duties this week       |
-| Same Weekday       | `filterBySameWeekdayLastWeek` | Excludes users who served the same DOW in the previous week |
+| Filter             | Function                       | Logic                                                       |
+| ------------------ | ------------------------------ | ----------------------------------------------------------- |
+| Rest Days          | `filterByRestDays`             | Excludes users who served within `minRestDays`              |
+| Incompatible Pairs | `filterByIncompatiblePairs`    | Checks adjacent dates for incompatible pairs                |
+| Weekly Cap         | `filterByWeeklyCap`            | For >=7 users: max 1 duty per week (debt users excepted)    |
+| Force Use All      | `filterForceUseAllWhenFew`     | With a small pool, only users with 0 duties this week       |
+| Even Distribution  | `filterEvenWeeklyDistribution` | With a small pool, only users with minimum duties this week |
+| Same Weekday       | `filterBySameWeekdayLastWeek`  | Excludes users who served the same DOW in the previous week |
 
 Filters are applied sequentially. If a filter empties the pool, the previous state is restored
 (fail-safe behavior).
@@ -607,6 +610,7 @@ Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 | `debtUsersWeeklyLimit`                 | Maximum weekly duties for debt users (1-4)                       |
 | `prioritizeFasterDebtRepayment`        | Speed up debt repayment                                          |
 | `forceUseAllWhenFew`                   | With <=7 users, rotate through everyone                          |
+| `evenWeeklyDistribution`               | With <=7 users, nobody gets N+1 duties while another has N       |
 | `ignoreHistoryInLogic`                 | Exclude `history` / `import` entries from load calculations      |
 
 ---
