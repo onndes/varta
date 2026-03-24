@@ -79,7 +79,12 @@ export const getFreeUsersForDate = (
     candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule, options);
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
-  candidatePool = filterBySameWeekdayLastWeek(candidatePool, dateStr, schedule);
+  candidatePool = filterBySameWeekdayLastWeek(
+    candidatePool,
+    dateStr,
+    schedule,
+    !options.evenWeeklyDistribution
+  );
 
   // forceUseAllWhenFew: while any user has 0 duties this week,
   // only zero-assignment users are eligible candidates.
@@ -187,7 +192,12 @@ export const calculateOptimalAssignment = (
     available = filterByWeeklyCap(available, users, dateStr, schedule, options);
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
-  available = filterBySameWeekdayLastWeek(available, dateStr, schedule);
+  available = filterBySameWeekdayLastWeek(
+    available,
+    dateStr,
+    schedule,
+    !options.evenWeeklyDistribution
+  );
 
   // forceUseAllWhenFew: while any user has 0 duties this week,
   // only zero-assignment users are eligible candidates.

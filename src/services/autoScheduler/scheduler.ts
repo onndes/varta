@@ -150,7 +150,12 @@ export const autoFillSchedule = async (
       pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
       logPoolSizes.afterIncompatiblePairs = pool.length;
 
-      pool = filterBySameWeekdayLastWeek(pool, dateStr, tempSchedule);
+      pool = filterBySameWeekdayLastWeek(
+        pool,
+        dateStr,
+        tempSchedule,
+        !options.evenWeeklyDistribution // starvation exception disabled when evenWeekly is ON
+      );
 
       // Use week-based eligibility count for both forceUseAllWhenFew and the
       // comparator's totalEligibleCount parameter — consistent with filterByWeeklyCap.

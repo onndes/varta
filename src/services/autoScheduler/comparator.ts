@@ -463,20 +463,26 @@ export const filterByWeeklyCap = (
 
 /**
  * Hard filter: forbid the same weekday two weeks in a row (exactly -7 days).
- * Exception: users with 0 duties this week always pass through (starvation guard) —
- * forceUseAllWhenFew and coverage fairness take precedence over DOW-repeat avoidance.
+ * Exception (allowStarvationException=true): users with 0 duties this week always pass
+ * through — forceUseAllWhenFew coverage fairness takes precedence over DOW-repeat avoidance.
+ * When evenWeeklyDistribution is ON, pass allowStarvationException=false: that filter
+ * already prevents starvation via round-robin fairness, so the exception only causes
+ * DOW repeats without any benefit.
  * Falls back to original pool if all candidates would be blocked.
  */
 export const filterBySameWeekdayLastWeek = (
   pool: User[],
   dateStr: string,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  allowStarvationException = true
 ): User[] => {
   const week = getWeekWindow(dateStr);
   const filtered = pool.filter((u) => {
     if (!u.id) return false;
     if (!didUserServeSameWeekdayLastWeek(u.id, dateStr, schedule)) return true;
-    // Allow same-weekday repeat if user has 0 duties this week — never starve them.
+    // Allow same-weekday repeat only when starvation guard is active and user has 0 duties
+    // this week. Disabled when evenWeeklyDistribution is ON (that filter handles fairness).
+    if (!allowStarvationException) return false;
     const weeklyCount = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
     return weeklyCount === 0;
   });
