@@ -31,6 +31,7 @@ import {
   filterBySameWeekdayLastWeek,
   filterByWeeklyCap,
   filterForceUseAllWhenFew,
+  filterEvenWeeklyDistribution,
 } from './comparator';
 import {
   isAutoParticipant,
@@ -149,7 +150,12 @@ export const autoFillSchedule = async (
       pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
       logPoolSizes.afterIncompatiblePairs = pool.length;
 
-      pool = filterBySameWeekdayLastWeek(pool, dateStr, tempSchedule);
+      pool = filterBySameWeekdayLastWeek(
+        pool,
+        dateStr,
+        tempSchedule,
+        !options.evenWeeklyDistribution // starvation exception disabled when evenWeekly is ON
+      );
 
       // Use week-based eligibility count for both forceUseAllWhenFew and the
       // comparator's totalEligibleCount parameter — consistent with filterByWeeklyCap.
@@ -167,6 +173,17 @@ export const autoFillSchedule = async (
         totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
       ) {
         pool = filterForceUseAllWhenFew(pool, dateStr, tempSchedule);
+      }
+
+      // evenWeeklyDistribution: multi-round round-robin.
+      // Nobody gets an (N+1)-th duty while someone else still has N.
+      // Extends forceUseAllWhenFew to all rounds, not just the first.
+      if (
+        options.evenWeeklyDistribution &&
+        totalEligibleCount !== undefined &&
+        totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
+      ) {
+        pool = filterEvenWeeklyDistribution(pool, dateStr, tempSchedule);
       }
       logPoolSizes.afterForceUseAll = pool.length;
 

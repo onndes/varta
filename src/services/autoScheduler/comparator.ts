@@ -327,6 +327,34 @@ export const filterForceUseAllWhenFew = (
 };
 
 /**
+ * Even weekly distribution filter (multi-round round-robin):
+ * Restricts the pool to users with the minimum weekly assignment count.
+ * Nobody gets an (N+1)-th duty while someone else still has N.
+ *
+ * This extends forceUseAllWhenFew to all rounds, not just the first.
+ * When all users have equal weekly counts → returns the full pool (no effect).
+ * Falls back to the original pool if the restricted set is empty (safety only —
+ * for a non-empty pool this should never happen since minCount always has members).
+ *
+ * Gate: only active when options.evenWeeklyDistribution=true AND
+ * countEligibleUsersForWeek <= MIN_USERS_FOR_WEEKLY_LIMIT (applied in scheduler.ts).
+ */
+export const filterEvenWeeklyDistribution = (
+  pool: User[],
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>
+): User[] => {
+  const week = getWeekWindow(dateStr);
+  const withCounts = pool.map((u) => ({
+    user: u,
+    count: u.id ? countUserAssignmentsInRange(u.id, schedule, week.from, week.to) : Infinity,
+  }));
+  const minCount = Math.min(...withCounts.map((c) => c.count));
+  const minSet = withCounts.filter((c) => c.count === minCount).map((c) => c.user);
+  return minSet.length > 0 ? minSet : pool;
+};
+
+/**
  * Remove users with duties inside the rest window around target date.
  *
  * NOTE — forward check (checkAfter) during the greedy pass:
@@ -435,20 +463,26 @@ export const filterByWeeklyCap = (
 
 /**
  * Hard filter: forbid the same weekday two weeks in a row (exactly -7 days).
- * Exception: users with 0 duties this week always pass through (starvation guard) —
- * forceUseAllWhenFew and coverage fairness take precedence over DOW-repeat avoidance.
+ * Exception (allowStarvationException=true): users with 0 duties this week always pass
+ * through — forceUseAllWhenFew coverage fairness takes precedence over DOW-repeat avoidance.
+ * When evenWeeklyDistribution is ON, pass allowStarvationException=false: that filter
+ * already prevents starvation via round-robin fairness, so the exception only causes
+ * DOW repeats without any benefit.
  * Falls back to original pool if all candidates would be blocked.
  */
 export const filterBySameWeekdayLastWeek = (
   pool: User[],
   dateStr: string,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  allowStarvationException = true
 ): User[] => {
   const week = getWeekWindow(dateStr);
   const filtered = pool.filter((u) => {
     if (!u.id) return false;
     if (!didUserServeSameWeekdayLastWeek(u.id, dateStr, schedule)) return true;
-    // Allow same-weekday repeat if user has 0 duties this week — never starve them.
+    // Allow same-weekday repeat only when starvation guard is active and user has 0 duties
+    // this week. Disabled when evenWeeklyDistribution is ON (that filter handles fairness).
+    if (!allowStarvationException) return false;
     const weeklyCount = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
     return weeklyCount === 0;
   });

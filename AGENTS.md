@@ -34,9 +34,9 @@ pair/single swap optimization (Pass 2) that minimizes a weighted global objectiv
 | File               | Responsibility                                                                                                                                                                                                                                                                                                                                                                                      | Do NOT put here                                                |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `helpers.ts`       | All constants (`FLOAT_EPSILON`, `MIN_USERS_FOR_WEEKLY_LIMIT`, `MS_PER_DAY`, etc.), date utilities (`getWeekWindow`, `getDatesInRange`, `getDateMinusDays`), per-user metrics (`computeUserLoadRate`, `daysSinceLastAssignment`, `daysSinceLastSameDowAssignment`, `countUserAssignmentsInRange`, `countUnavailableDaysInRange`), **`computeGlobalObjective`** (the weighted objective function `Z`) | UI logic, DB calls, filter pipeline, comparator logic          |
-| `comparator.ts`    | **`buildUserComparator`** (the deterministic sort function, priorities −2…9), all five pool filters: `filterByRestDays`, `filterByIncompatiblePairs`, `filterBySameWeekdayLastWeek`, `filterByWeeklyCap`, `filterForceUseAllWhenFew`                                                                                                                                                                | Swap logic, decision-log text, DB calls                        |
+| `comparator.ts`    | **`buildUserComparator`** (the deterministic sort function, priorities −2…9), all six pool filters: `filterByRestDays`, `filterByIncompatiblePairs`, `filterBySameWeekdayLastWeek`, `filterByWeeklyCap`, `filterForceUseAllWhenFew`, `filterEvenWeeklyDistribution`                                                                                                                                 | Swap logic, decision-log text, DB calls                        |
 | `scheduler.ts`     | **`autoFillSchedule`** only — the two-pass entry point that wires the filter pipeline + comparator (Pass 1) and calls `performSwapOptimization` (Pass 2)                                                                                                                                                                                                                                            | Any helper function, any constant, any filter                  |
-| `swapOptimizer.ts` | `isAutoParticipant`, `isHardEligible`, `isLookAheadSafe`, `wouldViolateRestDays`, `wouldViolateIncompatiblePairs`, `BASE_SWAP_ITERATIONS`, `getAdaptiveMaxIterations`, **`performSwapOptimization`**                                                                                                                                                                                                | Comparator logic, decision-log text, DB calls                  |
+| `swapOptimizer.ts` | `isAutoParticipant`, `isHardEligible`, `isLookAheadSafe`, `wouldViolateRestDays`, `wouldViolateIncompatiblePairs`, `wouldCreateSameDowRepeat`, `BASE_SWAP_ITERATIONS`, `getAdaptiveMaxIterations`, **`performSwapOptimization`**                                                                                                                                                                    | Comparator logic, decision-log text, DB calls                  |
 | `decisionLog.ts`   | **`buildDecisionLog`**, DOW name maps (`DOW_NAMES`, `DOW_NAMES_NOMINATIVE`, `DOW_SHORT`), `timesWord`, `toIsoDow`, `isDowBlockedForUser`, `REASON_UA`, `translateReason`                                                                                                                                                                                                                            | Scheduling logic, filter pipeline, DB calls                    |
 | `index.ts`         | Public API surface: re-exports `autoFillSchedule`, `calculateUserFairnessIndex`, `computeUserLoadRate`; implements `saveAutoSchedule`, `getFreeUsersForDate`, `recalculateScheduleFrom`                                                                                                                                                                                                             | Core algorithm logic — this file wires existing functions only |
 
@@ -112,9 +112,10 @@ if avoidConsecutiveDays:
 pool ← filterByIncompatiblePairs(pool, allUsers, date, tempSchedule)
         ↳ fallback: restore pre-filter pool  if result is empty
 
-pool ← filterBySameWeekdayLastWeek(pool, date, tempSchedule)
+pool ← filterBySameWeekdayLastWeek(pool, date, tempSchedule, !options.evenWeeklyDistribution)
         ↳ fallback: restore pre-filter pool  if result is empty
-        ↳ exception: user with weeklyCount === 0 always passes
+        ↳ starvation exception: user with weeklyCount === 0 always passes
+          (only when allowStarvationException=true, i.e. evenWeeklyDistribution is OFF)
 
 totalEligibleCount ← countEligibleUsersForWeek(users, tempSchedule, date)
                      (NOT countEligibleUsersForDate)
@@ -126,6 +127,11 @@ if limitOneDutyPerWeekWhenSevenPlus:
 
 if forceUseAllWhenFew && totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT:
     pool ← filterForceUseAllWhenFew(pool, date, tempSchedule)
+        ↳ fallback: restore pre-filter pool  if result is empty
+
+if evenWeeklyDistribution && totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT:
+    pool ← filterEvenWeeklyDistribution(pool, date, tempSchedule)
+        ↳ restricts to users with minimum weeklyCount in pool
         ↳ fallback: restore pre-filter pool  if result is empty
 
 if pool is empty:
@@ -160,17 +166,21 @@ their assigned users. Accept if:
 - Both users are `isHardEligible` at the swapped date.
 - Neither would violate `wouldViolateIncompatiblePairs`.
 - Neither would violate `wouldViolateRestDays`.
+- Neither would create a same-DOW-consecutive-week repeat (`wouldCreateSameDowRepeat`).
 - New objective `Z` is strictly lower.
 
 **Phase 2 — Single-replacement swaps** For each auto-filled date, try replacing the assigned user
-with every other hard-eligible, rest-day-safe, incompatible-pair-safe participant. Accept if new `Z`
-is strictly lower. Additional guard when `forceUseAllWhenFew`: block replacement if it would leave
-the original user at 0 and push the candidate to ≥ 2 duties this week.
+with every other hard-eligible, rest-day-safe, incompatible-pair-safe, **DOW-repeat-safe**
+participant. Accept if new `Z` is strictly lower. Additional guard when `forceUseAllWhenFew`: block
+replacement if it would leave the original user at 0 and push the candidate to ≥ 2 duties this week.
 
 **Phase 3 — Targeted same-DOW-consecutive resolution** Find users with back-to-back same DOW exactly
 7 days apart. For each such pair `(D1, D2)`, attempt to swap the repeat date `D2`'s user with the
-user on any other auto-filled date. Use the same hard-constraint + objective acceptance checks as
-Phase 1.
+user on any other auto-filled date. Uses the same hard-constraint checks as Phase 1. Acceptance
+criterion: for small groups (`participants.length ≤ MIN_USERS_FOR_WEEKLY_LIMIT`), a swap is accepted
+if `newObj < baseObj + 25.0` (relaxed tolerance), allowing slight objective degradation to resolve
+DOW repeats that are otherwise impossible to fix in constrained groups. For larger groups, the
+strict `newObj < baseObj - FLOAT_EPSILON` criterion is used (same as Phases 1–2).
 
 After all iterations, decision logs are rebuilt for any entry whose assigned user changed during
 swap optimization.
@@ -235,8 +245,13 @@ the scheduler always makes some assignment rather than producing a `critical` ga
 
 - **What it does:** Removes users who served the same day-of-week exactly 7 days ago
   (`didUserServeSameWeekdayLastWeek`).
-- **Starvation exception:** A user with `weeklyCount === 0` for the current week always passes
-  through regardless — their coverage fairness takes absolute precedence over DOW-repeat avoidance.
+- **Starvation exception (`allowStarvationException=true`):** A user with `weeklyCount === 0` for
+  the current week always passes through — their coverage fairness takes precedence over DOW-repeat
+  avoidance. **Only active when `evenWeeklyDistribution` is OFF.** When `evenWeeklyDistribution` is
+  ON, `filterEvenWeeklyDistribution` already guarantees round-robin fairness; the exception becomes
+  unnecessary and causes DOW repeats by allowing the same person onto the same weekday two weeks
+  running. When `evenWeeklyDistribution=ON`, `allowStarvationException=false` is passed from
+  `scheduler.ts`, `getFreeUsersForDate`, and `calculateOptimalAssignment`.
 - **Fallback:** Returns original pool if filtered set is empty.
 
 ### `filterByWeeklyCap`
@@ -257,6 +272,19 @@ the scheduler always makes some assignment rather than producing a `critical` ga
   `countEligibleUsersForDate`). The same `≤ MIN_USERS_FOR_WEEKLY_LIMIT` condition is mirrored in
   `buildUserComparator` at priority −1.
 - **Fallback:** Returns original pool if zero-assignment set is empty.
+
+### `filterEvenWeeklyDistribution`
+
+- **What it does:** Restricts the pool to users with the **minimum weekly assignment count**
+  (`weeklyCount === min`). Extends `filterForceUseAllWhenFew` to all rounds: nobody gets a 2nd duty
+  while someone has 1; nobody a 3rd while someone has 2; and so on. Prevents "3–1–1" patterns in
+  small groups of any duty count.
+- **When all counts are equal:** Returns the full pool unchanged (no-op). No fallback needed.
+- **Critical:** Same gate as `filterForceUseAllWhenFew` — uses **`countEligibleUsersForWeek`** and
+  the same `≤ MIN_USERS_FOR_WEEKLY_LIMIT` threshold. Applied **after** `filterForceUseAllWhenFew` in
+  the pipeline; when both are enabled they are complementary (forceUse = round 1 only,
+  evenDistribution = all rounds).
+- **Fallback:** Returns original pool if restricted set is empty (cannot happen in practice).
 
 ---
 
@@ -332,6 +360,23 @@ actually selected. Operators saw candidate A ranked first in the modal but the a
 assigned candidate B — with no visible explanation. The fix added the same forceUse gate (using
 `countEligibleUsersForWeek`) to `getFreeUsersForDate`.
 
+### Regression 5: `filterBySameWeekdayLastWeek` starvation exception active when `evenWeeklyDistribution=ON`
+
+**What happened:** `filterBySameWeekdayLastWeek` has a starvation exception: a user with
+`weeklyCount === 0` always passes through even if they served the same DOW last week. When
+`evenWeeklyDistribution` was added, this exception was left unconditional.
+
+**Effect:** With `evenWeeklyDistribution=ON`, both filters run. A user with 0 duties this week
+passes `filterBySameWeekdayLastWeek` (starvation exception), then `filterEvenWeeklyDistribution`
+restricts the pool to zero-duty users — leaving this same user as the only candidate. Result: the
+same person gets assigned to the same day-of-week two weeks in a row, exactly the problem both
+filters were supposed to prevent.
+
+**Fix:** `filterBySameWeekdayLastWeek` accepts an `allowStarvationException` parameter (default
+`true`). Callers pass `!options.evenWeeklyDistribution` — disabling the exception when
+`evenWeeklyDistribution` is ON. This is safe because `filterEvenWeeklyDistribution` already prevents
+starvation via strict round-robin, making the exception redundant.
+
 ---
 
 ## 9. What Is Safe to Change vs Dangerous
@@ -354,17 +399,17 @@ assigned candidate B — with no visible explanation. The fix added the same for
 
 Any change to the following will likely affect scheduler output:
 
-| Change                                                                                                                                | Why dangerous                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Any weight in `computeGlobalObjective` (`W_SAME_DOW`, `W_SYSTEM_SSE`, `W_WITHIN_USER`, `W_LOAD_RANGE`, `W_ZERO_GUARD`, `W_TOTAL_SSE`) | Shifts the objective landscape; previously optimal schedules may become suboptimal and vice versa             |
-| Filter pipeline order in `scheduler.ts` (`autoFillSchedule`)                                                                          | The starvation fallback, pool state, and `selectedIds` accumulation all depend on the exact sequence          |
-| Comparator priority order in `buildUserComparator`                                                                                    | Any reordering changes which fairness criterion "wins" at every tie                                           |
-| `getCrossDowGuard` penalty formula                                                                                                    | Breakage of the absolute-law invariant; DOW imbalance becomes locally profitable                              |
-| `filterBySameWeekdayLastWeek` starvation exception (`weeklyCount === 0`)                                                              | Removing this causes low-assignment users to be locked out of dates they are the only available candidate for |
-| `filterByWeeklyCap` and `filterForceUseAllWhenFew` gate functions (must stay `ForWeek`)                                               | See Regression 3                                                                                              |
-| `computeDaysActive` in `helpers.ts` (unavailability normalization)                                                                    | Changing how `daysActive` is computed directly affects `computeUserLoadRate` and all fairness comparisons     |
-| `autoFillSchedule` function body                                                                                                      | Any change here must not alter the greedy pass outcome or swap result for any deterministic input             |
-| Anything in `helpers.ts` imported by 3+ other files                                                                                   | High blast radius; type-check alone is insufficient to catch semantic regressions                             |
+| Change                                                                                                                                | Why dangerous                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any weight in `computeGlobalObjective` (`W_SAME_DOW`, `W_SYSTEM_SSE`, `W_WITHIN_USER`, `W_LOAD_RANGE`, `W_ZERO_GUARD`, `W_TOTAL_SSE`) | Shifts the objective landscape; previously optimal schedules may become suboptimal and vice versa                                                                                                                           |
+| Filter pipeline order in `scheduler.ts` (`autoFillSchedule`)                                                                          | The starvation fallback, pool state, and `selectedIds` accumulation all depend on the exact sequence                                                                                                                        |
+| Comparator priority order in `buildUserComparator`                                                                                    | Any reordering changes which fairness criterion "wins" at every tie                                                                                                                                                         |
+| `getCrossDowGuard` penalty formula                                                                                                    | Breakage of the absolute-law invariant; DOW imbalance becomes locally profitable                                                                                                                                            |
+| `filterBySameWeekdayLastWeek` starvation exception (`allowStarvationException` parameter)                                             | The exception must be ON when `evenWeeklyDistribution=OFF` (prevents user starvation). It must be OFF when `evenWeeklyDistribution=ON` (otherwise the two filters conflict and produce same-DOW repeats). See Regression 5. |
+| `filterByWeeklyCap` and `filterForceUseAllWhenFew` gate functions (must stay `ForWeek`)                                               | See Regression 3                                                                                                                                                                                                            |
+| `computeDaysActive` in `helpers.ts` (unavailability normalization)                                                                    | Changing how `daysActive` is computed directly affects `computeUserLoadRate` and all fairness comparisons                                                                                                                   |
+| `autoFillSchedule` function body                                                                                                      | Any change here must not alter the greedy pass outcome or swap result for any deterministic input                                                                                                                           |
+| Anything in `helpers.ts` imported by 3+ other files                                                                                   | High blast radius; type-check alone is insufficient to catch semantic regressions                                                                                                                                           |
 
 ---
 

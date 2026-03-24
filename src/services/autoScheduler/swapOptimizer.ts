@@ -5,7 +5,12 @@ import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../..
 import { toLocalISO } from '../../utils/dateUtils';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
-import { FLOAT_EPSILON, MS_PER_DAY, computeGlobalObjective } from './helpers';
+import {
+  FLOAT_EPSILON,
+  MS_PER_DAY,
+  MIN_USERS_FOR_WEEKLY_LIMIT,
+  computeGlobalObjective,
+} from './helpers';
 
 export const isAutoParticipant = (u: User): boolean =>
   Boolean(u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);
@@ -140,6 +145,27 @@ export const wouldViolateRestDays = (
 };
 
 /**
+ * True if placing userId on dateStr would create a same-DOW assignment
+ * on consecutive weeks (exactly 7 days apart, same day-of-week).
+ * Checks both 7 days back and 7 days forward.
+ */
+export const wouldCreateSameDowRepeat = (
+  userId: number,
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>
+): boolean => {
+  const target = new Date(dateStr);
+  for (const offset of [-7, 7]) {
+    const neighbor = new Date(target);
+    neighbor.setDate(target.getDate() + offset);
+    const nStr = toLocalISO(neighbor);
+    const nEntry = schedule[nStr];
+    if (nEntry && toAssignedUserIds(nEntry.userId).includes(userId)) return true;
+  }
+  return false;
+};
+
+/**
  * Post-optimization via multi-phase swap refinement.
  *
  * ─── Phase 1: Pair-exchange swaps ──────────────────────────────────────────
@@ -208,6 +234,13 @@ export const performSwapOptimization = (
         )
           continue;
 
+        // Prevent introducing same-DOW-consecutive-week violations
+        if (
+          wouldCreateSameDowRepeat(user1, date2, tempSchedule) ||
+          wouldCreateSameDowRepeat(user2, date1, tempSchedule)
+        )
+          continue;
+
         const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
         // Apply exchange tentatively.
@@ -256,7 +289,8 @@ export const performSwapOptimization = (
             !assignedIds.includes(u.id) &&
             isHardEligible(u, dateStr) &&
             (minRest === 0 || !wouldViolateRestDays(u.id, dateStr, minRest, tempSchedule)) &&
-            !wouldViolateIncompatiblePairs(u.id, dateStr, tempSchedule, users)
+            !wouldViolateIncompatiblePairs(u.id, dateStr, tempSchedule, users) &&
+            !wouldCreateSameDowRepeat(u.id, dateStr, tempSchedule)
         );
         if (candidates.length === 0) continue;
 
@@ -371,7 +405,9 @@ export const performSwapOptimization = (
             }
 
             const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
-            if (newObj < baseObj - FLOAT_EPSILON) {
+            // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
+            const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
+            if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
               resolvedSameDow = true;
               break;
             } else {

@@ -13,6 +13,7 @@ import {
   filterBySameWeekdayLastWeek,
   filterByWeeklyCap,
   filterForceUseAllWhenFew,
+  filterEvenWeeklyDistribution,
 } from './comparator';
 import {
   countEligibleUsersForDate,
@@ -78,13 +79,21 @@ export const getFreeUsersForDate = (
     candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule, options);
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
-  candidatePool = filterBySameWeekdayLastWeek(candidatePool, dateStr, schedule);
+  candidatePool = filterBySameWeekdayLastWeek(
+    candidatePool,
+    dateStr,
+    schedule,
+    !options.evenWeeklyDistribution
+  );
 
   // forceUseAllWhenFew: while any user has 0 duties this week,
   // only zero-assignment users are eligible candidates.
   const weekEligible = countEligibleUsersForWeek(users, schedule, dateStr);
   if (options.forceUseAllWhenFew && weekEligible <= MIN_USERS_FOR_WEEKLY_LIMIT) {
     candidatePool = filterForceUseAllWhenFew(candidatePool, dateStr, schedule);
+  }
+  if (options.evenWeeklyDistribution && weekEligible <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+    candidatePool = filterEvenWeeklyDistribution(candidatePool, dateStr, schedule);
   }
 
   // Сортуємо за спільним пріоритетним компаратором
@@ -183,13 +192,21 @@ export const calculateOptimalAssignment = (
     available = filterByWeeklyCap(available, users, dateStr, schedule, options);
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
-  available = filterBySameWeekdayLastWeek(available, dateStr, schedule);
+  available = filterBySameWeekdayLastWeek(
+    available,
+    dateStr,
+    schedule,
+    !options.evenWeeklyDistribution
+  );
 
   // forceUseAllWhenFew: while any user has 0 duties this week,
   // only zero-assignment users are eligible candidates.
   const weekEligibleOpt = countEligibleUsersForWeek(users, schedule, dateStr);
   if (options.forceUseAllWhenFew && weekEligibleOpt <= MIN_USERS_FOR_WEEKLY_LIMIT) {
     available = filterForceUseAllWhenFew(available, dateStr, schedule);
+  }
+  if (options.evenWeeklyDistribution && weekEligibleOpt <= MIN_USERS_FOR_WEEKLY_LIMIT) {
+    available = filterEvenWeeklyDistribution(available, dateStr, schedule);
   }
 
   // Сортуємо за спільним пріоритетним компаратором
