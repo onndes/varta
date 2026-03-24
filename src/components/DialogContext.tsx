@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { DialogContext } from './dialogTypes';
+import type { DatePickOptions } from './dialogTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,15 @@ type ConfirmState = {
   resolve: (ok: boolean) => void;
 };
 
-type DialogState = AlertState | ConfirmState | null;
+type DatePickState = {
+  kind: 'datepick';
+  opts: DatePickOptions;
+  /** Current value of the date input — stored here so no useEffect is needed. */
+  value: string;
+  resolve: (date: string | null) => void;
+};
+
+type DialogState = AlertState | ConfirmState | DatePickState | null;
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -57,6 +66,18 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [enqueue]
   );
 
+  const showDatePick = useCallback(
+    (opts: DatePickOptions): Promise<string | null> =>
+      new Promise((resolve) => {
+        enqueue({ kind: 'datepick', opts, value: opts.defaultDate, resolve });
+      }),
+    [enqueue]
+  );
+
+  const setDatePickValue = useCallback((v: string) => {
+    setDialog((prev) => (prev?.kind === 'datepick' ? { ...prev, value: v } : prev));
+  }, []);
+
   const handleAlertOk = () => {
     if (dialog?.kind === 'alert') {
       dialog.resolve();
@@ -79,7 +100,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   return (
-    <DialogContext.Provider value={{ showAlert, showConfirm }}>
+    <DialogContext.Provider value={{ showAlert, showConfirm, showDatePick }}>
       {children}
 
       {/* ── Alert Modal ─────────────────────────────────────── */}
@@ -140,6 +161,87 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           </div>
         </div>
       )}
+
+      {/* ── Date-pick Modal ─────────────────────────────────── */}
+      {dialog?.kind === 'datepick' &&
+        (() => {
+          const { opts } = dialog;
+          // Compute next Monday (always strictly after minDate).
+          const baseD = new Date(opts.minDate + 'T12:00:00');
+          const dow = baseD.getDay();
+          const daysUntilMon = (1 - dow + 7) % 7 || 7;
+          baseD.setDate(baseD.getDate() + daysUntilMon);
+          const nextMon = `${baseD.getFullYear()}-${String(baseD.getMonth() + 1).padStart(2, '0')}-${String(baseD.getDate()).padStart(2, '0')}`;
+
+          const handleCancel = () => {
+            dialog.resolve(null);
+            showNext();
+          };
+          const handleConfirm = () => {
+            dialog.resolve(dialog.value);
+            showNext();
+          };
+
+          return (
+            <div
+              className="modal fade show d-block"
+              style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}
+              tabIndex={-1}
+            >
+              <div
+                className="modal-dialog modal-dialog-centered"
+                style={{ maxWidth: 'min(480px, calc(100vw - 2rem))' }}
+              >
+                <div className="modal-content shadow border-0">
+                  <div className="modal-body p-4">
+                    <div className="d-flex gap-3 align-items-start mb-3">
+                      <i className="fas fa-sync-alt text-info mt-1 fs-5 flex-shrink-0"></i>
+                      <div>
+                        <div className="fw-semibold mb-1">Перерахунок автоматичних призначень</div>
+                        {opts.message && (
+                          <div className="text-muted small mb-1">{opts.message}</div>
+                        )}
+                      </div>
+                    </div>
+                    <label className="form-label small fw-semibold mb-1">
+                      Перерахувати починаючи з:
+                    </label>
+                    <div className="d-flex gap-2 align-items-center">
+                      <input
+                        type="date"
+                        className="form-control form-control-sm"
+                        value={dialog.value}
+                        min={opts.minDate}
+                        onChange={(e) => setDatePickValue(e.target.value)}
+                        autoFocus
+                      />
+                      <button
+                        className="btn btn-sm btn-outline-secondary text-nowrap"
+                        type="button"
+                        onClick={() => setDatePickValue(nextMon)}
+                        title={`Наступний понеділок (${nextMon})`}
+                      >
+                        <i className="fas fa-calendar-week me-1"></i>Наст. Пн
+                      </button>
+                    </div>
+                  </div>
+                  <div className="modal-footer border-0 pt-0 gap-2">
+                    <button className="btn btn-outline-secondary" onClick={handleCancel}>
+                      Скасувати
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleConfirm}
+                      disabled={!dialog.value || dialog.value < opts.minDate}
+                    >
+                      <i className="fas fa-sync-alt me-1"></i>Перерахувати
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </DialogContext.Provider>
   );
 };

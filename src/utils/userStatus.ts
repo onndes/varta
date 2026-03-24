@@ -31,6 +31,8 @@ export const normalizeStatusPeriods = (periods?: UserStatusPeriod[]): UserStatus
   periods.forEach((period) => {
     const status = normalizeAbsenceStatus(period.status as User['status']);
     if (!status) return;
+    // A period with no from AND no to would span all of history — treat as invalid/incomplete.
+    if (!period.from && !period.to) return;
     normalized.push({
       status,
       from: period.from || undefined,
@@ -73,7 +75,9 @@ export const isDateInStatusPeriod = (dateStr: string, period: UserStatusPeriod):
 };
 
 export const getStatusPeriodAtDate = (user: User, dateStr: string): UserStatusPeriod | null => {
-  const periods = getUserStatusPeriods(user).filter((period) => isDateInStatusPeriod(dateStr, period));
+  const periods = getUserStatusPeriods(user).filter((period) =>
+    isDateInStatusPeriod(dateStr, period)
+  );
   if (periods.length === 0) return null;
 
   periods.sort((a, b) => {

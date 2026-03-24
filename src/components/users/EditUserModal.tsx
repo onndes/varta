@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import type { User, UserStatusPeriod } from '../../types';
 import { formatRank } from '../../utils/helpers';
 import { getUserStatusPeriods, normalizeStatusPeriods } from '../../utils/userStatus';
+import { toLocalISO } from '../../utils/dateUtils';
 import Modal from '../Modal';
 import {
   BlockedDaysSection,
@@ -36,7 +37,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   allUsers = [],
 }) => {
   const [incompatibleSearch, setIncompatibleSearch] = useState('');
-  const statusPeriods = useMemo(() => getUserStatusPeriods(user), [user]);
+  const todayStr = toLocalISO(new Date());
+  // Show only current and future periods — past ones (to < today) are auto-pruned from display.
+  const statusPeriods = useMemo(
+    () => getUserStatusPeriods(user).filter((p) => !p.to || p.to >= todayStr),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user]
+  );
 
   /** IDs of users that list this user in their incompatibleWith (reverse links). */
   const reverseIncompatibleIds = useMemo(() => {
@@ -96,7 +103,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     });
   };
 
-  const addStatusPeriod = () => applyStatusPeriods([...statusPeriods, { status: 'TRIP' }]);
+  const addStatusPeriod = () =>
+    applyStatusPeriods([...statusPeriods, { status: 'TRIP', from: todayStr, to: todayStr }]);
 
   const updateStatusPeriod = (index: number, patch: Partial<UserStatusPeriod>) => {
     applyStatusPeriods(statusPeriods.map((p, i) => (i === index ? { ...p, ...patch } : p)));

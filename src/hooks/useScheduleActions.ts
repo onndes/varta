@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { useDialog } from '../components/useDialog';
 import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../types';
-import { formatDate } from '../utils/dateUtils';
+import { formatDate, toLocalISO } from '../utils/dateUtils';
 import { getAllSchedule, removeAssignmentWithDebt } from '../services/scheduleService';
 import * as autoSchedulerService from '../services/autoScheduler';
 import { getAssignedCount } from '../utils/assignment';
@@ -65,7 +65,7 @@ export const useScheduleActions = ({
   undoHistory,
   redoHistory,
 }: UseScheduleActionsArgs) => {
-  const { showAlert, showConfirm } = useDialog();
+  const { showAlert, showConfirm, showDatePick } = useDialog();
 
   const hasEnoughActiveUsers = useCallback(async (): Promise<boolean> => {
     const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
@@ -225,14 +225,23 @@ export const useScheduleActions = ({
     if (!(await hasEnoughActiveUsers())) return;
     if (!cascadeStartDate) return;
 
-    const start = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
-    if (!(await showConfirm(`Перерахувати АВТОМАТИЧНІ призначення з ${formatDate(start)}?`)))
-      return;
+    // Default date = today + 2 days (buffer so near-term plans aren't disrupted).
+    const defaultD = new Date(todayStr + 'T12:00:00');
+    defaultD.setDate(defaultD.getDate() + 2);
+    const defaultDate = toLocalISO(defaultD);
+
+    const earliestChange = cascadeStartDate < todayStr ? todayStr : cascadeStartDate;
+    const selectedDate = await showDatePick({
+      message: `Зміни зафіксовано з ${formatDate(earliestChange)}. Ручні та заблоковані записи не зачіпаються.`,
+      defaultDate,
+      minDate: todayStr,
+    });
+    if (!selectedDate) return;
 
     pushHistory(schedule, 'Оптимізація');
-    await recalculateFrom(start);
+    await recalculateFrom(selectedDate);
     await clearCascadeTrigger();
-    await logAction('CASCADE', `Перерахунок з ${start}`);
+    await logAction('CASCADE', `Перерахунок з ${selectedDate}`);
     await refreshData();
   }, [
     hasEnoughActiveUsers,
@@ -244,7 +253,7 @@ export const useScheduleActions = ({
     clearCascadeTrigger,
     logAction,
     refreshData,
-    showConfirm,
+    showDatePick,
   ]);
 
   const runDismissCascade = useCallback(async () => {

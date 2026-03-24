@@ -78,6 +78,16 @@ export const StatusPeriodsSection: React.FC<StatusPeriodsSectionProps> = ({
                 </button>
               </div>
             </div>
+            {(!period.from || !period.to) && (
+              <div className="mt-2 alert alert-warning py-1 px-2 small mb-0">
+                <i className="fas fa-exclamation-triangle me-1"></i>
+                {!period.from && !period.to
+                  ? 'Дати не вказано — статус не буде збережено.'
+                  : !period.to
+                    ? 'Дата завершення не вказана — статус активний безстроково.'
+                    : 'Дата початку не вказана — статус активний з початку часів.'}
+              </div>
+            )}
             <div className="row mt-2">
               <div className="col-md-6">
                 <div className="form-check form-switch">
