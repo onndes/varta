@@ -229,50 +229,8 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
         </label>
       </div>
 
-      {/* Even weekly distribution */}
-      <div className="form-check form-switch mb-3">
-        <input
-          className="form-check-input"
-          type="checkbox"
-          id="evenWeeklyDistribution"
-          checked={autoOpts.evenWeeklyDistribution ?? true}
-          onChange={(e) =>
-            onAutoOptsChange({ ...autoOpts, evenWeeklyDistribution: e.target.checked })
-          }
-        />
-        <label className="form-check-label" htmlFor="evenWeeklyDistribution">
-          <strong>Рівномірний розподіл нарядів по тижню (мало осіб)</strong>
-          <div className="text-muted small">
-            При ≤7 доступних осіб — ніхто не отримує другий наряд, поки всі не мають хоча б один;
-            ніхто не отримує третій, поки всі не мають другий. Запобігає ситуації «3–1–1».
-          </div>
-        </label>
-      </div>
-
       {/* Allow debt users / repayment options */}
       <DebtUserOptions autoOpts={autoOpts} onAutoOptsChange={onAutoOptsChange} />
-
-      <hr className="my-3" />
-
-      {/* Experimental stats view */}
-      <div className="form-check form-switch mb-3">
-        <input
-          className="form-check-input"
-          type="checkbox"
-          id="useExperimentalStatsView"
-          checked={!!autoOpts.useExperimentalStatsView}
-          onChange={(e) =>
-            onAutoOptsChange({ ...autoOpts, useExperimentalStatsView: e.target.checked })
-          }
-        />
-        <label className="form-check-label" htmlFor="useExperimentalStatsView">
-          <strong>Експериментальний вид статистики</strong>
-          <div className="text-muted small">
-            Альтернативний вигляд таблиці статистики з прогрес-барами відносного навантаження,
-            відхиленням від середнього та згортанням стовпців Пн–Нд. Вимкніть для стандартного виду.
-          </div>
-        </label>
-      </div>
     </div>
   </div>
 );

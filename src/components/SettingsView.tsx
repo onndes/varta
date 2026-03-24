@@ -12,6 +12,7 @@ import Modal from './Modal';
 import LogicTabPanel from './settings/LogicTabPanel';
 import PrintTabPanel from './settings/PrintTabPanel';
 import InterfaceTabPanel from './settings/InterfaceTabPanel';
+import ExperimentalTabPanel from './settings/ExperimentalTabPanel';
 import { useSettingsForm } from '../hooks/useSettingsForm';
 
 interface SettingsViewProps {
@@ -41,7 +42,7 @@ interface SettingsViewProps {
   logAction: (action: string, details: string) => Promise<void>;
 }
 
-type SubTab = 'logic' | 'interface' | 'print';
+type SubTab = 'logic' | 'interface' | 'print' | 'experimental';
 
 /** Top-level settings screen with logic / print / interface sub-tabs. */
 const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -106,6 +107,15 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
               <i className="fas fa-display me-1"></i>Інтерфейс
             </button>
           </li>
+          <li className="nav-item ms-3">
+            <button
+              className={`nav-link text-secondary opacity-50 small ${subTab === 'experimental' ? 'active opacity-100' : ''}`}
+              onClick={() => setSubTab('experimental')}
+              title="Експериментальні та нестандартні налаштування"
+            >
+              <i className="fas fa-flask me-1"></i>dev
+            </button>
+          </li>
         </ul>
         <button
           className="btn btn-outline-secondary btn-sm"
@@ -133,6 +143,9 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
         />
       )}
       {subTab === 'interface' && <InterfaceTabPanel scale={scale} onScaleChange={setScale} />}
+      {subTab === 'experimental' && (
+        <ExperimentalTabPanel autoOpts={autoOpts} onAutoOptsChange={setAutoOpts} />
+      )}
       {subTab === 'print' && (
         <PrintTabPanel
           sigs={sigs}

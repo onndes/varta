@@ -16,7 +16,6 @@ const NAV_TABS: NavTab[] = [
   { id: 'stats', icon: 'fa-chart-bar', label: 'Статистика' },
   { id: 'settings', icon: 'fa-cog', label: 'Налаштування' },
   { id: 'logs', icon: 'fa-history', label: 'Журнал' },
-  { id: 'dev', icon: 'fa-flask', label: 'Dev' },
 ];
 
 interface AppSidebarProps {
@@ -58,6 +57,15 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
           <span className="app-sidebar__label">{tab.label}</span>
         </button>
       ))}
+      {/* Dev tab — dimmed, separated from main nav */}
+      <button
+        className={`app-sidebar__item app-sidebar__item--dev ${activeTab === 'dev' ? 'app-sidebar__item--active' : ''}`}
+        onClick={() => onTabChange('dev')}
+        title="Dev tools"
+      >
+        <i className="fas fa-flask app-sidebar__icon"></i>
+        <span className="app-sidebar__label">Dev</span>
+      </button>
     </nav>
 
     <div className="app-sidebar__bottom">
