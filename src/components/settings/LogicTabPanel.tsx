@@ -1,6 +1,6 @@
 // src/components/settings/LogicTabPanel.tsx
 import React from 'react';
-import type { DayWeights, AutoScheduleOptions } from '../../types';
+import type { DayWeights, AutoScheduleOptions, BirthdayBlockOpts } from '../../types';
 import { DAY_NAMES_FULL } from '../../utils/constants';
 import AutoSchedulerOptionsCard from './AutoSchedulerOptionsCard';
 
@@ -36,6 +36,8 @@ interface LogicTabPanelProps {
   ignoreHistory: boolean;
   onIgnoreHistoryChange: (b: boolean) => void;
   onApplyFirstDutyDates: () => void;
+  birthdayOpts: BirthdayBlockOpts;
+  onBirthdayOptsChange: (opts: BirthdayBlockOpts) => void;
 }
 
 /**
@@ -54,6 +56,8 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
   ignoreHistory,
   onIgnoreHistoryChange,
   onApplyFirstDutyDates,
+  birthdayOpts,
+  onBirthdayOptsChange,
 }) => (
   <>
     {/* Day Weights */}
@@ -181,6 +185,80 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    {/* Birthday blocking */}
+    <div className="card shadow-sm border-0 mb-4">
+      <div className="card-header bg-white py-3">
+        <h5 className="mb-0 fw-bold">
+          <i className="fas fa-birthday-cake me-2"></i>День народження — блокування чергування
+        </h5>
+      </div>
+      <div className="card-body">
+        <div className="text-muted small mb-3">
+          Якщо у бійця вказано день народження, він може автоматично бути відсутнім у графіку на цей
+          день (та суміжні).
+        </div>
+        <div className="form-check form-switch mb-3">
+          <input
+            type="checkbox"
+            className="form-check-input"
+            id="birthdayEnabled"
+            checked={birthdayOpts.enabled}
+            onChange={(e) => onBirthdayOptsChange({ ...birthdayOpts, enabled: e.target.checked })}
+            style={{ cursor: 'pointer' }}
+          />
+          <label
+            className="form-check-label fw-bold"
+            htmlFor="birthdayEnabled"
+            style={{ cursor: 'pointer' }}
+          >
+            Блокувати чергування в день народження
+          </label>
+        </div>
+        {birthdayOpts.enabled && (
+          <div className="ms-4 d-flex gap-4">
+            <div className="form-check">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                id="birthdayBefore"
+                checked={birthdayOpts.blockBefore}
+                onChange={(e) =>
+                  onBirthdayOptsChange({ ...birthdayOpts, blockBefore: e.target.checked })
+                }
+                style={{ cursor: 'pointer' }}
+              />
+              <label
+                className="form-check-label"
+                htmlFor="birthdayBefore"
+                style={{ cursor: 'pointer' }}
+              >
+                День перед
+              </label>
+            </div>
+            <div className="form-check">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                id="birthdayAfter"
+                checked={birthdayOpts.blockAfter}
+                onChange={(e) =>
+                  onBirthdayOptsChange({ ...birthdayOpts, blockAfter: e.target.checked })
+                }
+                style={{ cursor: 'pointer' }}
+              />
+              <label
+                className="form-check-label"
+                htmlFor="birthdayAfter"
+                style={{ cursor: 'pointer' }}
+              >
+                День після
+              </label>
+            </div>
+          </div>
+        )}
       </div>
     </div>
 

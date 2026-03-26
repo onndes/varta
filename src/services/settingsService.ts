@@ -1,7 +1,7 @@
 // src/services/settingsService.ts
 
 import { db } from '../db/db';
-import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions, BirthdayBlockOpts } from '../types';
 import {
   DEFAULT_DAY_WEIGHTS,
   DEFAULT_SIGNATORIES,
@@ -10,6 +10,9 @@ import {
   DEFAULT_MAX_DEBT,
   DEFAULT_PRINT_MAX_ROWS,
   DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS,
+  DEFAULT_DOW_HISTORY_WEEKS,
+  DEFAULT_DOW_HISTORY_MODE,
+  DEFAULT_BIRTHDAY_BLOCK_OPTS,
 } from '../utils/constants';
 
 /**
@@ -33,12 +36,11 @@ const getJsonSetting = async <T>(key: string, defaultValue: T): Promise<T> => {
   return (value ?? defaultValue) as T;
 };
 
-/** Зберегти значення в appState */
 const saveSetting = async (
   key: string,
-  value: DayWeights | Signatories | AutoScheduleOptions | string | number | boolean | null
+  value: Record<string, unknown> | string | number | boolean | null
 ): Promise<void> => {
-  await db.appState.put({ key, value });
+  await db.appState.put({ key, value: value as DayWeights });
 };
 
 // ── Day weights ───────────────────────────────────────────────────────
@@ -111,8 +113,6 @@ export const saveUiScale = async (value: number): Promise<void> => saveSetting('
 
 // ── DOW history indicator ──────────────────────────────────────────────
 
-import { DEFAULT_DOW_HISTORY_WEEKS, DEFAULT_DOW_HISTORY_MODE } from '../utils/constants';
-
 export const getDowHistoryWeeks = async (): Promise<number> =>
   getJsonSetting('dowHistoryWeeks', DEFAULT_DOW_HISTORY_WEEKS);
 
@@ -125,7 +125,15 @@ export const getDowHistoryMode = async (): Promise<'numbers' | 'dots'> =>
 export const saveDowHistoryMode = async (value: 'numbers' | 'dots'): Promise<void> =>
   saveSetting('dowHistoryMode', value);
 
-// ── Theme ─────────────────────────────────────────────────────────
+// ── Birthday blocking ──────────────────────────────────────────────────────
+
+export const getBirthdayBlockOpts = async (): Promise<BirthdayBlockOpts> =>
+  getJsonSetting('birthdayBlockOpts', DEFAULT_BIRTHDAY_BLOCK_OPTS);
+
+export const saveBirthdayBlockOpts = async (opts: BirthdayBlockOpts): Promise<void> =>
+  saveSetting('birthdayBlockOpts', opts as unknown as Record<string, unknown>);
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
 
 const THEME_LS_KEY = 'varta-theme';
 

@@ -64,6 +64,7 @@ export const useUserEditFlow = ({
         statusComment: legacyPeriod?.status === 'ABSENT' ? legacyPeriod.comment : undefined,
         statusPeriods: normalizedPeriods,
         dateAddedToAuto: user.dateAddedToAuto,
+        birthday: user.birthday,
       });
       await userService.syncUserIncompatibility(user.id, user.incompatibleWith);
 
@@ -86,6 +87,19 @@ export const useUserEditFlow = ({
     setPendingEditReview(null);
     setIsApplyingEdit(false);
   }, []);
+
+  /** Save the current draft directly and close the modal (no review step). */
+  const handleSaveDirectly = useCallback(async () => {
+    if (!editingUser?.id) return;
+    setIsApplyingEdit(true);
+    try {
+      await saveEditedUser(editingUser);
+      await logAction('EDIT', `Редаговано: ${editingUser.name}`);
+      resetEditState();
+    } finally {
+      setIsApplyingEdit(false);
+    }
+  }, [editingUser, logAction, resetEditState, saveEditedUser]);
 
   /** Open edit modal for a user. */
   const handleStartEdit = useCallback((user: User) => {
@@ -148,5 +162,6 @@ export const useUserEditFlow = ({
     handleCancelEditReview,
     handleDiscardEditChanges,
     handleApplyEditChanges,
+    handleSaveDirectly,
   };
 };

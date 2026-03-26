@@ -118,6 +118,13 @@ export const DEFAULT_DOW_HISTORY_WEEKS = 4;
 /** Режим відображення індикатора повторів DOW: 'numbers' | 'dots' */
 export const DEFAULT_DOW_HISTORY_MODE: 'numbers' | 'dots' = 'numbers';
 
+/** Налаштування блокування дня народження за замовчуванням */
+export const DEFAULT_BIRTHDAY_BLOCK_OPTS = {
+  enabled: true,
+  blockBefore: true,
+  blockAfter: false,
+} as const;
+
 /** Підписанти документа за замовчуванням (пусті рядки) */
 export const DEFAULT_SIGNATORIES: Signatories = {
   approverPos: '',

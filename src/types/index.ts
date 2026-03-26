@@ -39,7 +39,15 @@ export interface Signatories {
 // Теперь value имеет конкретные возможные типы вместо any
 export interface AppStateEntry {
   key: string;
-  value: DayWeights | Signatories | AutoScheduleOptions | string | number | boolean | null;
+  value:
+    | DayWeights
+    | Signatories
+    | AutoScheduleOptions
+    | BirthdayBlockOpts
+    | string
+    | number
+    | boolean
+    | null;
 }
 
 export interface User {
@@ -65,6 +73,13 @@ export interface User {
   dateAddedToAuto?: string; // Date when isExtra was disabled (included in auto schedule)
   statusComment?: string; // Legacy comment field (migrated into statusPeriods[].comment)
   statusPeriods?: UserStatusPeriod[]; // Planned/current status periods (multiple intervals)
+  birthday?: string; // YYYY-MM-DD format — full date of birth, blocks duty on birthday
+}
+
+export interface BirthdayBlockOpts {
+  enabled: boolean;
+  blockBefore: boolean; // block the day before birthday
+  blockAfter: boolean; // block the day after birthday
 }
 
 export type UserStatus = 'ACTIVE' | 'VACATION' | 'TRIP' | 'SICK' | 'ABSENT' | 'OTHER';

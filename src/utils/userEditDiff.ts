@@ -37,9 +37,7 @@ const formatFlag = (value?: boolean): string => (value ? 'Так' : 'Ні');
 
 const formatStatusPeriod = (period: UserStatusPeriod): string => {
   const range =
-    period.from || period.to
-      ? ` ${formatDate(period.from)}-${formatDate(period.to)}`
-      : '';
+    period.from || period.to ? ` ${formatDate(period.from)}-${formatDate(period.to)}` : '';
   const extras: string[] = [];
   if (period.restBefore) extras.push('відпочинок до');
   if (period.restAfter) extras.push('відпочинок після');
@@ -74,10 +72,15 @@ const formatBlockedDays = (user: User): string => {
   return details.join(' • ');
 };
 
+const formatBirthday = (birthday?: string): string => {
+  if (!birthday) return 'Не вказано';
+  return formatDate(birthday);
+};
+
 const formatIncompatibleUsers = (ids: number[] | undefined, allUsers: User[]): string => {
-  const uniqueIds = Array.from(new Set((ids || []).filter((id): id is number => Number.isFinite(id)))).sort(
-    (a, b) => a - b
-  );
+  const uniqueIds = Array.from(
+    new Set((ids || []).filter((id): id is number => Number.isFinite(id)))
+  ).sort((a, b) => a - b);
   if (uniqueIds.length === 0) return 'Немає';
 
   return uniqueIds
@@ -105,7 +108,13 @@ export const getUserChangeSummary = (
 ): UserChangeItem[] => {
   const changes: UserChangeItem[] = [];
 
-  pushChange(changes, "ПІБ", formatText(original.name), formatText(draft.name));
+  pushChange(
+    changes,
+    'День народження',
+    formatBirthday(original.birthday),
+    formatBirthday(draft.birthday)
+  );
+  pushChange(changes, 'ПІБ', formatText(original.name), formatText(draft.name));
   pushChange(changes, 'Звання', formatText(original.rank), formatText(draft.rank));
   pushChange(changes, 'Примітка', formatText(original.note), formatText(draft.note));
   pushChange(

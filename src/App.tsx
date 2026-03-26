@@ -55,6 +55,7 @@ const App = () => {
     uiScale,
     dowHistoryWeeks,
     dowHistoryMode,
+    birthdayBlockOpts,
     theme,
     loadSettings,
     saveDayWeights,
@@ -68,6 +69,7 @@ const App = () => {
     saveUiScale,
     saveDowHistoryWeeks,
     saveDowHistoryMode,
+    saveBirthdayBlockOpts,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -372,6 +374,8 @@ const App = () => {
               onSaveUiScale={saveUiScale}
               onSaveDowHistoryWeeks={saveDowHistoryWeeks}
               onSaveDowHistoryMode={saveDowHistoryMode}
+              birthdayBlockOpts={birthdayBlockOpts}
+              onSaveBirthdayBlockOpts={saveBirthdayBlockOpts}
               onExportExcel={requestExportExcel}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}

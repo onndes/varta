@@ -194,18 +194,21 @@ interface AdvancedSettingsSectionProps {
   onChange: (user: User) => void;
 }
 
-/** Collapsible advanced settings: rank, name, note, dateAddedToAuto. */
+/** Advanced settings: rank, name, note, birthday, dateAddedToAuto. */
 export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = ({
   user,
   computedFairnessDate,
   firstDutyDate,
   onChange,
 }) => (
-  <div className="card bg-light mb-3">
+  <div className="card mb-3">
     <div className="card-body">
-      <div className="row">
-        <div className="col-md-6 mb-3">
-          <label className="small text-muted">Військове звання</label>
+      <h6 className="card-title">
+        <i className="fas fa-id-card me-2 text-secondary"></i>Особові дані
+      </h6>
+      <div className="row g-3">
+        <div className="col-md-6">
+          <label className="form-label small text-muted mb-1">Військове звання</label>
           <select
             className="form-select form-select-sm"
             value={user.rank}
@@ -218,8 +221,8 @@ export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = (
             ))}
           </select>
         </div>
-        <div className="col-md-6 mb-3">
-          <label className="small text-muted">ПІБ</label>
+        <div className="col-md-6">
+          <label className="form-label small text-muted mb-1">ПІБ</label>
           <input
             className="form-control form-control-sm"
             value={user.name}
@@ -228,17 +231,41 @@ export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = (
           />
         </div>
         <div className="col-md-4">
-          <label className="small text-muted">Посада / Примітка</label>
+          <label className="form-label small text-muted mb-1">Посада / Примітка</label>
           <input
             className="form-control form-control-sm"
             value={user.note || ''}
             onChange={(e) => onChange({ ...user, note: e.target.value })}
             placeholder="Наприклад: водій, комендант"
           />
-          <small className="text-muted">Звання відображається окремо</small>
+          <div className="form-text">Звання відображається окремо</div>
         </div>
-        <div className="col-md-4 mt-2">
-          <label className="small text-muted">
+        <div className="col-md-4">
+          <label className="form-label small text-muted mb-1">
+            <i className="fas fa-birthday-cake me-1"></i>Дата народження
+          </label>
+          <div className="d-flex gap-2 align-items-center">
+            <input
+              type="date"
+              className="form-control form-control-sm"
+              value={user.birthday || ''}
+              onChange={(e) => onChange({ ...user, birthday: e.target.value || undefined })}
+            />
+            {user.birthday && (
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm flex-shrink-0"
+                onClick={() => onChange({ ...user, birthday: undefined })}
+                title="Очистити"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            )}
+          </div>
+          <div className="form-text">Чергування в цей день будуть заблоковані.</div>
+        </div>
+        <div className="col-md-4">
+          <label className="form-label small text-muted mb-1">
             <i className="fas fa-calendar-plus me-1"></i>Дата включення в чергу
           </label>
           <input
@@ -253,10 +280,10 @@ export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = (
               className="btn btn-outline-primary btn-sm mt-2"
               onClick={() => onChange({ ...user, dateAddedToAuto: firstDutyDate })}
             >
-              <i className="fas fa-calendar-check me-1"></i>З дати першого чергування
+              <i className="fas fa-calendar-check me-1"></i>З першого чергування
             </button>
           )}
-          <small className="text-muted">
+          <div className="form-text">
             З цієї дати ведеться облік навантаження для авточерги.
             {!user.dateAddedToAuto && computedFairnessDate && (
               <>
@@ -267,7 +294,7 @@ export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = (
                 (авто)
               </>
             )}
-          </small>
+          </div>
         </div>
       </div>
     </div>

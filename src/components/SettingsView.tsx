@@ -7,6 +7,7 @@ import type {
   User,
   ScheduleEntry,
   ScheduleDocumentMode,
+  BirthdayBlockOpts,
 } from '../types';
 import Modal from './Modal';
 import LogicTabPanel from './settings/LogicTabPanel';
@@ -40,6 +41,8 @@ interface SettingsViewProps {
   onSaveUiScale: (value: number) => Promise<void>;
   onSaveDowHistoryWeeks: (value: number) => Promise<void>;
   onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
+  birthdayBlockOpts: BirthdayBlockOpts;
+  onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
@@ -81,6 +84,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setHistWeeks,
     histMode,
     setHistMode,
+    birthdayOpts,
+    setBirthdayOpts,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
@@ -171,6 +176,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           ignoreHistory={ignoreHistory}
           onIgnoreHistoryChange={setIgnoreHistory}
           onApplyFirstDutyDates={() => void applyFirstDutyDates()}
+          birthdayOpts={birthdayOpts}
+          onBirthdayOptsChange={setBirthdayOpts}
         />
       )}
       {subTab === 'interface' && (

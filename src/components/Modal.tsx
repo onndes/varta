@@ -7,6 +7,7 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'modal-sm' | 'modal-lg' | 'modal-xl' | 'modal-md';
   centered?: boolean;
+  footer?: React.ReactNode;
 }
 
 let openModalCount = 0;
@@ -21,6 +22,7 @@ const Modal: React.FC<ModalProps> = ({
   children,
   size = 'modal-lg',
   centered = true,
+  footer,
 }) => {
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -83,6 +85,7 @@ const Modal: React.FC<ModalProps> = ({
             <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
           <div className="modal-body">{children}</div>
+          {footer && <div className="modal-footer border-top">{footer}</div>}
         </div>
       </div>
     </div>

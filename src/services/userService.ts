@@ -1,10 +1,21 @@
 // src/services/userService.ts
 
 import { db } from '../db/db';
-import type { User, ScheduleEntry } from '../types';
-import { DEFAULT_MAX_DEBT } from '../utils/constants';
+import type { User, ScheduleEntry, BirthdayBlockOpts } from '../types';
+import { DEFAULT_MAX_DEBT, DEFAULT_BIRTHDAY_BLOCK_OPTS } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
 import { getStatusPeriodAtDate, getUserStatusPeriods } from '../utils/userStatus';
+
+// Module-level birthday blocking configuration.
+// Updated by useSettings after settings load so the scheduler and all callers
+// automatically respect the global setting without any signature changes.
+let _birthdayBlockOpts: BirthdayBlockOpts = { ...DEFAULT_BIRTHDAY_BLOCK_OPTS };
+
+export const setBirthdayBlockConfig = (opts: BirthdayBlockOpts): void => {
+  _birthdayBlockOpts = { ...opts };
+};
+
+export const getBirthdayBlockConfig = (): BirthdayBlockOpts => ({ ..._birthdayBlockOpts });
 
 /** Дані видаленого бійця для збереження в історії графіку */
 export interface DeletedUserInfo {
@@ -296,6 +307,32 @@ export const getUserAvailabilityStatus = (
       const nextDay = new Date(period.to);
       nextDay.setDate(nextDay.getDate() + 1);
       if (dateStr === toLocalISO(nextDay)) return 'REST_DAY';
+    }
+  }
+
+  // Birthday blocking
+  if (_birthdayBlockOpts.enabled && user.birthday) {
+    const bMonth = user.birthday.slice(5, 7);
+    const bDay = user.birthday.slice(8, 10);
+    const checkMonth = dateStr.slice(5, 7);
+    const checkDay = dateStr.slice(8, 10);
+    // Birthday itself
+    if (checkMonth === bMonth && checkDay === bDay) return 'DAY_BLOCKED';
+    // Day before birthday
+    if (_birthdayBlockOpts.blockBefore) {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + 1);
+      const nm = String(d.getMonth() + 1).padStart(2, '0');
+      const nd = String(d.getDate()).padStart(2, '0');
+      if (nm === bMonth && nd === bDay) return 'DAY_BLOCKED';
+    }
+    // Day after birthday
+    if (_birthdayBlockOpts.blockAfter) {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() - 1);
+      const pm = String(d.getMonth() + 1).padStart(2, '0');
+      const pd = String(d.getDate()).padStart(2, '0');
+      if (pm === bMonth && pd === bDay) return 'DAY_BLOCKED';
     }
   }
 

@@ -16,6 +16,8 @@ interface EditUserModalProps {
   user: User;
   onChange: (user: User) => void;
   onClose: () => void;
+  onSave?: () => Promise<void>;
+  isSaving?: boolean;
   /** Computed fallback date (earliest schedule date or today) when dateAddedToAuto is not set */
   computedFairnessDate?: string;
   /** First duty date for this user (from schedule) */
@@ -32,6 +34,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
   onChange,
   onClose,
+  onSave,
+  isSaving = false,
   computedFairnessDate,
   firstDutyDate,
   allUsers = [],
@@ -114,8 +118,26 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     applyStatusPeriods(statusPeriods.filter((_, i) => i !== index));
   };
 
+  const footer = onSave ? (
+    <button
+      type="button"
+      className="btn btn-primary"
+      onClick={() => void onSave()}
+      disabled={isSaving}
+    >
+      <i className={`fas ${isSaving ? 'fa-spinner fa-spin' : 'fa-save'} me-2`}></i>
+      {isSaving ? 'Збереження...' : 'Зберегти'}
+    </button>
+  ) : undefined;
+
   return (
-    <Modal show={true} onClose={onClose} title={`Редагування: ${user.name}`} size="modal-lg">
+    <Modal
+      show={true}
+      onClose={onClose}
+      title={`Редагування: ${user.name}`}
+      size="modal-lg"
+      footer={footer}
+    >
       <StatusPeriodsSection
         statusPeriods={statusPeriods}
         onUpdate={updateStatusPeriod}

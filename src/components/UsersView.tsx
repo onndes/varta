@@ -55,6 +55,7 @@ const UsersView: React.FC<UsersViewProps> = ({
     handleCancelEditReview,
     handleDiscardEditChanges,
     handleApplyEditChanges,
+    handleSaveDirectly,
   } = useUserEditFlow({ schedule, updateCascadeTrigger, refreshData, logAction });
 
   const { handleAdd, handleDelete } = useUsersActions({
@@ -187,6 +188,8 @@ const UsersView: React.FC<UsersViewProps> = ({
           user={editingUser}
           onChange={setEditingUser}
           onClose={() => handleCloseEditModal(users)}
+          onSave={() => handleSaveDirectly()}
+          isSaving={isApplyingEdit}
           computedFairnessDate={(() => {
             const dates = Object.keys(schedule).sort();
             return dates[0] || toLocalISO(new Date());

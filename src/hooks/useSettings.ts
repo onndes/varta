@@ -1,8 +1,15 @@
 // src/hooks/useSettings.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import type { DayWeights, Signatories, AutoScheduleOptions, AppTheme } from '../types';
+import type {
+  DayWeights,
+  Signatories,
+  AutoScheduleOptions,
+  AppTheme,
+  BirthdayBlockOpts,
+} from '../types';
 import * as settingsService from '../services/settingsService';
+import { setBirthdayBlockConfig } from '../services/userService';
 import {
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
   DEFAULT_MAX_DEBT,
@@ -11,6 +18,7 @@ import {
   DEFAULT_SIGNATORIES,
   DEFAULT_DOW_HISTORY_WEEKS,
   DEFAULT_DOW_HISTORY_MODE,
+  DEFAULT_BIRTHDAY_BLOCK_OPTS,
 } from '../utils/constants';
 
 /**
@@ -35,6 +43,9 @@ export const useSettings = () => {
   const [dowHistoryMode, setDowHistoryMode] = useState<'numbers' | 'dots'>(
     DEFAULT_DOW_HISTORY_MODE
   );
+  const [birthdayBlockOpts, setBirthdayBlockOpts] = useState<BirthdayBlockOpts>(
+    DEFAULT_BIRTHDAY_BLOCK_OPTS
+  );
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +69,7 @@ export const useSettings = () => {
         savedUiScale,
         savedDowHistoryWeeks,
         savedDowHistoryMode,
+        savedBirthdayBlockOpts,
         savedTheme,
       ] = await Promise.all([
         settingsService.getDayWeights(),
@@ -72,6 +84,7 @@ export const useSettings = () => {
         settingsService.getUiScale(),
         settingsService.getDowHistoryWeeks(),
         settingsService.getDowHistoryMode(),
+        settingsService.getBirthdayBlockOpts(),
         settingsService.getTheme(),
       ]);
 
@@ -87,6 +100,8 @@ export const useSettings = () => {
       setUiScale(savedUiScale);
       setDowHistoryWeeks(savedDowHistoryWeeks);
       setDowHistoryMode(savedDowHistoryMode);
+      setBirthdayBlockOpts(savedBirthdayBlockOpts);
+      setBirthdayBlockConfig(savedBirthdayBlockOpts);
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
     } catch (err) {
@@ -263,6 +278,17 @@ export const useSettings = () => {
     }
   }, []);
 
+  const saveBirthdayBlockOptsCallback = useCallback(async (opts: BirthdayBlockOpts) => {
+    try {
+      await settingsService.saveBirthdayBlockOpts(opts);
+      setBirthdayBlockOpts(opts);
+      setBirthdayBlockConfig(opts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save birthday block opts');
+      throw err;
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     loadSettings();
@@ -281,6 +307,7 @@ export const useSettings = () => {
     uiScale,
     dowHistoryWeeks,
     dowHistoryMode,
+    birthdayBlockOpts,
     theme,
     loading,
     error,
@@ -294,6 +321,7 @@ export const useSettings = () => {
     saveUiScale,
     saveDowHistoryWeeks,
     saveDowHistoryMode,
+    saveBirthdayBlockOpts: saveBirthdayBlockOptsCallback,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,

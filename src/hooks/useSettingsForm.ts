@@ -1,6 +1,13 @@
 // src/hooks/useSettingsForm.ts
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { DayWeights, Signatories, AutoScheduleOptions, User, ScheduleEntry } from '../types';
+import type {
+  DayWeights,
+  Signatories,
+  AutoScheduleOptions,
+  User,
+  ScheduleEntry,
+  BirthdayBlockOpts,
+} from '../types';
 import type { DatabaseStats } from '../services/performanceService';
 import * as performanceService from '../services/performanceService';
 import { toLocalISO } from '../utils/dateUtils';
@@ -34,6 +41,8 @@ export interface UseSettingsFormProps {
   onSaveUiScale: (value: number) => Promise<void>;
   onSaveDowHistoryWeeks: (value: number) => Promise<void>;
   onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
+  birthdayBlockOpts: BirthdayBlockOpts;
+  onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
@@ -58,6 +67,7 @@ export const useSettingsForm = ({
   uiScale,
   dowHistoryWeeks,
   dowHistoryMode,
+  birthdayBlockOpts,
   onSave,
   onSaveSignatories,
   onSaveDutiesPerDay,
@@ -69,6 +79,7 @@ export const useSettingsForm = ({
   onSaveUiScale,
   onSaveDowHistoryWeeks,
   onSaveDowHistoryMode,
+  onSaveBirthdayBlockOpts,
   refreshData,
   updateCascadeTrigger,
   logAction,
@@ -84,6 +95,7 @@ export const useSettingsForm = ({
   const [scale, setScale] = useState<number>(uiScale);
   const [histWeeks, setHistWeeks] = useState<number>(dowHistoryWeeks);
   const [histMode, setHistMode] = useState<'numbers' | 'dots'>(dowHistoryMode);
+  const [birthdayOpts, setBirthdayOpts] = useState<BirthdayBlockOpts>(birthdayBlockOpts);
   const [isSaving, setIsSaving] = useState(false);
 
   // DB maintenance modal state
@@ -125,6 +137,9 @@ export const useSettingsForm = ({
   useEffect(() => {
     setHistMode(dowHistoryMode);
   }, [dowHistoryMode]);
+  useEffect(() => {
+    setBirthdayOpts(birthdayBlockOpts);
+  }, [birthdayBlockOpts]);
 
   const { showAlert, showConfirm } = useDialog();
 
@@ -167,6 +182,7 @@ export const useSettingsForm = ({
   const scaleChanged = scale !== uiScale;
   const histWeeksChanged = histWeeks !== dowHistoryWeeks;
   const histModeChanged = histMode !== dowHistoryMode;
+  const birthdayOptsChanged = JSON.stringify(birthdayOpts) !== JSON.stringify(birthdayBlockOpts);
   const hasUnsavedChanges =
     weightsChanged ||
     signatoriesChanged ||
@@ -178,7 +194,8 @@ export const useSettingsForm = ({
     ignoreHistoryChanged ||
     scaleChanged ||
     histWeeksChanged ||
-    histModeChanged;
+    histModeChanged ||
+    birthdayOptsChanged;
   const dirtySections = {
     logic:
       weightsChanged ||
@@ -187,7 +204,7 @@ export const useSettingsForm = ({
       debtChanged ||
       ignoreHistoryChanged,
     print: signatoriesChanged || maxRowsChanged || printAllUsersChanged,
-    interface: scaleChanged || histWeeksChanged || histModeChanged,
+    interface: scaleChanged || histWeeksChanged || histModeChanged || birthdayOptsChanged,
     experimental: experimentalAutoOptionsChanged,
   };
 
@@ -232,6 +249,10 @@ export const useSettingsForm = ({
         await onSaveDowHistoryMode(histMode);
         if (!histWeeksChanged) sections.push('індикатор повторів');
       }
+      if (birthdayOptsChanged) {
+        await onSaveBirthdayBlockOpts(birthdayOpts);
+        sections.push('блокування дня народження');
+      }
       if (signatoriesChanged) {
         await onSaveSignatories(sigs);
         sections.push('підписи та заголовок');
@@ -275,6 +296,7 @@ export const useSettingsForm = ({
     onSaveUiScale,
     onSaveDowHistoryWeeks,
     onSaveDowHistoryMode,
+    onSaveBirthdayBlockOpts,
     perDay,
     printAllUsers,
     printAllUsersChanged,
@@ -285,6 +307,8 @@ export const useSettingsForm = ({
     histWeeksChanged,
     histMode,
     histModeChanged,
+    birthdayOpts,
+    birthdayOptsChanged,
     showAlert,
     signatoriesChanged,
     sigs,
@@ -361,6 +385,8 @@ export const useSettingsForm = ({
     setHistWeeks,
     histMode,
     setHistMode,
+    birthdayOpts,
+    setBirthdayOpts,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
