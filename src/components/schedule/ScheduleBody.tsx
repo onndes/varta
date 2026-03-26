@@ -1,6 +1,6 @@
 // src/components/schedule/ScheduleBody.tsx
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { User, ScheduleEntry, Signatories, PrintMode, PrintWeekRange } from '../../types';
 import type { DeletedUserInfo } from '../../services/userService';
 import type { ScheduleModalsProps } from './ScheduleModals';
@@ -151,6 +151,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   handleDiscardEditChanges,
   handleCancelEditReview,
 }) => {
+  const [rowFilter, setRowFilter] = useState<'all' | 'available' | 'assigned'>('all');
+  const showRowFilters = users.filter((user) => user.isActive).length <= 20;
+
   const printHeaderDates =
     printMode === 'week-calendar-table' && printWeekRange
       ? getWeekRangeDates(
@@ -175,6 +178,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           shouldShowCascade={shouldShowCascadeRecalc}
           conflictsCount={scheduleIssues.conflicts.length}
           criticalConflictsCount={scheduleIssues.criticalConflicts.length}
+          rowFilter={rowFilter}
+          showRowFilters={showRowFilters}
           onPrevWeek={() => shiftWeek(-1)}
           onNextWeek={() => shiftWeek(1)}
           onToday={goToToday}
@@ -188,6 +193,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           onImportSchedule={() => setShowImportModal(true)}
           historyMode={historyMode}
           onToggleHistoryMode={() => setHistoryMode((v) => !v)}
+          onToggleRowFilter={(filter) =>
+            setRowFilter((prev) => (prev === filter ? 'all' : filter))
+          }
           canUndo={canUndo}
           canRedo={canRedo}
           undoLabel={undoLabel}
@@ -208,6 +216,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           schedule={schedule}
           todayStr={todayStr}
           dutiesPerDay={dutiesPerDay}
+          rowFilter={rowFilter}
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
           onUserClick={handleStartEdit}

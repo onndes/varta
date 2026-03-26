@@ -7,6 +7,8 @@ interface ScheduleControlsProps {
   shouldShowCascade: boolean;
   conflictsCount: number;
   criticalConflictsCount: number;
+  rowFilter: 'all' | 'available' | 'assigned';
+  showRowFilters: boolean;
   onPrevWeek: () => void;
   onNextWeek: () => void;
   onToday: () => void;
@@ -20,6 +22,7 @@ interface ScheduleControlsProps {
   onImportSchedule: () => void;
   historyMode: boolean;
   onToggleHistoryMode: () => void;
+  onToggleRowFilter: (filter: 'available' | 'assigned') => void;
   canUndo: boolean;
   canRedo: boolean;
   undoLabel?: string;
@@ -38,6 +41,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   shouldShowCascade,
   conflictsCount,
   criticalConflictsCount,
+  rowFilter,
+  showRowFilters,
   onPrevWeek,
   onNextWeek,
   onToday,
@@ -51,6 +56,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onImportSchedule,
   historyMode,
   onToggleHistoryMode,
+  onToggleRowFilter,
   canUndo,
   canRedo,
   undoLabel,
@@ -109,32 +115,56 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
 
       {/* Row 2: history/import + undo/redo */}
       <div className="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          <button
-            className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
-            onClick={onToggleHistoryMode}
-            disabled={isFutureWeek}
-            title={
-              isFutureWeek
-                ? 'Недоступно на майбутніх тижнях'
-                : 'Розблокувати минулі дні для ручного заповнення старого графіка'
-            }
-          >
-            <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
-            {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
-          </button>
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            onClick={onImportSchedule}
-            disabled={isFutureWeek}
-            title={
-              isFutureWeek
-                ? 'Недоступно на майбутніх тижнях'
-                : 'Імпорт старого графіка (CSV/текст)'
-            }
-          >
-            <i className="fas fa-file-import me-1"></i>Імпорт
-          </button>
+        <div className="d-flex flex-column align-items-start gap-2">
+          <div className="d-flex align-items-center gap-2 flex-wrap">
+            <button
+              className={`btn btn-sm ${historyMode ? 'btn-warning' : 'btn-outline-secondary'}`}
+              onClick={onToggleHistoryMode}
+              disabled={isFutureWeek}
+              title={
+                isFutureWeek
+                  ? 'Недоступно на майбутніх тижнях'
+                  : 'Розблокувати минулі дні для ручного заповнення старого графіка'
+              }
+            >
+              <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
+              {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
+            </button>
+            <button
+              className="btn btn-sm btn-outline-secondary"
+              onClick={onImportSchedule}
+              disabled={isFutureWeek}
+              title={
+                isFutureWeek
+                  ? 'Недоступно на майбутніх тижнях'
+                  : 'Імпорт старого графіка (CSV/текст)'
+              }
+            >
+              <i className="fas fa-file-import me-1"></i>Імпорт
+            </button>
+          </div>
+
+          {showRowFilters && (
+            <div className="d-flex align-items-center gap-2 flex-wrap schedule-row-filter-bar">
+              <span className="text-muted small me-1">Фільтр:</span>
+              <button
+                className={`btn btn-sm py-0 px-2 ${rowFilter === 'available' ? 'btn-success' : 'btn-outline-secondary'}`}
+                style={{ fontSize: '0.75rem' }}
+                onClick={() => onToggleRowFilter('available')}
+                title="Показати тільки тих, хто доступний до чергування хоча б один день цього тижня"
+              >
+                <i className="fas fa-user-check me-1"></i>Доступні
+              </button>
+              <button
+                className={`btn btn-sm py-0 px-2 ${rowFilter === 'assigned' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                style={{ fontSize: '0.75rem' }}
+                onClick={() => onToggleRowFilter('assigned')}
+                title="Показати тільки тих, у кого є наряд цього тижня"
+              >
+                <i className="fas fa-clipboard-check me-1"></i>В наряді
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="d-flex align-items-center gap-1">
