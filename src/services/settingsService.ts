@@ -1,7 +1,13 @@
 // src/services/settingsService.ts
 
 import { db } from '../db/db';
-import type { DayWeights, Signatories, AutoScheduleOptions, BirthdayBlockOpts } from '../types';
+import type {
+  AppStateEntry,
+  DayWeights,
+  Signatories,
+  AutoScheduleOptions,
+  BirthdayBlockOpts,
+} from '../types';
 import {
   DEFAULT_DAY_WEIGHTS,
   DEFAULT_SIGNATORIES,
@@ -36,11 +42,8 @@ const getJsonSetting = async <T>(key: string, defaultValue: T): Promise<T> => {
   return (value ?? defaultValue) as T;
 };
 
-const saveSetting = async (
-  key: string,
-  value: Record<string, unknown> | string | number | boolean | null
-): Promise<void> => {
-  await db.appState.put({ key, value: value as DayWeights });
+const saveSetting = async (key: string, value: AppStateEntry['value']): Promise<void> => {
+  await db.appState.put({ key, value });
 };
 
 // ── Day weights ───────────────────────────────────────────────────────
@@ -131,7 +134,7 @@ export const getBirthdayBlockOpts = async (): Promise<BirthdayBlockOpts> =>
   getJsonSetting('birthdayBlockOpts', DEFAULT_BIRTHDAY_BLOCK_OPTS);
 
 export const saveBirthdayBlockOpts = async (opts: BirthdayBlockOpts): Promise<void> =>
-  saveSetting('birthdayBlockOpts', opts as unknown as Record<string, unknown>);
+  saveSetting('birthdayBlockOpts', opts);
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
