@@ -164,6 +164,28 @@
   letter-spacing: 0.01em;
 }
 
+// ─── Settings View ───────────────────────────────────────────────────────────
+
+.settings-subtab-dirty {
+  position: relative;
+}
+
+.settings-save-card {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.settings-save-card--dirty {
+  border: 2px solid var(--bs-warning-border-subtle, #ffda6a);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 92%, transparent),
+    color-mix(in srgb, var(--bs-body-bg, #ffffff) 98%, transparent)
+  );
+}
+
 // ─── Schedule Controls ───────────────────────────────────────────────────────
 
 .schedule-view-wrapper {

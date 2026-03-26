@@ -125,6 +125,25 @@ export const useSettingsForm = ({
     () => JSON.stringify(autoOpts) !== JSON.stringify(autoScheduleOptions),
     [autoOpts, autoScheduleOptions]
   );
+  const logicAutoOptionsChanged =
+    autoOpts.avoidConsecutiveDays !== autoScheduleOptions.avoidConsecutiveDays ||
+    autoOpts.respectOwedDays !== autoScheduleOptions.respectOwedDays ||
+    autoOpts.minRestDays !== autoScheduleOptions.minRestDays ||
+    autoOpts.limitOneDutyPerWeekWhenSevenPlus !==
+      autoScheduleOptions.limitOneDutyPerWeekWhenSevenPlus ||
+    autoOpts.forceUseAllWhenFew !== autoScheduleOptions.forceUseAllWhenFew ||
+    autoOpts.allowDebtUsersExtraWeeklyAssignments !==
+      autoScheduleOptions.allowDebtUsersExtraWeeklyAssignments ||
+    autoOpts.debtUsersWeeklyLimit !== autoScheduleOptions.debtUsersWeeklyLimit ||
+    autoOpts.prioritizeFasterDebtRepayment !==
+      autoScheduleOptions.prioritizeFasterDebtRepayment;
+  const experimentalAutoOptionsChanged =
+    autoOpts.evenWeeklyDistribution !== autoScheduleOptions.evenWeeklyDistribution ||
+    autoOpts.considerLoad !== autoScheduleOptions.considerLoad ||
+    autoOpts.aggressiveLoadBalancing !== autoScheduleOptions.aggressiveLoadBalancing ||
+    autoOpts.aggressiveLoadBalancingThreshold !==
+      autoScheduleOptions.aggressiveLoadBalancingThreshold ||
+    !!autoOpts.useExperimentalStatsView !== !!autoScheduleOptions.useExperimentalStatsView;
   const dutiesChanged = perDay !== dutiesPerDay;
   const debtChanged = debt !== maxDebt;
   const maxRowsChanged = maxRows !== printMaxRows;
@@ -141,6 +160,17 @@ export const useSettingsForm = ({
     printAllUsersChanged ||
     ignoreHistoryChanged ||
     scaleChanged;
+  const dirtySections = {
+    logic:
+      weightsChanged ||
+      dutiesChanged ||
+      logicAutoOptionsChanged ||
+      debtChanged ||
+      ignoreHistoryChanged,
+    print: signatoriesChanged || maxRowsChanged || printAllUsersChanged,
+    interface: scaleChanged,
+    experimental: experimentalAutoOptionsChanged,
+  };
 
   /** Persist all changed settings sections and refresh app data. */
   const handleSaveSettings = useCallback(async () => {
@@ -296,6 +326,7 @@ export const useSettingsForm = ({
     setScale,
     isSaving,
     hasUnsavedChanges,
+    dirtySections,
     handleSaveSettings,
     applyFirstDutyDates,
     showDbModal,

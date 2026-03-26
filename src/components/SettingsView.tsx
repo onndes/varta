@@ -44,6 +44,13 @@ interface SettingsViewProps {
 
 type SubTab = 'logic' | 'interface' | 'print' | 'experimental';
 
+const SUBTAB_LABELS: Record<SubTab, string> = {
+  logic: 'Логіка графіка',
+  print: 'Друк',
+  interface: 'Інтерфейс',
+  experimental: 'Експериментальні',
+};
+
 /** Top-level settings screen with logic / print / interface sub-tabs. */
 const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
@@ -68,6 +75,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setScale,
     isSaving,
     hasUnsavedChanges,
+    dirtySections,
     handleSaveSettings,
     applyFirstDutyDates,
     showDbModal,
@@ -77,6 +85,9 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     handleOpenDbModal,
     handleMaintenance,
   } = useSettingsForm(props);
+  const dirtyTabLabels = (Object.entries(dirtySections) as Array<[SubTab, boolean]>)
+    .filter(([, isDirty]) => isDirty)
+    .map(([tab]) => SUBTAB_LABELS[tab]);
 
   return (
     <div>
@@ -85,35 +96,47 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
         <ul className="nav nav-pills">
           <li className="nav-item">
             <button
-              className={`nav-link ${subTab === 'logic' ? 'active' : ''}`}
+              className={`nav-link ${subTab === 'logic' ? 'active' : ''} ${dirtySections.logic ? 'settings-subtab-dirty' : ''}`}
               onClick={() => setSubTab('logic')}
             >
               <i className="fas fa-cogs me-1"></i>Логіка графіка
+              {dirtySections.logic && (
+                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
+              )}
             </button>
           </li>
           <li className="nav-item">
             <button
-              className={`nav-link ${subTab === 'print' ? 'active' : ''}`}
+              className={`nav-link ${subTab === 'print' ? 'active' : ''} ${dirtySections.print ? 'settings-subtab-dirty' : ''}`}
               onClick={() => setSubTab('print')}
             >
               <i className="fas fa-print me-1"></i>Друк
+              {dirtySections.print && (
+                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
+              )}
             </button>
           </li>
           <li className="nav-item">
             <button
-              className={`nav-link ${subTab === 'interface' ? 'active' : ''}`}
+              className={`nav-link ${subTab === 'interface' ? 'active' : ''} ${dirtySections.interface ? 'settings-subtab-dirty' : ''}`}
               onClick={() => setSubTab('interface')}
             >
               <i className="fas fa-display me-1"></i>Інтерфейс
+              {dirtySections.interface && (
+                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
+              )}
             </button>
           </li>
           <li className="nav-item ms-3">
             <button
-              className={`nav-link text-secondary opacity-50 small ${subTab === 'experimental' ? 'active opacity-100' : ''}`}
+              className={`nav-link text-secondary opacity-50 small ${subTab === 'experimental' ? 'active opacity-100' : ''} ${dirtySections.experimental ? 'settings-subtab-dirty' : ''}`}
               onClick={() => setSubTab('experimental')}
               title="Експериментальні та нестандартні налаштування"
             >
-              <i className="fas fa-flask me-1"></i>dev
+              <i className="fas fa-flask me-1"></i>Експериментальні
+              {dirtySections.experimental && (
+                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
+              )}
             </button>
           </li>
         </ul>
@@ -159,18 +182,27 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
       )}
 
       {/* Save footer */}
-      <div className="card shadow-sm border-0 mt-4">
+      <div
+        className={`card shadow-sm border-0 mt-4 settings-save-card ${hasUnsavedChanges ? 'settings-save-card--dirty' : ''}`}
+      >
         <div className="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-          <div>
-            <div className="fw-bold">Збереження налаштувань</div>
+          <div className="min-w-0">
+            <div className="fw-bold d-flex align-items-center gap-2 flex-wrap">
+              <span>Збереження налаштувань</span>
+              <span
+                className={`badge ${hasUnsavedChanges ? 'bg-warning text-dark settings-save-button-dirty' : 'bg-success-subtle text-success-emphasis border border-success-subtle'}`}
+              >
+                {hasUnsavedChanges ? 'Не збережено' : 'Збережено'}
+              </span>
+            </div>
             <div className="text-muted small">
               {hasUnsavedChanges
-                ? 'Є незбережені зміни. Вони застосуються тільки після натискання кнопки.'
+                ? `Змінені розділи: ${dirtyTabLabels.join(', ')}. Застосуються після збереження.`
                 : 'Змін немає. Поточні налаштування вже збережені.'}
             </div>
           </div>
           <button
-            className="btn btn-primary"
+            className={`btn ${hasUnsavedChanges ? 'btn-warning settings-save-button-dirty' : 'btn-primary'}`}
             onClick={() => void handleSaveSettings()}
             disabled={!hasUnsavedChanges || isSaving}
           >

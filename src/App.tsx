@@ -296,7 +296,9 @@ const App = () => {
           onSaveTheme={saveTheme}
         />
 
-        <main className={`app-content ${activeTab === 'schedule' ? 'app-content--schedule' : ''}`}>
+        <main
+          className={`app-content ${activeTab === 'schedule' ? 'app-content--schedule' : ''} ${activeTab === 'settings' ? 'app-content--settings' : ''}`}
+        >
           {activeTab === 'schedule' && (
             <ScheduleView
               key={workspaceVersion}

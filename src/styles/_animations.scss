@@ -23,6 +23,18 @@
   }
 }
 
+@keyframes pulse-border-warning {
+  0% {
+    border-color: var(--bs-warning-border-subtle, #ffda6a);
+  }
+  50% {
+    border-color: #fd7e14;
+  }
+  100% {
+    border-color: var(--bs-warning-border-subtle, #ffda6a);
+  }
+}
+
 @keyframes pulse-orange {
   0% {
     box-shadow: 0 0 0 0 rgba(253, 126, 20, 0.7);
@@ -38,6 +50,14 @@
 // Animated buttons
 .btn-export-dirty {
   animation: pulse-red 2s infinite;
+}
+
+.settings-save-button-dirty {
+  animation: pulse-orange 2s infinite;
+}
+
+.settings-save-card--dirty {
+  animation: pulse-border-warning 1.5s infinite;
 }
 
 // Loading overlay

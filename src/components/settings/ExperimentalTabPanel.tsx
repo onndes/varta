@@ -56,6 +56,86 @@ const ExperimentalTabPanel: React.FC<ExperimentalTabPanelProps> = ({
 
         <hr className="my-3" />
 
+        {/* Consider load */}
+        <div className="form-check form-switch mb-3">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="considerLoad"
+            checked={autoOpts.considerLoad}
+            onChange={(e) => onAutoOptsChange({ ...autoOpts, considerLoad: e.target.checked })}
+          />
+          <label className="form-check-label" htmlFor="considerLoad">
+            <strong>Враховувати навантаження</strong>
+            {!autoOpts.considerLoad && (
+              <span className="text-danger small fw-bold ms-2">
+                (вимкнення ламає справедливість розподілу!)
+              </span>
+            )}
+            <div className="text-muted small">
+              Спочатку по кількості чергувань на день тижня (драбинка), потім по загальній
+              кількості, потім по вазі + карма. Вимкніть лише для тестування.
+            </div>
+          </label>
+        </div>
+
+        {/* Aggressive balancing — nested under considerLoad */}
+        {autoOpts.considerLoad && (
+          <div className="ms-4 mb-4 p-3 bg-light rounded">
+            <div className="form-check form-switch mb-2">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="aggressiveBalance"
+                checked={autoOpts.aggressiveLoadBalancing}
+                onChange={(e) =>
+                  onAutoOptsChange({ ...autoOpts, aggressiveLoadBalancing: e.target.checked })
+                }
+              />
+              <label className="form-check-label" htmlFor="aggressiveBalance">
+                <strong>Агресивне балансування</strong>
+                {autoOpts.aggressiveLoadBalancing && (
+                  <span className="text-danger small fw-bold ms-2">
+                    (може ігнорувати інші пріоритети!)
+                  </span>
+                )}
+                <div className="text-muted small">
+                  Примусово вирівнює навантаження, ігноруючи стандартні пріоритети, якщо різниця
+                  більша за поріг.
+                </div>
+              </label>
+            </div>
+
+            {autoOpts.aggressiveLoadBalancing && (
+              <div className="ms-4 mt-2">
+                <label className="form-label fw-bold small">Поріг різниці</label>
+                <div className="d-flex align-items-center gap-3">
+                  <input
+                    type="number"
+                    step={0.05}
+                    min={0.05}
+                    max={1.0}
+                    className="form-control form-control-sm"
+                    style={{ width: '80px' }}
+                    value={autoOpts.aggressiveLoadBalancingThreshold}
+                    onChange={(e) =>
+                      onAutoOptsChange({
+                        ...autoOpts,
+                        aggressiveLoadBalancingThreshold: parseFloat(e.target.value) || 0.2,
+                      })
+                    }
+                  />
+                  <span className="text-muted small">
+                    Менше значення = жорсткіше вирівнювання (0.2 за замовчуванням)
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <hr className="my-3" />
+
         {/* Experimental stats view */}
         <div className="form-check form-switch mb-3">
           <input

@@ -5,10 +5,6 @@ import DebtUserOptions from './DebtUserOptions';
 
 const REST_DAYS_MIN = 1;
 const REST_DAYS_MAX = 7; // min/max rest days between duties
-const BALANCE_STEP = 0.05;
-const BALANCE_MIN = 0.05;
-const BALANCE_MAX = 1.0;
-const BALANCE_DEFAULT = 0.2;
 
 interface AutoSchedulerOptionsCardProps {
   autoOpts: AutoScheduleOptions;
@@ -109,86 +105,6 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
           </div>
         </label>
       </div>
-
-      {/* Consider load */}
-      <div className="form-check form-switch mb-3">
-        <input
-          className="form-check-input"
-          type="checkbox"
-          id="considerLoad"
-          checked={autoOpts.considerLoad}
-          onChange={(e) => onAutoOptsChange({ ...autoOpts, considerLoad: e.target.checked })}
-        />
-        <label className="form-check-label" htmlFor="considerLoad">
-          <strong>Враховувати навантаження</strong>
-          {!autoOpts.considerLoad && (
-            <span className="text-danger small fw-bold ms-2">
-              (вимкнення ламає справедливість розподілу!)
-            </span>
-          )}
-          <div className="text-muted small">
-            Спочатку по кількості чергувань на день тижня (драбинка), потім по загальній кількості,
-            потім по вазі + карма. Вимкніть лише для тестування.
-          </div>
-        </label>
-      </div>
-
-      {/* Aggressive balancing — nested under considerLoad */}
-      {autoOpts.considerLoad && (
-        <div className="ms-4 mb-3 p-3 bg-light rounded">
-          <div className="form-check form-switch mb-2">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="aggressiveBalance"
-              checked={autoOpts.aggressiveLoadBalancing}
-              onChange={(e) =>
-                onAutoOptsChange({ ...autoOpts, aggressiveLoadBalancing: e.target.checked })
-              }
-            />
-            <label className="form-check-label" htmlFor="aggressiveBalance">
-              <strong>Агресивне балансування</strong>
-              {autoOpts.aggressiveLoadBalancing && (
-                <span className="text-danger small fw-bold ms-2">
-                  (може ігнорувати інші пріоритети!)
-                </span>
-              )}
-              <div className="text-muted small">
-                Примусово вирівнює навантаження, ігноруючи стандартні пріоритети, якщо різниця
-                більша за поріг.
-              </div>
-            </label>
-          </div>
-
-          {/* Balance threshold — shown only when aggressive balancing is on */}
-          {autoOpts.aggressiveLoadBalancing && (
-            <div className="ms-4 mt-2">
-              <label className="form-label fw-bold small">Поріг різниці</label>
-              <div className="d-flex align-items-center gap-3">
-                <input
-                  type="number"
-                  step={BALANCE_STEP}
-                  min={BALANCE_MIN}
-                  max={BALANCE_MAX}
-                  className="form-control form-control-sm"
-                  style={{ width: '80px' }}
-                  value={autoOpts.aggressiveLoadBalancingThreshold}
-                  onChange={(e) =>
-                    onAutoOptsChange({
-                      ...autoOpts,
-                      aggressiveLoadBalancingThreshold:
-                        parseFloat(e.target.value) || BALANCE_DEFAULT,
-                    })
-                  }
-                />
-                <span className="text-muted small">
-                  Менше значення = жорсткіше вирівнювання (0.2 за замовчуванням)
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* One duty per week when 7+ people available */}
       <div className="form-check form-switch mb-3">
