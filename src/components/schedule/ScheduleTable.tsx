@@ -14,13 +14,17 @@ import {
 import { CompactScheduleView } from './CompactScheduleView';
 import { ScheduleTableHeader } from './ScheduleTableHeader';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type RowFilter = 'all' | 'available' | 'assigned';
+
 interface ScheduleTableProps {
   users: User[];
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
   dutiesPerDay: number;
-  rowFilter: 'all' | 'available' | 'assigned';
+  rowFilter: RowFilter;
   historyMode?: boolean;
   deletedUserNames?: Record<number, DeletedUserInfo>;
   onUserClick?: (user: User) => void;
@@ -29,6 +33,66 @@ interface ScheduleTableProps {
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
 }
+
+// ─── Deleted-user row (historical display) ────────────────────────────────────
+
+const DeletedUserRow: React.FC<{
+  deletedId: number;
+  info: DeletedUserInfo;
+  weekDates: string[];
+  schedule: Record<string, ScheduleEntry>;
+}> = ({ deletedId, info, weekDates, schedule }) => {
+  const nameParts = info.name.trim().split(/\s+/);
+  return (
+    <tr className="user-row-inactive" style={{ opacity: 0.6 }}>
+      <td></td>
+      <td className="text-start col-user-screen" style={{ minWidth: '70px', paddingRight: 0 }}>
+        <small
+          className="text-muted text-uppercase"
+          style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
+        >
+          {formatRank(info.rank)}
+        </small>
+      </td>
+      <td className="text-start px-2 col-user-screen">
+        <div
+          className="fw-bold text-uppercase text-muted"
+          style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
+        >
+          {nameParts[0]}
+        </div>
+        {nameParts.length > 1 && (
+          <div
+            className="text-muted"
+            style={{ fontSize: '0.73rem', opacity: 0.5, lineHeight: 1.2 }}
+          >
+            {nameParts.slice(1).join(' ')}
+          </div>
+        )}
+        <span className="badge bg-secondary text-white" style={{ fontSize: '0.55rem' }}>
+          <i className="fas fa-user-slash me-1" style={{ fontSize: '0.5rem' }}></i>
+          ВИДАЛЕНИЙ
+        </span>
+      </td>
+      <td className="col-user-print text-start" style={{ fontSize: '10pt' }}>
+        {info.rank}
+      </td>
+      <td className="col-user-print text-start fw-bold" style={{ fontSize: '10pt' }}>
+        {info.name}
+      </td>
+      {weekDates.map((date) => {
+        const ids = toAssignedUserIds(schedule[date]?.userId);
+        const isAssigned = ids.includes(deletedId);
+        return (
+          <td key={date} className={`compact-cell${isAssigned ? ' past-locked' : ''}`}>
+            <span className="no-print">{isAssigned ? 'НАРЯД' : ''}</span>
+            <span className="print-only">{isAssigned ? '08:00' : ''}</span>
+          </td>
+        );
+      })}
+    </tr>
+  );
+};
 
 /**
  * Schedule Table Component
@@ -112,106 +176,52 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
 
   // ── Standard user-row view for small teams (≤ 20) ────────────────────
   return (
-    <div className="view-table-outer">
-      <div className="view-table">
-        <div className="card shadow-sm border-0">
-          <table className="compact-table">
-            <ScheduleTableHeader
-              weekDates={weekDates}
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={toggleSort}
-              onDateClick={(date) => onCellClick(date, null, undefined)}
-            />
-            <tbody>
-              {displayUsers.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={3 + weekDates.length}
-                    className="text-center text-muted py-4 no-print"
-                  >
-                    <i className="fas fa-users me-2"></i>Немає бійців у складі
-                  </td>
-                </tr>
-              ) : (
-                displayUsers.map((user, idx) => (
-                  <ScheduleTableRow
-                    key={user.id}
-                    user={user}
-                    index={idx}
-                    weekDates={weekDates}
-                    schedule={schedule}
-                    todayStr={todayStr}
-                    historyMode={historyMode}
-                    dowHistoryWeeks={dowHistoryWeeks}
-                    dowHistoryMode={dowHistoryMode}
-                    onUserClick={onUserClick}
-                    onCellClick={onCellClick}
-                    onQuickAssignClick={onQuickAssignClick}
-                  />
-                ))
-              )}
-              {/* Deleted users that still have assignments in this week */}
-              {[...deletedUsersInWeek.entries()].map(([deletedId, info]) => (
-                <tr
-                  key={`deleted-${deletedId}`}
-                  className="user-row-inactive"
-                  style={{ opacity: 0.6 }}
-                >
-                  <td></td>
-                  <td
-                    className="text-start col-user-screen"
-                    style={{ minWidth: '70px', paddingRight: 0 }}
-                  >
-                    <small
-                      className="text-muted text-uppercase"
-                      style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}
-                    >
-                      {formatRank(info.rank)}
-                    </small>
-                  </td>
-                  <td className="text-start px-2 col-user-screen">
-                    <div
-                      className="fw-bold text-uppercase text-muted"
-                      style={{ fontSize: '0.8rem', letterSpacing: '0.02em', lineHeight: 1.2 }}
-                    >
-                      {info.name.trim().split(/\s+/)[0]}
-                    </div>
-                    {info.name.trim().split(/\s+/).length > 1 && (
-                      <div
-                        className="text-muted"
-                        style={{ fontSize: '0.73rem', opacity: 0.5, lineHeight: 1.2 }}
-                      >
-                        {info.name.trim().split(/\s+/).slice(1).join(' ')}
-                      </div>
-                    )}
-                    <span className="badge bg-secondary text-white" style={{ fontSize: '0.55rem' }}>
-                      <i className="fas fa-user-slash me-1" style={{ fontSize: '0.5rem' }}></i>
-                      ВИДАЛЕНИЙ
-                    </span>
-                  </td>
-                  <td className="col-user-print text-start" style={{ fontSize: '10pt' }}>
-                    {info.rank}
-                  </td>
-                  <td className="col-user-print text-start fw-bold" style={{ fontSize: '10pt' }}>
-                    {info.name}
-                  </td>
-                  {weekDates.map((date) => {
-                    const entry = schedule[date];
-                    const ids = toAssignedUserIds(entry?.userId);
-                    const isAssigned = ids.includes(deletedId);
-                    return (
-                      <td key={date} className={`compact-cell${isAssigned ? ' past-locked' : ''}`}>
-                        <span className="no-print">{isAssigned ? 'НАРЯД' : ''}</span>
-                        <span className="print-only">{isAssigned ? '08:00' : ''}</span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <div className="view-table">
+      <div className="card shadow-sm border-0">
+        <table className="compact-table">
+          <ScheduleTableHeader
+            weekDates={weekDates}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={toggleSort}
+            onDateClick={(date) => onCellClick(date, null, undefined)}
+          />
+          <tbody>
+            {displayUsers.length === 0 ? (
+              <tr>
+                <td colSpan={3 + weekDates.length} className="text-center text-muted py-4 no-print">
+                  <i className="fas fa-users me-2"></i>Немає бійців у складі
+                </td>
+              </tr>
+            ) : (
+              displayUsers.map((user, idx) => (
+                <ScheduleTableRow
+                  key={user.id}
+                  user={user}
+                  index={idx}
+                  weekDates={weekDates}
+                  schedule={schedule}
+                  todayStr={todayStr}
+                  historyMode={historyMode}
+                  dowHistoryWeeks={dowHistoryWeeks}
+                  dowHistoryMode={dowHistoryMode}
+                  onUserClick={onUserClick}
+                  onCellClick={onCellClick}
+                  onQuickAssignClick={onQuickAssignClick}
+                />
+              ))
+            )}
+            {[...deletedUsersInWeek.entries()].map(([deletedId, info]) => (
+              <DeletedUserRow
+                key={`deleted-${deletedId}`}
+                deletedId={deletedId}
+                info={info}
+                weekDates={weekDates}
+                schedule={schedule}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

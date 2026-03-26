@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.0.0"
+version = "1.0.1"
 description = "VARTA — Система автоматичного розподілу нарядів"
 authors = ["Vladyslav V.V. <vladvyljotnikov@gmail.com>"]
 license = "UNLICENSED"

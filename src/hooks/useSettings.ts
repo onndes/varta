@@ -50,6 +50,25 @@ export const useSettings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper: create a save callback that persists via service, updates local state, and handles errors
+  const makeSaver =
+    <T>(
+      serviceFn: (value: T) => Promise<void>,
+      setter: React.Dispatch<React.SetStateAction<T>>,
+      errorMsg: string,
+      afterSave?: (value: T) => void
+    ) =>
+    async (value: T) => {
+      try {
+        await serviceFn(value);
+        setter(value);
+        afterSave?.(value);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : errorMsg);
+        throw err;
+      }
+    };
+
   // Load all settings
   const loadSettings = useCallback(async () => {
     try {
@@ -112,49 +131,61 @@ export const useSettings = () => {
     }
   }, []);
 
-  // Save day weights
-  const saveDayWeights = useCallback(async (weights: DayWeights) => {
-    try {
-      await settingsService.saveDayWeights(weights);
-      setDayWeights(weights);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save day weights');
-      throw err;
-    }
-  }, []);
-
-  // Save signatories
-  const saveSignatories = useCallback(async (sigs: Signatories) => {
-    try {
-      await settingsService.saveSignatories(sigs);
-      setSignatories(sigs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save signatories');
-      throw err;
-    }
-  }, []);
-
-  // Save auto-schedule options
-  const saveAutoScheduleOptions = useCallback(async (opts: AutoScheduleOptions) => {
-    try {
-      await settingsService.saveAutoScheduleOptions(opts);
-      setAutoScheduleOptions(opts);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save auto-schedule options');
-      throw err;
-    }
-  }, []);
-
-  // Save max debt
-  const saveMaxDebt = useCallback(async (value: number) => {
-    try {
-      await settingsService.saveMaxDebt(value);
-      setMaxDebt(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save max debt');
-      throw err;
-    }
-  }, []);
+  // Save callbacks
+  const saveDayWeights = makeSaver(
+    settingsService.saveDayWeights,
+    setDayWeights,
+    'Failed to save day weights'
+  );
+  const saveSignatories = makeSaver(
+    settingsService.saveSignatories,
+    setSignatories,
+    'Failed to save signatories'
+  );
+  const saveAutoScheduleOptions = makeSaver(
+    settingsService.saveAutoScheduleOptions,
+    setAutoScheduleOptions,
+    'Failed to save auto-schedule options'
+  );
+  const saveMaxDebt = makeSaver(settingsService.saveMaxDebt, setMaxDebt, 'Failed to save max debt');
+  const saveDutiesPerDay = makeSaver(
+    settingsService.saveDutiesPerDay,
+    setDutiesPerDay,
+    'Failed to save duties per day'
+  );
+  const savePrintMaxRows = makeSaver(
+    settingsService.savePrintMaxRows,
+    setPrintMaxRows,
+    'Failed to save print max rows'
+  );
+  const savePrintDutyTableShowAllUsers = makeSaver(
+    settingsService.savePrintDutyTableShowAllUsers,
+    setPrintDutyTableShowAllUsers,
+    'Failed to save print duty-table mode'
+  );
+  const saveIgnoreHistoryInLogic = makeSaver(
+    settingsService.saveIgnoreHistoryInLogic,
+    setIgnoreHistoryInLogic,
+    'Failed to save ignore history setting'
+  );
+  const saveUiScale = makeSaver(settingsService.saveUiScale, setUiScale, 'Failed to save UI scale');
+  const saveDowHistoryWeeks = makeSaver(
+    settingsService.saveDowHistoryWeeks,
+    setDowHistoryWeeks,
+    'Failed to save DOW history weeks'
+  );
+  const saveDowHistoryMode = makeSaver(
+    settingsService.saveDowHistoryMode,
+    setDowHistoryMode,
+    'Failed to save DOW history mode'
+  );
+  const saveTheme = makeSaver(settingsService.saveTheme, setTheme, 'Failed to save theme');
+  const saveBirthdayBlockOpts = makeSaver(
+    settingsService.saveBirthdayBlockOpts,
+    setBirthdayBlockOpts,
+    'Failed to save birthday block opts',
+    setBirthdayBlockConfig
+  );
 
   // Update cascade trigger
   const updateCascadeTrigger = useCallback(
@@ -192,103 +223,6 @@ export const useSettings = () => {
     }
   }, [loadSettings]);
 
-  // Save duties per day
-  const saveDutiesPerDay = useCallback(async (count: number) => {
-    try {
-      await settingsService.saveDutiesPerDay(count);
-      setDutiesPerDay(count);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save duties per day');
-      throw err;
-    }
-  }, []);
-
-  // Save print max rows
-  const savePrintMaxRows = useCallback(async (value: number) => {
-    try {
-      await settingsService.savePrintMaxRows(value);
-      setPrintMaxRows(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save print max rows');
-      throw err;
-    }
-  }, []);
-
-  const savePrintDutyTableShowAllUsers = useCallback(async (value: boolean) => {
-    try {
-      await settingsService.savePrintDutyTableShowAllUsers(value);
-      setPrintDutyTableShowAllUsers(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save print duty-table mode');
-      throw err;
-    }
-  }, []);
-
-  // Save ignoreHistoryInLogic
-  const saveIgnoreHistoryInLogic = useCallback(async (value: boolean) => {
-    try {
-      await settingsService.saveIgnoreHistoryInLogic(value);
-      setIgnoreHistoryInLogic(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save ignore history setting');
-      throw err;
-    }
-  }, []);
-
-  // Save UI scale
-  const saveUiScale = useCallback(async (value: number) => {
-    try {
-      await settingsService.saveUiScale(value);
-      setUiScale(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save UI scale');
-      throw err;
-    }
-  }, []);
-
-  // Save DOW history settings
-  const saveDowHistoryWeeks = useCallback(async (value: number) => {
-    try {
-      await settingsService.saveDowHistoryWeeks(value);
-      setDowHistoryWeeks(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save DOW history weeks');
-      throw err;
-    }
-  }, []);
-
-  const saveDowHistoryMode = useCallback(async (value: 'numbers' | 'dots') => {
-    try {
-      await settingsService.saveDowHistoryMode(value);
-      setDowHistoryMode(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save DOW history mode');
-      throw err;
-    }
-  }, []);
-
-  // Save theme
-  const saveTheme = useCallback(async (value: AppTheme) => {
-    try {
-      await settingsService.saveTheme(value);
-      setTheme(value);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save theme');
-      throw err;
-    }
-  }, []);
-
-  const saveBirthdayBlockOptsCallback = useCallback(async (opts: BirthdayBlockOpts) => {
-    try {
-      await settingsService.saveBirthdayBlockOpts(opts);
-      setBirthdayBlockOpts(opts);
-      setBirthdayBlockConfig(opts);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save birthday block opts');
-      throw err;
-    }
-  }, []);
-
   // Initial load
   useEffect(() => {
     loadSettings();
@@ -321,7 +255,7 @@ export const useSettings = () => {
     saveUiScale,
     saveDowHistoryWeeks,
     saveDowHistoryMode,
-    saveBirthdayBlockOpts: saveBirthdayBlockOptsCallback,
+    saveBirthdayBlockOpts,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,

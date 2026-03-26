@@ -10,6 +10,72 @@ import { toLocalISO } from '../../utils/dateUtils';
 import Modal from '../Modal';
 import { buildStaticLog } from './scheduleTableUtils';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type AvailabilityStatus = ReturnType<typeof getUserAvailabilityStatus>;
+
+/** Map availability status to display text for unavailable cells */
+const getUnavailableContent = (
+  status: AvailabilityStatus,
+  user: User,
+  date: string
+): React.ReactNode => {
+  switch (status) {
+    case 'STATUS_BUSY': {
+      const period = getStatusPeriodAtDate(user, date);
+      return period ? STATUSES[period.status] || period.status : 'ЗАЙНЯТИЙ';
+    }
+    case 'REST_DAY':
+    case 'PRE_STATUS_DAY':
+      return 'ЗВІЛЬН. ВІД ЧЕРГ.';
+    case 'DAY_BLOCKED':
+      return 'ЗАБЛОКОВАНО';
+    case 'BIRTHDAY':
+      return <span title="День народження">🎂 ДЕНЬ НАРОДЖ.</span>;
+    default:
+      return '—';
+  }
+};
+
+/** Get the entry type icon class */
+const getEntryIcon = (entry: ScheduleEntry): string => {
+  if (entry.isLocked) return 'bi bi-lock-fill';
+  switch (entry.type) {
+    case 'import':
+      return 'bi bi-box-arrow-in-down';
+    case 'history':
+      return 'bi bi-clock-history';
+    case 'replace':
+      return 'bi bi-arrow-repeat';
+    case 'swap':
+      return 'bi bi-arrow-left-right';
+    case 'manual':
+      return 'bi bi-hand-index-thumb';
+    case 'auto':
+      return 'bi bi-gear-fill';
+    default:
+      return '';
+  }
+};
+
+/** Compute which past weeks (1..depth) had the same DOW assignment */
+const getDowWeeksAgo = (
+  date: string,
+  userId: number,
+  schedule: Record<string, ScheduleEntry>,
+  depth: number
+): number[] => {
+  const result: number[] = [];
+  for (let w = 1; w <= depth; w++) {
+    const past = new Date(date);
+    past.setDate(past.getDate() - w * 7);
+    if (isAssignedInEntry(schedule[toLocalISO(past)], userId)) {
+      result.push(w);
+    }
+  }
+  return result;
+};
+
 interface ScheduleTableRowProps {
   user: User;
   index: number;
@@ -115,16 +181,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           const hadSundayDutyPreviousDay =
             prevDate.getDay() === 0 && isAssignedInEntry(schedule[toLocalISO(prevDate)], user.id!);
           const isPast = new Date(date) < new Date(todayStr);
-
-          // All weeks (1..dowHistoryWeeks) when this user was on duty on this same day-of-week
-          const dowWeeksAgo: number[] = [];
-          for (let w = 1; w <= dowHistoryWeeks; w++) {
-            const past = new Date(date);
-            past.setDate(past.getDate() - w * 7);
-            if (isAssignedInEntry(schedule[toLocalISO(past)], user.id!)) {
-              dowWeeksAgo.push(w);
-            }
-          }
+          const dowWeeksAgo = getDowWeeksAgo(date, user.id!, schedule, dowHistoryWeeks);
 
           let cellClass = 'compact-cell';
           let screenContent: React.ReactNode = '';
@@ -140,23 +197,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                   : ' assigned' + (entry.isLocked ? ' locked' : '');
             }
 
-            // Show icon for assignment type: manual, auto, replace, swap, history, import, locked
-            let icon = '';
-            if (entry.isLocked) {
-              icon = 'bi bi-lock-fill';
-            } else if (entry.type === 'import') {
-              icon = 'bi bi-box-arrow-in-down';
-            } else if (entry.type === 'history') {
-              icon = 'bi bi-clock-history';
-            } else if (entry.type === 'replace') {
-              icon = 'bi bi-arrow-repeat';
-            } else if (entry.type === 'swap') {
-              icon = 'bi bi-arrow-left-right';
-            } else if (entry.type === 'manual') {
-              icon = 'bi bi-hand-index-thumb';
-            } else if (entry.type === 'auto') {
-              icon = 'bi bi-gear-fill';
-            }
+            const icon = getEntryIcon(entry);
 
             const log = entry.decisionLog || buildStaticLog(entry);
             screenContent = (
@@ -183,22 +224,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             screenContent = 'ВІДСИПНИЙ';
           } else if (!available) {
             cellClass += ' unavailable';
-
-            // Show status text in unavailable cells
-            if (availabilityStatus === 'STATUS_BUSY') {
-              const period = getStatusPeriodAtDate(user, date);
-              screenContent = period ? STATUSES[period.status] || period.status : 'ЗАЙНЯТИЙ';
-            } else if (availabilityStatus === 'REST_DAY') {
-              screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
-            } else if (availabilityStatus === 'DAY_BLOCKED') {
-              screenContent = 'ЗАБЛОКОВАНО';
-            } else if (availabilityStatus === 'BIRTHDAY') {
-              screenContent = <span title="День народження">🎂 ДЕНЬ НАРОДЖ.</span>;
-            } else if (availabilityStatus === 'PRE_STATUS_DAY') {
-              screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
-            } else {
-              screenContent = '—';
-            }
+            screenContent = getUnavailableContent(availabilityStatus, user, date);
           }
 
           return (

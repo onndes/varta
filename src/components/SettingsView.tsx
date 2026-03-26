@@ -58,6 +58,25 @@ const SUBTAB_LABELS: Record<SubTab, string> = {
   experimental: 'Експериментальні',
 };
 
+const SUBTABS: Array<{
+  key: SubTab;
+  icon: string;
+  muted?: boolean;
+  extraClass?: string;
+  title?: string;
+}> = [
+  { key: 'logic', icon: 'fa-cogs' },
+  { key: 'print', icon: 'fa-print' },
+  { key: 'interface', icon: 'fa-display' },
+  {
+    key: 'experimental',
+    icon: 'fa-flask',
+    muted: true,
+    extraClass: 'ms-3',
+    title: 'Експериментальні та нестандартні налаштування',
+  },
+];
+
 /** Top-level settings screen with logic / print / interface sub-tabs. */
 const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [subTab, setSubTab] = useState<SubTab>('logic');
@@ -107,51 +126,28 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
       {/* Sub-tab navigation */}
       <div className="d-flex align-items-center justify-content-between mb-4">
         <ul className="nav nav-pills">
-          <li className="nav-item">
-            <button
-              className={`nav-link ${subTab === 'logic' ? 'active' : ''} ${dirtySections.logic ? 'settings-subtab-dirty' : ''}`}
-              onClick={() => setSubTab('logic')}
-            >
-              <i className="fas fa-cogs me-1"></i>Логіка графіка
-              {dirtySections.logic && (
-                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
-              )}
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${subTab === 'print' ? 'active' : ''} ${dirtySections.print ? 'settings-subtab-dirty' : ''}`}
-              onClick={() => setSubTab('print')}
-            >
-              <i className="fas fa-print me-1"></i>Друк
-              {dirtySections.print && (
-                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
-              )}
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${subTab === 'interface' ? 'active' : ''} ${dirtySections.interface ? 'settings-subtab-dirty' : ''}`}
-              onClick={() => setSubTab('interface')}
-            >
-              <i className="fas fa-display me-1"></i>Інтерфейс
-              {dirtySections.interface && (
-                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
-              )}
-            </button>
-          </li>
-          <li className="nav-item ms-3">
-            <button
-              className={`nav-link text-secondary opacity-50 small ${subTab === 'experimental' ? 'active opacity-100' : ''} ${dirtySections.experimental ? 'settings-subtab-dirty' : ''}`}
-              onClick={() => setSubTab('experimental')}
-              title="Експериментальні та нестандартні налаштування"
-            >
-              <i className="fas fa-flask me-1"></i>Експериментальні
-              {dirtySections.experimental && (
-                <span className="badge bg-warning text-dark ms-2">Не збережено</span>
-              )}
-            </button>
-          </li>
+          {SUBTABS.map(({ key, icon, muted, extraClass, title }) => (
+            <li key={key} className={`nav-item ${extraClass ?? ''}`}>
+              <button
+                className={[
+                  'nav-link',
+                  subTab === key && 'active',
+                  muted && (subTab === key ? 'opacity-100' : 'text-secondary opacity-50 small'),
+                  dirtySections[key] && 'settings-subtab-dirty',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={() => setSubTab(key)}
+                title={title}
+              >
+                <i className={`fas ${icon} me-1`}></i>
+                {SUBTAB_LABELS[key]}
+                {dirtySections[key] && (
+                  <span className="badge bg-warning text-dark ms-2">Не збережено</span>
+                )}
+              </button>
+            </li>
+          ))}
         </ul>
         <button
           className="btn btn-outline-secondary btn-sm"
