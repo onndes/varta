@@ -192,6 +192,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
             } else if (availabilityStatus === 'DAY_BLOCKED') {
               screenContent = 'ЗАБЛОКОВАНО';
+            } else if (availabilityStatus === 'BIRTHDAY') {
+              screenContent = <span title="День народження">🎂 ДЕНЬ НАРОДЖ.</span>;
             } else if (availabilityStatus === 'PRE_STATUS_DAY') {
               screenContent = 'ЗВІЛЬН. ВІД ЧЕРГ.';
             } else {

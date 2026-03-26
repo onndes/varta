@@ -68,6 +68,7 @@ export const REASON_UA: Record<string, string> = {
   hard_excluded: 'Виключений з автоматичного розподілу',
   hard_status_busy: 'Має заплановану відсутність або інше завдання',
   hard_day_blocked: 'Цей день тижня заблоковано у профілі',
+  hard_birthday: 'День народження — чергування заблоковано',
   hard_rest_day: 'Відпочинок до/після відрядження чи відпустки',
   hard_incompatible_pair: 'Несумісна пара з сусіднім черговим',
   // Filters
@@ -78,6 +79,7 @@ export const REASON_UA: Record<string, string> = {
   // Availability statuses
   STATUS_BUSY: 'Має заплановану відсутність або інше завдання (STATUS_BUSY)',
   DAY_BLOCKED: 'День тижня заблоковано у профілі (DAY_BLOCKED)',
+  BIRTHDAY: 'День народження (заблоковано)',
   REST_DAY: 'Відпочинок після відрядження (rest_after)',
   PRE_STATUS_DAY: 'Відпочинок перед відрядженням/відпусткою (rest_before)',
   UNAVAILABLE: 'Недоступний (UNAVAILABLE)',

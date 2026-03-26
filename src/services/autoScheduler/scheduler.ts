@@ -127,6 +127,7 @@ export const autoFillSchedule = async (
         let reason: string = 'hard_inactive';
         if (status === 'STATUS_BUSY') reason = 'hard_status_busy';
         else if (status === 'DAY_BLOCKED') reason = 'hard_day_blocked';
+        else if (status === 'BIRTHDAY') reason = 'hard_birthday';
         else if (status === 'REST_DAY' || status === 'PRE_STATUS_DAY') reason = 'hard_rest_day';
         logAlternatives.push({
           userId: u.id!,

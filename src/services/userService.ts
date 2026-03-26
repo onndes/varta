@@ -277,7 +277,14 @@ export const isUserAvailable = (
 export const getUserAvailabilityStatus = (
   user: User,
   dateStr: string
-): 'AVAILABLE' | 'UNAVAILABLE' | 'STATUS_BUSY' | 'PRE_STATUS_DAY' | 'REST_DAY' | 'DAY_BLOCKED' => {
+):
+  | 'AVAILABLE'
+  | 'UNAVAILABLE'
+  | 'STATUS_BUSY'
+  | 'PRE_STATUS_DAY'
+  | 'REST_DAY'
+  | 'DAY_BLOCKED'
+  | 'BIRTHDAY' => {
   if (!user.isActive) return 'UNAVAILABLE';
 
   // Заблокований день тижня (з урахуванням періоду)
@@ -316,8 +323,8 @@ export const getUserAvailabilityStatus = (
     const bDay = user.birthday.slice(8, 10);
     const checkMonth = dateStr.slice(5, 7);
     const checkDay = dateStr.slice(8, 10);
-    // Birthday itself
-    if (checkMonth === bMonth && checkDay === bDay) return 'DAY_BLOCKED';
+    // Birthday itself — dedicated status for clear UI display
+    if (checkMonth === bMonth && checkDay === bDay) return 'BIRTHDAY';
     // Day before birthday
     if (_birthdayBlockOpts.blockBefore) {
       const d = new Date(dateStr);
