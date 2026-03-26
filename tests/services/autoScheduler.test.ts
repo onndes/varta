@@ -192,6 +192,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const updates = await autoFillSchedule(weekDates, users, {}, dayWeights, 1, opts);
@@ -345,6 +346,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const selected = calculateOptimalAssignment('2026-03-15', users, schedule, dayWeights, opts);
@@ -389,6 +391,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const selected = calculateOptimalAssignment('2026-03-14', users, schedule, dayWeights, opts);
@@ -436,6 +439,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
       const optsOn: AutoScheduleOptions = { ...optsOff, aggressiveLoadBalancing: true };
 
@@ -589,6 +593,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -646,6 +651,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       // Should not throw
@@ -700,6 +706,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -784,6 +791,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -840,6 +848,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -923,6 +932,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, existingSchedule, dayWeights, 1, opts);
@@ -994,6 +1004,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -1083,6 +1094,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -1150,6 +1162,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 3,
         prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -1213,6 +1226,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 1,
         prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -1274,6 +1288,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 1,
         prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: false,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);
@@ -1364,6 +1379,7 @@ describe('autoScheduler', () => {
         debtUsersWeeklyLimit: 1,
         prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: true,
+        evenWeeklyDistribution: false,
       };
 
       const entries = await autoFillSchedule(dates, users, {}, dayWeights, 1, opts);

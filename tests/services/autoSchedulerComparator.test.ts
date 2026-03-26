@@ -33,6 +33,7 @@ const defaultOptions: AutoScheduleOptions = {
   debtUsersWeeklyLimit: 1,
   prioritizeFasterDebtRepayment: false,
   forceUseAllWhenFew: true,
+  evenWeeklyDistribution: false,
 };
 
 const defaultDayWeights: DayWeights = {
