@@ -18,13 +18,24 @@ const UI_SCALE_LABELS: Partial<Record<number, string>> = {
 interface InterfaceTabPanelProps {
   scale: number;
   onScaleChange: (n: number) => void;
+  histWeeks: number;
+  onHistWeeksChange: (n: number) => void;
+  histMode: 'numbers' | 'dots';
+  onHistModeChange: (m: 'numbers' | 'dots') => void;
 }
 
 /**
  * Interface tab — lets the user pick a global UI zoom level applied
  * to the entire app shell (browser, Tauri, Electron).
  */
-const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({ scale, onScaleChange }) => (
+const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
+  scale,
+  onScaleChange,
+  histWeeks,
+  onHistWeeksChange,
+  histMode,
+  onHistModeChange,
+}) => (
   <>
     <div className="card shadow-sm border-0 mb-4">
       <div className="card-header bg-white py-3">
@@ -49,6 +60,54 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({ scale, onScaleCha
             </select>
             <div className="form-text">
               Застосовується до всього інтерфейсу (браузер, Tauri, Electron).
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* DOW history indicator */}
+    <div className="card shadow-sm border-0 mb-4">
+      <div className="card-header bg-white py-3">
+        <h5 className="mb-0 fw-bold">
+          <i className="fas fa-calendar-week me-2"></i>Індикатор повторів дня тижня
+        </h5>
+      </div>
+      <div className="card-body">
+        <div className="text-muted small mb-3">
+          Маленький індикатор в кутку кожної клітинки графіку. Показує, скільки тижнів тому боєць
+          дежурував у цей самий день тижня.
+        </div>
+        <div className="row g-3">
+          <div className="col-md-4">
+            <label className="form-label fw-bold">Глибина (тижнів)</label>
+            <select
+              className="form-select"
+              value={histWeeks}
+              onChange={(e) => onHistWeeksChange(parseInt(e.target.value, 10))}
+            >
+              {Array.from({ length: 16 }, (_, i) => i).map((v) => (
+                <option key={v} value={v}>
+                  {v === 0 ? 'Вимкнено' : `${v}`}
+                </option>
+              ))}
+            </select>
+            <div className="form-text">
+              0 — індикатор прихований. Від 1 до 15 — скільки попередніх тижнів перевіряти.
+            </div>
+          </div>
+          <div className="col-md-4">
+            <label className="form-label fw-bold">Вигляд</label>
+            <select
+              className="form-select"
+              value={histMode}
+              onChange={(e) => onHistModeChange(e.target.value as 'numbers' | 'dots')}
+            >
+              <option value="numbers">Цифри (1/3)</option>
+              <option value="dots">Крапки (● ○ ● ○)</option>
+            </select>
+            <div className="form-text">
+              Цифри — номер тижня через /. Крапки — фіксовані позиції (ярка = було).
             </div>
           </div>
         </div>

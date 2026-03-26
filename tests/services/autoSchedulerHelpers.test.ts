@@ -139,9 +139,9 @@ describe('isHardUnavailable', () => {
     expect(isHardUnavailable(user, '2026-03-10')).toBe(false);
   });
 
-  it('статус без діапазону дат → постійно недоступний', () => {
+  it('статус без діапазону дат → доступний (неповний запис ігнорується)', () => {
     const user = makeUser({ status: 'VACATION' });
-    expect(isHardUnavailable(user, '2026-03-10')).toBe(true);
+    expect(isHardUnavailable(user, '2026-03-10')).toBe(false);
   });
 
   it('ABSENT у межах дат → недоступний', () => {
@@ -171,9 +171,9 @@ describe('isHardUnavailable', () => {
     expect(isHardUnavailable(user, '2026-03-10')).toBe(false);
   });
 
-  it('ABSENT без діапазону дат → постійно недоступний', () => {
+  it('ABSENT без діапазону дат → доступний (неповний запис ігнорується)', () => {
     const user = makeUser({ status: 'ABSENT' });
-    expect(isHardUnavailable(user, '2026-03-10')).toBe(true);
+    expect(isHardUnavailable(user, '2026-03-10')).toBe(false);
   });
 
   it('blockedDays з тільки blockedDaysFrom (без To) — дата після From → недоступний', () => {

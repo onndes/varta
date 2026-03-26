@@ -53,6 +53,8 @@ const App = () => {
     printDutyTableShowAllUsers,
     ignoreHistoryInLogic,
     uiScale,
+    dowHistoryWeeks,
+    dowHistoryMode,
     theme,
     loadSettings,
     saveDayWeights,
@@ -64,6 +66,8 @@ const App = () => {
     savePrintDutyTableShowAllUsers,
     saveIgnoreHistoryInLogic,
     saveUiScale,
+    saveDowHistoryWeeks,
+    saveDowHistoryMode,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -319,6 +323,8 @@ const App = () => {
               printMaxRows={printMaxRows}
               printDutyTableShowAllUsers={printDutyTableShowAllUsers}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
+              dowHistoryWeeks={dowHistoryWeeks}
+              dowHistoryMode={dowHistoryMode}
             />
           )}
           {activeTab === 'users' && (
@@ -353,6 +359,8 @@ const App = () => {
               printDutyTableShowAllUsers={printDutyTableShowAllUsers}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
               uiScale={uiScale}
+              dowHistoryWeeks={dowHistoryWeeks}
+              dowHistoryMode={dowHistoryMode}
               onSave={saveDayWeights}
               onSaveSignatories={saveSignatories}
               onSaveDutiesPerDay={saveDutiesPerDay}
@@ -362,6 +370,8 @@ const App = () => {
               onSavePrintDutyTableShowAllUsers={savePrintDutyTableShowAllUsers}
               onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
               onSaveUiScale={saveUiScale}
+              onSaveDowHistoryWeeks={saveDowHistoryWeeks}
+              onSaveDowHistoryMode={saveDowHistoryMode}
               onExportExcel={requestExportExcel}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}

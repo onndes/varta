@@ -21,6 +21,8 @@ export interface UseSettingsFormProps {
   printDutyTableShowAllUsers: boolean;
   ignoreHistoryInLogic: boolean;
   uiScale: number;
+  dowHistoryWeeks: number;
+  dowHistoryMode: 'numbers' | 'dots';
   onSave: (w: DayWeights) => Promise<void>;
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
@@ -30,6 +32,8 @@ export interface UseSettingsFormProps {
   onSavePrintDutyTableShowAllUsers: (value: boolean) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
+  onSaveDowHistoryWeeks: (value: number) => Promise<void>;
+  onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
@@ -52,6 +56,8 @@ export const useSettingsForm = ({
   printDutyTableShowAllUsers,
   ignoreHistoryInLogic,
   uiScale,
+  dowHistoryWeeks,
+  dowHistoryMode,
   onSave,
   onSaveSignatories,
   onSaveDutiesPerDay,
@@ -61,6 +67,8 @@ export const useSettingsForm = ({
   onSavePrintDutyTableShowAllUsers,
   onSaveIgnoreHistoryInLogic,
   onSaveUiScale,
+  onSaveDowHistoryWeeks,
+  onSaveDowHistoryMode,
   refreshData,
   updateCascadeTrigger,
   logAction,
@@ -74,6 +82,8 @@ export const useSettingsForm = ({
   const [printAllUsers, setPrintAllUsers] = useState<boolean>(printDutyTableShowAllUsers);
   const [ignoreHistory, setIgnoreHistory] = useState<boolean>(ignoreHistoryInLogic);
   const [scale, setScale] = useState<number>(uiScale);
+  const [histWeeks, setHistWeeks] = useState<number>(dowHistoryWeeks);
+  const [histMode, setHistMode] = useState<'numbers' | 'dots'>(dowHistoryMode);
   const [isSaving, setIsSaving] = useState(false);
 
   // DB maintenance modal state
@@ -109,6 +119,12 @@ export const useSettingsForm = ({
   useEffect(() => {
     setScale(uiScale);
   }, [uiScale]);
+  useEffect(() => {
+    setHistWeeks(dowHistoryWeeks);
+  }, [dowHistoryWeeks]);
+  useEffect(() => {
+    setHistMode(dowHistoryMode);
+  }, [dowHistoryMode]);
 
   const { showAlert, showConfirm } = useDialog();
 
@@ -135,8 +151,7 @@ export const useSettingsForm = ({
     autoOpts.allowDebtUsersExtraWeeklyAssignments !==
       autoScheduleOptions.allowDebtUsersExtraWeeklyAssignments ||
     autoOpts.debtUsersWeeklyLimit !== autoScheduleOptions.debtUsersWeeklyLimit ||
-    autoOpts.prioritizeFasterDebtRepayment !==
-      autoScheduleOptions.prioritizeFasterDebtRepayment;
+    autoOpts.prioritizeFasterDebtRepayment !== autoScheduleOptions.prioritizeFasterDebtRepayment;
   const experimentalAutoOptionsChanged =
     autoOpts.evenWeeklyDistribution !== autoScheduleOptions.evenWeeklyDistribution ||
     autoOpts.considerLoad !== autoScheduleOptions.considerLoad ||
@@ -150,6 +165,8 @@ export const useSettingsForm = ({
   const printAllUsersChanged = printAllUsers !== printDutyTableShowAllUsers;
   const ignoreHistoryChanged = ignoreHistory !== ignoreHistoryInLogic;
   const scaleChanged = scale !== uiScale;
+  const histWeeksChanged = histWeeks !== dowHistoryWeeks;
+  const histModeChanged = histMode !== dowHistoryMode;
   const hasUnsavedChanges =
     weightsChanged ||
     signatoriesChanged ||
@@ -159,7 +176,9 @@ export const useSettingsForm = ({
     maxRowsChanged ||
     printAllUsersChanged ||
     ignoreHistoryChanged ||
-    scaleChanged;
+    scaleChanged ||
+    histWeeksChanged ||
+    histModeChanged;
   const dirtySections = {
     logic:
       weightsChanged ||
@@ -168,7 +187,7 @@ export const useSettingsForm = ({
       debtChanged ||
       ignoreHistoryChanged,
     print: signatoriesChanged || maxRowsChanged || printAllUsersChanged,
-    interface: scaleChanged,
+    interface: scaleChanged || histWeeksChanged || histModeChanged,
     experimental: experimentalAutoOptionsChanged,
   };
 
@@ -204,6 +223,14 @@ export const useSettingsForm = ({
       if (scaleChanged) {
         await onSaveUiScale(scale);
         sections.push('масштаб інтерфейсу');
+      }
+      if (histWeeksChanged) {
+        await onSaveDowHistoryWeeks(histWeeks);
+        sections.push('індикатор повторів');
+      }
+      if (histModeChanged) {
+        await onSaveDowHistoryMode(histMode);
+        if (!histWeeksChanged) sections.push('індикатор повторів');
       }
       if (signatoriesChanged) {
         await onSaveSignatories(sigs);
@@ -246,12 +273,18 @@ export const useSettingsForm = ({
     onSavePrintMaxRows,
     onSaveSignatories,
     onSaveUiScale,
+    onSaveDowHistoryWeeks,
+    onSaveDowHistoryMode,
     perDay,
     printAllUsers,
     printAllUsersChanged,
     refreshData,
     scale,
     scaleChanged,
+    histWeeks,
+    histWeeksChanged,
+    histMode,
+    histModeChanged,
     showAlert,
     signatoriesChanged,
     sigs,
@@ -324,6 +357,10 @@ export const useSettingsForm = ({
     setIgnoreHistory,
     scale,
     setScale,
+    histWeeks,
+    setHistWeeks,
+    histMode,
+    setHistMode,
     isSaving,
     hasUnsavedChanges,
     dirtySections,

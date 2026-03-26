@@ -9,6 +9,8 @@ import {
   DEFAULT_PRINT_MAX_ROWS,
   DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS,
   DEFAULT_SIGNATORIES,
+  DEFAULT_DOW_HISTORY_WEEKS,
+  DEFAULT_DOW_HISTORY_MODE,
 } from '../utils/constants';
 
 /**
@@ -29,6 +31,10 @@ export const useSettings = () => {
   );
   const [ignoreHistoryInLogic, setIgnoreHistoryInLogic] = useState(false);
   const [uiScale, setUiScale] = useState(100);
+  const [dowHistoryWeeks, setDowHistoryWeeks] = useState(DEFAULT_DOW_HISTORY_WEEKS);
+  const [dowHistoryMode, setDowHistoryMode] = useState<'numbers' | 'dots'>(
+    DEFAULT_DOW_HISTORY_MODE
+  );
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +56,8 @@ export const useSettings = () => {
         printAllUsers,
         ignoreHistory,
         savedUiScale,
+        savedDowHistoryWeeks,
+        savedDowHistoryMode,
         savedTheme,
       ] = await Promise.all([
         settingsService.getDayWeights(),
@@ -62,6 +70,8 @@ export const useSettings = () => {
         settingsService.getPrintDutyTableShowAllUsers(),
         settingsService.getIgnoreHistoryInLogic(),
         settingsService.getUiScale(),
+        settingsService.getDowHistoryWeeks(),
+        settingsService.getDowHistoryMode(),
         settingsService.getTheme(),
       ]);
 
@@ -75,6 +85,8 @@ export const useSettings = () => {
       setPrintDutyTableShowAllUsers(printAllUsers);
       setIgnoreHistoryInLogic(ignoreHistory);
       setUiScale(savedUiScale);
+      setDowHistoryWeeks(savedDowHistoryWeeks);
+      setDowHistoryMode(savedDowHistoryMode);
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
     } catch (err) {
@@ -219,6 +231,27 @@ export const useSettings = () => {
     }
   }, []);
 
+  // Save DOW history settings
+  const saveDowHistoryWeeks = useCallback(async (value: number) => {
+    try {
+      await settingsService.saveDowHistoryWeeks(value);
+      setDowHistoryWeeks(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save DOW history weeks');
+      throw err;
+    }
+  }, []);
+
+  const saveDowHistoryMode = useCallback(async (value: 'numbers' | 'dots') => {
+    try {
+      await settingsService.saveDowHistoryMode(value);
+      setDowHistoryMode(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save DOW history mode');
+      throw err;
+    }
+  }, []);
+
   // Save theme
   const saveTheme = useCallback(async (value: AppTheme) => {
     try {
@@ -246,6 +279,8 @@ export const useSettings = () => {
     printDutyTableShowAllUsers,
     ignoreHistoryInLogic,
     uiScale,
+    dowHistoryWeeks,
+    dowHistoryMode,
     theme,
     loading,
     error,
@@ -257,6 +292,8 @@ export const useSettings = () => {
     savePrintDutyTableShowAllUsers,
     saveIgnoreHistoryInLogic,
     saveUiScale,
+    saveDowHistoryWeeks,
+    saveDowHistoryMode,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,

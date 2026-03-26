@@ -27,7 +27,7 @@ const getJsonSetting = async <T>(key: string, defaultValue: T): Promise<T> => {
     try {
       value = JSON.parse(value);
     } catch {
-      return defaultValue;
+      // Raw string value (not JSON-encoded) — return it as-is.
     }
   }
   return (value ?? defaultValue) as T;
@@ -108,6 +108,22 @@ export const saveIgnoreHistoryInLogic = async (value: boolean): Promise<void> =>
 export const getUiScale = async (): Promise<number> => getJsonSetting('uiScale', 100);
 
 export const saveUiScale = async (value: number): Promise<void> => saveSetting('uiScale', value);
+
+// ── DOW history indicator ──────────────────────────────────────────────
+
+import { DEFAULT_DOW_HISTORY_WEEKS, DEFAULT_DOW_HISTORY_MODE } from '../utils/constants';
+
+export const getDowHistoryWeeks = async (): Promise<number> =>
+  getJsonSetting('dowHistoryWeeks', DEFAULT_DOW_HISTORY_WEEKS);
+
+export const saveDowHistoryWeeks = async (value: number): Promise<void> =>
+  saveSetting('dowHistoryWeeks', value);
+
+export const getDowHistoryMode = async (): Promise<'numbers' | 'dots'> =>
+  getJsonSetting('dowHistoryMode', DEFAULT_DOW_HISTORY_MODE);
+
+export const saveDowHistoryMode = async (value: 'numbers' | 'dots'): Promise<void> =>
+  saveSetting('dowHistoryMode', value);
 
 // ── Theme ─────────────────────────────────────────────────────────
 

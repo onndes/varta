@@ -17,6 +17,8 @@ interface ScheduleTableRowProps {
   schedule: Record<string, ScheduleEntry>;
   todayStr: string;
   historyMode?: boolean;
+  dowHistoryWeeks?: number;
+  dowHistoryMode?: 'numbers' | 'dots';
   onUserClick?: (user: User) => void;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
@@ -32,6 +34,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   schedule,
   todayStr,
   historyMode = false,
+  dowHistoryWeeks = 4,
+  dowHistoryMode = 'numbers',
   onUserClick,
   onCellClick,
   onQuickAssignClick,
@@ -111,6 +115,16 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           const hadSundayDutyPreviousDay =
             prevDate.getDay() === 0 && isAssignedInEntry(schedule[toLocalISO(prevDate)], user.id!);
           const isPast = new Date(date) < new Date(todayStr);
+
+          // All weeks (1..dowHistoryWeeks) when this user was on duty on this same day-of-week
+          const dowWeeksAgo: number[] = [];
+          for (let w = 1; w <= dowHistoryWeeks; w++) {
+            const past = new Date(date);
+            past.setDate(past.getDate() - w * 7);
+            if (isAssignedInEntry(schedule[toLocalISO(past)], user.id!)) {
+              dowWeeksAgo.push(w);
+            }
+          }
 
           let cellClass = 'compact-cell';
           let screenContent: React.ReactNode = '';
@@ -203,6 +217,23 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             >
               <span className="no-print">{screenContent}</span>
               <span className="print-only">{printContent}</span>
+              {dowWeeksAgo.length > 0 && (
+                <span
+                  className="dow-repeat-dots no-print"
+                  title={`Чергування в цей день: ${dowWeeksAgo.map((w) => `${w} тиж. тому`).join(', ')}`}
+                >
+                  {dowHistoryMode === 'dots'
+                    ? Array.from({ length: dowHistoryWeeks }, (_, i) => (
+                        <span
+                          key={i}
+                          style={{ opacity: dowWeeksAgo.includes(i + 1) ? 0.75 : 0.12 }}
+                        >
+                          ●
+                        </span>
+                      ))
+                    : dowWeeksAgo.join('/')}
+                </span>
+              )}
             </td>
           );
         })}

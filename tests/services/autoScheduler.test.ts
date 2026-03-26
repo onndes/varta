@@ -94,7 +94,7 @@ describe('autoScheduler', () => {
       ];
 
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
-      const updates = await autoFillSchedule(['2026-03-15'], users, {}, dayWeights, 2);
+      const updates = await autoFillSchedule(['2026-12-01'], users, {}, dayWeights, 2);
 
       expect(updates).toHaveLength(1);
       expect(Array.isArray(updates[0].userId)).toBe(true);
@@ -484,12 +484,12 @@ describe('autoScheduler', () => {
 
       // User 1 already assigned on Wednesday (manual)
       const schedule: Record<string, ScheduleEntry> = {
-        '2026-03-11': { date: '2026-03-11', userId: 1, type: 'manual' },
+        '2026-12-02': { date: '2026-12-02', userId: 1, type: 'manual' },
       };
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
 
       // Auto-fill Tuesday — should NOT assign user 1 (consecutive with Wed)
-      const updates = await autoFillSchedule(['2026-03-10'], users, schedule, dayWeights, 1);
+      const updates = await autoFillSchedule(['2026-12-01'], users, schedule, dayWeights, 1);
 
       expect(updates).toHaveLength(1);
       // Should pick user 2 (A has Wed manual, so Tue would be consecutive)

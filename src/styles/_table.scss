@@ -35,6 +35,7 @@
 .compact-cell {
   cursor: pointer;
   transition: background 0.1s;
+  position: relative;
 
   &:hover {
     background-color: var(--app-cell-hover, #e3f2fd);
@@ -106,6 +107,20 @@
     font-weight: 700;
     border: 2px dashed var(--app-cell-history-border, #818cf8);
   }
+}
+
+.dow-repeat-dots {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--bs-body-color, #495057);
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
 }
 
 .schedule-cell-icon {

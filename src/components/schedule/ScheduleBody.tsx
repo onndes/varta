@@ -74,6 +74,8 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   printMaxRows: number;
   printDutyTableShowAllUsers: boolean;
   printWeekRange: PrintWeekRange | null;
+  dowHistoryWeeks: number;
+  dowHistoryMode: 'numbers' | 'dots';
 }
 
 /**
@@ -128,6 +130,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   printMaxRows,
   printDutyTableShowAllUsers,
   printWeekRange,
+  dowHistoryWeeks,
+  dowHistoryMode,
   // Modal passthrough
   executeAssign,
   handleSwap,
@@ -149,7 +153,11 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
 }) => {
   const printHeaderDates =
     printMode === 'week-calendar-table' && printWeekRange
-      ? getWeekRangeDates(printWeekRange.year, printWeekRange.fromWeek, printWeekRange.toWeek).flat()
+      ? getWeekRangeDates(
+          printWeekRange.year,
+          printWeekRange.fromWeek,
+          printWeekRange.toWeek
+        ).flat()
       : weekDates;
 
   return (
@@ -203,6 +211,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
           onUserClick={handleStartEdit}
+          dowHistoryWeeks={dowHistoryWeeks}
+          dowHistoryMode={dowHistoryMode}
           onCellClick={(date, entry, assignedUserId) => {
             setPendingAssignConfirm(null);
             setSelectedCell({ date, entry, assignedUserId });
@@ -229,7 +239,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           maxRowsPerPage={printMaxRows}
           showAllUsers={printDutyTableShowAllUsers}
           footer={
-            signatories.showCreatorFooter !== false ? <PrintFooter signatories={signatories} /> : null
+            signatories.showCreatorFooter !== false ? (
+              <PrintFooter signatories={signatories} />
+            ) : null
           }
         />
       )}
@@ -246,9 +258,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
       )}
       {printMode !== 'status-list' &&
         printMode !== 'week-calendar-table' &&
-        printMode !== 'duty-table' && (
-        <PrintFooter signatories={signatories} />
-      )}
+        printMode !== 'duty-table' && <PrintFooter signatories={signatories} />}
 
       <ScheduleModals
         selectedCell={selectedCell}

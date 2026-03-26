@@ -113,6 +113,11 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   useExperimentalStatsView: false,
 };
 
+/** Кількість тижнів назад для індикатора повторів DOW (за замовчуванням) */
+export const DEFAULT_DOW_HISTORY_WEEKS = 4;
+/** Режим відображення індикатора повторів DOW: 'numbers' | 'dots' */
+export const DEFAULT_DOW_HISTORY_MODE: 'numbers' | 'dots' = 'numbers';
+
 /** Підписанти документа за замовчуванням (пусті рядки) */
 export const DEFAULT_SIGNATORIES: Signatories = {
   approverPos: '',

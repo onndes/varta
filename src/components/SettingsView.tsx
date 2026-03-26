@@ -27,6 +27,8 @@ interface SettingsViewProps {
   printDutyTableShowAllUsers: boolean;
   ignoreHistoryInLogic: boolean;
   uiScale: number;
+  dowHistoryWeeks: number;
+  dowHistoryMode: 'numbers' | 'dots';
   onSave: (w: DayWeights) => Promise<void>;
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
@@ -36,6 +38,8 @@ interface SettingsViewProps {
   onSavePrintDutyTableShowAllUsers: (value: boolean) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
+  onSaveDowHistoryWeeks: (value: number) => Promise<void>;
+  onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
@@ -73,6 +77,10 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setIgnoreHistory,
     scale,
     setScale,
+    histWeeks,
+    setHistWeeks,
+    histMode,
+    setHistMode,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
@@ -165,7 +173,16 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onApplyFirstDutyDates={() => void applyFirstDutyDates()}
         />
       )}
-      {subTab === 'interface' && <InterfaceTabPanel scale={scale} onScaleChange={setScale} />}
+      {subTab === 'interface' && (
+        <InterfaceTabPanel
+          scale={scale}
+          onScaleChange={setScale}
+          histWeeks={histWeeks}
+          onHistWeeksChange={setHistWeeks}
+          histMode={histMode}
+          onHistModeChange={setHistMode}
+        />
+      )}
       {subTab === 'experimental' && (
         <ExperimentalTabPanel autoOpts={autoOpts} onAutoOptsChange={setAutoOpts} />
       )}
