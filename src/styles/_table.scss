@@ -122,6 +122,30 @@
     font-weight: 700;
     border: 2px dashed var(--app-cell-history-border, #818cf8);
   }
+
+  // ── Drag & Drop states ────────────────────────────────────────────────────
+
+  &.can-drag {
+    cursor: grab;
+  }
+
+  &.dragging {
+    opacity: 0.4;
+    cursor: grabbing !important;
+  }
+
+  &.drag-over-valid {
+    border: 2px solid #28a745 !important;
+    background-color: rgba(40, 167, 69, 0.15) !important;
+    color: inherit;
+  }
+
+  &.drag-over-invalid {
+    border: 2px dashed #dc3545 !important;
+    background-color: rgba(220, 53, 69, 0.08) !important;
+    color: inherit;
+    cursor: not-allowed;
+  }
 }
 
 .dow-repeat-dots {

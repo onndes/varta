@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { User, ScheduleEntry } from '../../types';
 import type { DeletedUserInfo } from '../../services/userService';
+import type { DragDropHandlers } from '../../hooks/useScheduleDragDrop';
 import { getUserAvailabilityStatus } from '../../services/userService';
 import ScheduleTableRow from './ScheduleTableRow';
 import { toAssignedUserIds, isAssignedInEntry } from '../../utils/assignment';
@@ -33,6 +34,7 @@ interface ScheduleTableProps {
   dowHistoryMode?: 'numbers' | 'dots';
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
+  dragDropHandlers?: DragDropHandlers;
 }
 
 // ─── Deleted-user row (historical display) ────────────────────────────────────
@@ -114,6 +116,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   dowHistoryMode = 'numbers',
   onCellClick,
   onQuickAssignClick,
+  dragDropHandlers,
 }) => {
   const activeUsers = users.filter((u) => u.isActive);
   const usersById = Object.fromEntries(activeUsers.map((u) => [u.id!, u]));
@@ -211,6 +214,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   onUserClick={onUserClick}
                   onCellClick={onCellClick}
                   onQuickAssignClick={onQuickAssignClick}
+                  dragDropHandlers={dragDropHandlers}
                 />
               ))
             )}

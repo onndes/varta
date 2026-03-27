@@ -1,4 +1,5 @@
 import React from 'react';
+import type { PrintMode } from '../../types';
 import { formatDate, toLocalISO } from '../../utils/dateUtils';
 
 interface ScheduleControlsProps {
@@ -31,6 +32,8 @@ interface ScheduleControlsProps {
   redoLabel?: string;
   onUndo: () => void;
   onRedo: () => void;
+  violationsCount?: number;
+  onPrint?: (mode: PrintMode) => void;
 }
 
 /**
@@ -67,6 +70,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   redoLabel,
   onUndo,
   onRedo,
+  violationsCount = 0,
+  onPrint,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);

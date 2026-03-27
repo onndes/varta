@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import type { User, ScheduleEntry, Signatories, PrintMode, PrintWeekRange } from '../../types';
 import type { DeletedUserInfo } from '../../services/userService';
 import type { ScheduleModalsProps } from './ScheduleModals';
+import type { DragDropHandlers } from '../../hooks/useScheduleDragDrop';
 import { getWeekRangeDates } from '../../utils/dateUtils';
 import WeekNavigator from './WeekNavigator';
 import ScheduleControls from './ScheduleControls';
@@ -78,6 +79,9 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   printWeekRange: PrintWeekRange | null;
   dowHistoryWeeks: number;
   dowHistoryMode: 'numbers' | 'dots';
+  dragDropHandlers?: DragDropHandlers;
+  violationsCount?: number;
+  onPrint?: (mode: PrintMode) => void;
 }
 
 /**
@@ -136,6 +140,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   printWeekRange,
   dowHistoryWeeks,
   dowHistoryMode,
+  dragDropHandlers,
+  violationsCount = 0,
+  onPrint,
   // Modal passthrough
   executeAssign,
   handleSwap,
@@ -206,6 +213,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           redoLabel={redoLabel}
           onUndo={runUndo}
           onRedo={runRedo}
+          violationsCount={violationsCount}
+          onPrint={onPrint}
         />
       </div>
 
@@ -227,6 +236,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           onUserClick={handleStartEdit}
           dowHistoryWeeks={dowHistoryWeeks}
           dowHistoryMode={dowHistoryMode}
+          dragDropHandlers={dragDropHandlers}
           onCellClick={(date, entry, assignedUserId) => {
             setPendingAssignConfirm(null);
             setSelectedCell({ date, entry, assignedUserId });

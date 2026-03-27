@@ -11,6 +11,7 @@ interface HeaderProps {
   onWorkspaceSwitch: () => Promise<void>;
   theme: AppTheme;
   onSaveTheme: (theme: AppTheme) => Promise<void>;
+  violationsCount?: number;
 }
 
 const THEMES: { id: AppTheme; label: string; icon: string }[] = [
@@ -27,6 +28,7 @@ const Header: React.FC<HeaderProps> = ({
   onWorkspaceSwitch,
   theme,
   onSaveTheme,
+  violationsCount = 0,
 }) => {
   const todayFormatted = new Date().toLocaleDateString('uk-UA', {
     weekday: 'short',
@@ -61,8 +63,20 @@ const Header: React.FC<HeaderProps> = ({
           <i className="fas fa-download me-1"></i>Експорт
         </button>
         <div className="btn-group">
-          <button className="btn btn-dark btn-sm" onClick={() => onPrint('duty-table')}>
+          <button
+            className="btn btn-dark btn-sm position-relative"
+            onClick={() => onPrint('duty-table')}
+          >
             <i className="fas fa-print me-1"></i>Друк
+            {violationsCount > 0 && (
+              <span
+                className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                style={{ fontSize: '0.6rem', zIndex: 5 }}
+                title={`${violationsCount} порушень у поточному тижні`}
+              >
+                {violationsCount}
+              </span>
+            )}
           </button>
           <button
             className="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split"

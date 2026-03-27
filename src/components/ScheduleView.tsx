@@ -20,6 +20,7 @@ import { useScheduleIssues } from '../hooks/useScheduleIssues';
 import { useAssignAndRemove } from '../hooks/useAssignAndRemove';
 import { useScheduleUserQueries } from '../hooks/useScheduleUserQueries';
 import { useScheduleKeyboard } from '../hooks/useScheduleKeyboard';
+import { useScheduleDragDrop } from '../hooks/useScheduleDragDrop';
 import ScheduleBody from './schedule/ScheduleBody';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
@@ -45,6 +46,8 @@ interface ScheduleViewProps {
   ignoreHistoryInLogic: boolean;
   dowHistoryWeeks: number;
   dowHistoryMode: 'numbers' | 'dots';
+  violationsCount?: number;
+  onPrint?: (mode: PrintMode) => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -69,6 +72,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   ignoreHistoryInLogic,
   dowHistoryWeeks,
   dowHistoryMode,
+  violationsCount = 0,
+  onPrint,
 }) => {
   // ── Deleted users (historical display) ──────────────────────────────────
   const [deletedUserNames, setDeletedUserNames] = useState<Record<number, DeletedUserInfo>>({});
@@ -216,6 +221,24 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     redoHistory,
   });
 
+  // ── Drag & drop ───────────────────────────────────────────────────────────
+  const dragDropHandlers = useScheduleDragDrop({
+    schedule,
+    users,
+    dayWeights,
+    todayStr,
+    historyMode,
+    forceAssignMode,
+    assignUser,
+    removeAssignment,
+    pushHistory,
+    logAction,
+    refreshData,
+    updateCascadeTrigger,
+    autoScheduleOptions,
+    dutiesPerDay,
+  });
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useScheduleKeyboard({
     schedule,
@@ -297,6 +320,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       printDutyTableShowAllUsers={printDutyTableShowAllUsers}
       dowHistoryWeeks={dowHistoryWeeks}
       dowHistoryMode={dowHistoryMode}
+      violationsCount={violationsCount}
+      onPrint={onPrint}
+      dragDropHandlers={dragDropHandlers}
     />
   );
 };

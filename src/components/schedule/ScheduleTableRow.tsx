@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import type { User, ScheduleEntry, DecisionLog } from '../../types';
+import type { DragDropHandlers } from '../../hooks/useScheduleDragDrop';
 import { formatRank, formatNameForPrint } from '../../utils/helpers';
 import { STATUSES } from '../../utils/constants';
 import { getUserAvailabilityStatus } from '../../services/userService';
@@ -89,6 +90,7 @@ interface ScheduleTableRowProps {
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
   forceAssignMode?: boolean;
+  dragDropHandlers?: DragDropHandlers;
 }
 
 /**
@@ -107,6 +109,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   onCellClick,
   onQuickAssignClick,
   forceAssignMode = false,
+  dragDropHandlers,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
 
@@ -189,6 +192,23 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           let screenContent: React.ReactNode = '';
           let printContent = '';
 
+          // ── Drag & drop state classes ─────────────────────────────────────
+          const dnd = dragDropHandlers;
+          let dropHoverTitle: string | undefined;
+          if (dnd?.dragState) {
+            const isSource = dnd.dragState.userId === user.id && dnd.dragState.date === date;
+            const isHover = dnd.hoverCell?.userId === user.id && dnd.hoverCell?.date === date;
+            if (isSource) {
+              cellClass += ' dragging';
+            } else if (isHover) {
+              const validation = dnd.dragState.dropValidation;
+              const isValid =
+                validation !== undefined ? validation.valid : dnd.isDropValid(user.id!, date); // fallback before first hover fires
+              cellClass += isValid ? ' drag-over-valid' : ' drag-over-invalid';
+              if (!isValid && validation?.reason) dropHoverTitle = validation.reason;
+            }
+          }
+
           if (isAssigned) {
             if (entry.type === 'history' || entry.type === 'import') {
               cellClass += ' history-entry';
@@ -231,11 +251,46 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             screenContent = getUnavailableContent(availabilityStatus, user, date);
           }
 
+          const canDrag =
+            isAssigned &&
+            !(isPast && !historyMode) &&
+            !!dragDropHandlers &&
+            entry.type !== 'history' &&
+            entry.type !== 'import';
+
           return (
             <td
               key={date}
-              className={cellClass}
+              className={cellClass + (canDrag ? ' can-drag' : '')}
+              title={dropHoverTitle}
+              draggable={canDrag}
+              onDragStart={
+                canDrag
+                  ? (e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', `${user.id!}-${date}`);
+                      dragDropHandlers!.handleDragStart(user.id!, date, entry);
+                    }
+                  : undefined
+              }
+              onDragEnd={canDrag ? () => dragDropHandlers!.handleDragEnd() : undefined}
+              onDragEnter={
+                dragDropHandlers
+                  ? () => dragDropHandlers.handleDragEnter(user.id!, date)
+                  : undefined
+              }
+              onDragOver={
+                dragDropHandlers
+                  ? (e) => dragDropHandlers.handleDragOver(e, user.id!, date)
+                  : undefined
+              }
+              onDrop={
+                dragDropHandlers
+                  ? (e) => dragDropHandlers.handleDrop(e, user.id!, date, schedule[date] ?? null)
+                  : undefined
+              }
               onClick={() => {
+                if (dragDropHandlers?.dragState) return; // ignore clicks during drag
                 if (isPast && !historyMode) return;
                 if (isAssigned) {
                   onCellClick(date, entry, user.id);

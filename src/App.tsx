@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { PrintMode, PrintWeekRange, ScheduleDocumentMode } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
@@ -20,6 +20,9 @@ import DevTools from './components/DevTools';
 import AuditLogView from './components/AuditLogView';
 import AppSidebar from './components/AppSidebar';
 import PrintWeekRangeModal from './components/schedule/PrintWeekRangeModal';
+import ScheduleViolationsAlert from './components/schedule/ScheduleViolationsAlert';
+import { validateScheduleAgainstSettings } from './utils/scheduleValidation';
+import type { ScheduleViolation } from './utils/scheduleValidation';
 
 // Styles
 import './styles/main.scss';
@@ -33,6 +36,10 @@ const App = () => {
   const [printWeekRange, setPrintWeekRange] = useState<PrintWeekRange | null>(null);
   const [showPrintWeekRangeModal, setShowPrintWeekRangeModal] = useState(false);
   const [weekRangeAction, setWeekRangeAction] = useState<'print' | 'excel' | null>(null);
+  // Print validation modal
+  const [showViolationsModal, setShowViolationsModal] = useState(false);
+  const [pendingPrintViolations, setPendingPrintViolations] = useState<ScheduleViolation[]>([]);
+  const [pendingPrintAction, setPendingPrintAction] = useState<(() => void) | null>(null);
   const [currentWeekDates, setCurrentWeekDates] = useState<string[]>(() =>
     getWeekDates(getCurrentMonday())
   );
@@ -231,6 +238,37 @@ const App = () => {
     void handleExportExcel(mode);
   };
 
+  // Compute schedule violations for the current visible week
+  const scheduleViolations = useMemo(
+    () =>
+      validateScheduleAgainstSettings(
+        schedule,
+        users,
+        autoScheduleOptions,
+        dutiesPerDay,
+        currentWeekDates
+      ),
+    [schedule, users, autoScheduleOptions, dutiesPerDay, currentWeekDates]
+  );
+
+  // Guard print/export: show violations modal if any exist
+  const guardedPrint = (action: () => void) => {
+    const violations = validateScheduleAgainstSettings(
+      schedule,
+      users,
+      autoScheduleOptions,
+      dutiesPerDay,
+      currentWeekDates
+    );
+    if (violations.length > 0) {
+      setPendingPrintViolations(violations);
+      setPendingPrintAction(() => action);
+      setShowViolationsModal(true);
+    } else {
+      action();
+    }
+  };
+
   const handleConfirmWeekRange = (range: PrintWeekRange) => {
     setShowPrintWeekRangeModal(false);
     const action = weekRangeAction;
@@ -296,10 +334,11 @@ const App = () => {
           hasData={hasData}
           onImport={handleImport}
           onExport={handleExport}
-          onPrint={handlePrint}
+          onPrint={(mode) => guardedPrint(() => handlePrint(mode))}
           onWorkspaceSwitch={handleWorkspaceSwitch}
           theme={theme}
           onSaveTheme={saveTheme}
+          violationsCount={scheduleViolations.length}
         />
 
         <main
@@ -327,6 +366,8 @@ const App = () => {
               ignoreHistoryInLogic={ignoreHistoryInLogic}
               dowHistoryWeeks={dowHistoryWeeks}
               dowHistoryMode={dowHistoryMode}
+              violationsCount={scheduleViolations.length}
+              onPrint={(mode) => guardedPrint(() => handlePrint(mode))}
             />
           )}
           {activeTab === 'users' && (
@@ -376,7 +417,7 @@ const App = () => {
               onSaveDowHistoryMode={saveDowHistoryMode}
               birthdayBlockOpts={birthdayBlockOpts}
               onSaveBirthdayBlockOpts={saveBirthdayBlockOpts}
-              onExportExcel={requestExportExcel}
+              onExportExcel={(mode) => guardedPrint(() => requestExportExcel(mode))}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}
               logAction={logAction}
@@ -393,6 +434,22 @@ const App = () => {
           </a>
         </footer>
       </div>
+
+      {showViolationsModal && (
+        <ScheduleViolationsAlert
+          show={showViolationsModal}
+          violations={pendingPrintViolations}
+          onConfirmPrint={() => {
+            setShowViolationsModal(false);
+            pendingPrintAction?.();
+            setPendingPrintAction(null);
+          }}
+          onCancel={() => {
+            setShowViolationsModal(false);
+            setPendingPrintAction(null);
+          }}
+        />
+      )}
     </div>
   );
 };
