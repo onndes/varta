@@ -18,6 +18,7 @@ interface AssignOptions {
   replaceUserId?: number;
   penalizeReplaced?: boolean;
   historyMode?: boolean;
+  isForced?: boolean; // Force-assign: bypass availability, saved as type 'force'
 }
 
 /**
@@ -65,11 +66,13 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
       const isReplace = typeof replaceUserId === 'number';
       const entryType = options?.historyMode
         ? 'history'
-        : isManual
-          ? isReplace
-            ? 'replace'
-            : 'manual'
-          : 'auto';
+        : options?.isForced
+          ? 'force'
+          : isManual
+            ? isReplace
+              ? 'replace'
+              : 'manual'
+            : 'auto';
 
       const { saveScheduleEntry } = await import('../services/scheduleService');
       const entry: ScheduleEntry = {

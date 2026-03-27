@@ -49,6 +49,17 @@ export const buildStaticLog = (entry: ScheduleEntry): DecisionLog | undefined =>
         items: [userText, 'Система не розраховувала це призначення автоматично.'],
       });
       break;
+    case 'force':
+      userText = 'Примусово призначено адміністратором з обходом блокувань.';
+      sections.push({
+        icon: '⚠️',
+        title: 'Примусове призначення',
+        items: [
+          userText,
+          'Боєць міг бути недоступний або заблокований, але запис був створений з режиму «Форсаж».',
+        ],
+      });
+      break;
     default:
       return undefined;
   }

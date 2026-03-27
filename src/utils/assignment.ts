@@ -21,7 +21,7 @@ export const getAssignedCount = (entry: ScheduleEntry | null | undefined): numbe
   return toAssignedUserIds(entry.userId).length;
 };
 
-/** Чи є тип запису «ручним» (manual, replace, swap, history, import — не авто) */
+/** Чи є тип запису «ручним» (manual, replace, swap, history, import, force — не авто) */
 export const isManualType = (entry: ScheduleEntry | null | undefined): boolean => {
   if (!entry) return false;
   return (
@@ -29,7 +29,8 @@ export const isManualType = (entry: ScheduleEntry | null | undefined): boolean =
     entry.type === 'replace' ||
     entry.type === 'swap' ||
     entry.type === 'history' ||
-    entry.type === 'import'
+    entry.type === 'import' ||
+    entry.type === 'force'
   );
 };
 

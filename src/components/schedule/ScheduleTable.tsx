@@ -28,6 +28,7 @@ interface ScheduleTableProps {
   historyMode?: boolean;
   deletedUserNames?: Record<number, DeletedUserInfo>;
   onUserClick?: (user: User) => void;
+  forceAssignMode?: boolean;
   dowHistoryWeeks?: number;
   dowHistoryMode?: 'numbers' | 'dots';
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
@@ -108,6 +109,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   historyMode = false,
   deletedUserNames = {},
   onUserClick,
+  forceAssignMode = false,
   dowHistoryWeeks = 4,
   dowHistoryMode = 'numbers',
   onCellClick,
@@ -205,6 +207,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   historyMode={historyMode}
                   dowHistoryWeeks={dowHistoryWeeks}
                   dowHistoryMode={dowHistoryMode}
+                  forceAssignMode={forceAssignMode}
                   onUserClick={onUserClick}
                   onCellClick={onCellClick}
                   onQuickAssignClick={onQuickAssignClick}

@@ -22,6 +22,8 @@ interface ScheduleControlsProps {
   onImportSchedule: () => void;
   historyMode: boolean;
   onToggleHistoryMode: () => void;
+  forceAssignMode: boolean;
+  onToggleForceAssignMode: () => void;
   onToggleRowFilter: (filter: 'available' | 'assigned') => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -56,6 +58,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onImportSchedule,
   historyMode,
   onToggleHistoryMode,
+  forceAssignMode,
+  onToggleForceAssignMode,
   onToggleRowFilter,
   canUndo,
   canRedo,
@@ -129,6 +133,14 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             >
               <i className={`fas ${historyMode ? 'fa-lock-open' : 'fa-history'} me-1`}></i>
               {historyMode ? 'Ред. історії ✅' : 'Ред. історії'}
+            </button>
+            <button
+              className={`btn btn-sm ${forceAssignMode ? 'btn-warning' : 'btn-outline-secondary'}`}
+              onClick={onToggleForceAssignMode}
+              title="Примусове призначення: дозволяє ставити в наряд навіть заблокованих бійців"
+            >
+              <i className={`fas ${forceAssignMode ? 'fa-unlock' : 'fa-user-lock'} me-1`}></i>
+              {forceAssignMode ? 'Форсаж ✅' : 'Форсаж'}
             </button>
             <button
               className="btn btn-sm btn-outline-secondary"

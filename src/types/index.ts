@@ -165,7 +165,7 @@ export interface DecisionLog {
 export interface ScheduleEntry {
   date: string;
   userId: number | number[] | null; // Can be single ID or array for multiple duties per day
-  type: 'manual' | 'auto' | 'critical' | 'replace' | 'swap' | 'history' | 'import';
+  type: 'manual' | 'auto' | 'critical' | 'replace' | 'swap' | 'history' | 'import' | 'force';
   isLocked?: boolean;
   /** Auto-generated decision log (Info Button «i»). Not persisted to DB. */
   decisionLog?: DecisionLog;

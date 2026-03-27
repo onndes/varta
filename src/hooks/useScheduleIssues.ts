@@ -41,6 +41,8 @@ export const useScheduleIssues = ({
 
     Object.entries(schedule).forEach(([date, entry]) => {
       if (date < checkStart) return;
+      // Force-assigned entries are intentional overrides — never flag as conflicts
+      if (entry.type === 'force') return;
       const ids = toAssignedUserIds(entry.userId);
       const conflictIds = ids.filter((id) => {
         const user = users.find((u) => u.id === id);

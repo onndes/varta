@@ -88,6 +88,7 @@ interface ScheduleTableRowProps {
   onUserClick?: (user: User) => void;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
+  forceAssignMode?: boolean;
 }
 
 /**
@@ -105,6 +106,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   onUserClick,
   onCellClick,
   onQuickAssignClick,
+  forceAssignMode = false,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
 
@@ -190,6 +192,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           if (isAssigned) {
             if (entry.type === 'history' || entry.type === 'import') {
               cellClass += ' history-entry';
+            } else if (entry.type === 'force') {
+              cellClass += isPast && !historyMode ? ' assigned-force-past' : ' assigned-force';
             } else {
               cellClass +=
                 isPast && !historyMode
@@ -238,7 +242,11 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                   return;
                 }
 
-                if (availabilityStatus === 'AVAILABLE' || hadSundayDutyPreviousDay) {
+                if (
+                  availabilityStatus === 'AVAILABLE' ||
+                  hadSundayDutyPreviousDay ||
+                  forceAssignMode
+                ) {
                   onQuickAssignClick(date, user);
                 }
               }}

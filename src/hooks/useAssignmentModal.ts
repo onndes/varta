@@ -4,10 +4,7 @@ import { useState, useCallback } from 'react';
 import { useDialog } from '../components/useDialog';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
-import {
-  getAllSchedule,
-  saveScheduleEntry,
-} from '../services/scheduleService';
+import { getAllSchedule, saveScheduleEntry } from '../services/scheduleService';
 import { isAssignedInEntry, toAssignedUserIds } from '../utils/assignment';
 import type { SwapMode } from '../components/schedule/AssignmentModal';
 
@@ -23,6 +20,7 @@ interface PendingAssignConfirm {
   daysSinceLastDuty?: number;
   isRestDay: boolean;
   penalizeReplaced?: boolean;
+  isForced?: boolean;
 }
 
 interface UseAssignmentModalArgs {
@@ -31,6 +29,7 @@ interface UseAssignmentModalArgs {
   dayWeights: DayWeights;
   dutiesPerDay: number;
   historyMode: boolean;
+  forceAssignMode: boolean;
   pushHistory: (snapshot: Record<string, ScheduleEntry>, label: string) => void;
   assignUser: (
     date: string,
@@ -59,6 +58,7 @@ export const useAssignmentModal = ({
   dayWeights,
   dutiesPerDay,
   historyMode,
+  forceAssignMode,
   pushHistory,
   assignUser,
   removeAssignment,
@@ -99,7 +99,8 @@ export const useAssignmentModal = ({
     async (
       userId: number,
       penalizeReplaced = false,
-      targetCell: SelectedCell | null = selectedCell
+      targetCell: SelectedCell | null = selectedCell,
+      isForced = false
     ) => {
       if (!targetCell) return;
 
@@ -111,6 +112,7 @@ export const useAssignmentModal = ({
           replaceUserId: targetCell.assignedUserId,
           penalizeReplaced,
           historyMode,
+          isForced,
         });
         await updateCascadeTrigger(targetCell.date);
 
@@ -167,7 +169,7 @@ export const useAssignmentModal = ({
           );
           if (!ok) return;
         }
-        await executeAssign(userId, penalizeReplaced, targetCell);
+        await executeAssign(userId, penalizeReplaced, targetCell, forceAssignMode);
         return;
       }
 
@@ -179,11 +181,19 @@ export const useAssignmentModal = ({
           )
         : undefined;
       setSelectedCell(targetCell);
-      setPendingAssignConfirm({ userId, lastDutyDate, daysSinceLastDuty, isRestDay, penalizeReplaced });
+      setPendingAssignConfirm({
+        userId,
+        lastDutyDate,
+        daysSinceLastDuty,
+        isRestDay,
+        penalizeReplaced,
+        isForced: forceAssignMode,
+      });
     },
     [
       selectedCell,
       historyMode,
+      forceAssignMode,
       executeAssign,
       isOnRestDay,
       users,

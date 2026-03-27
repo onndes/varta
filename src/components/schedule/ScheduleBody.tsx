@@ -55,6 +55,8 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   handleStartEdit: (user: User) => void;
   // Toolbar
   setHistoryMode: React.Dispatch<React.SetStateAction<boolean>>;
+  forceAssignMode: boolean;
+  onToggleForceAssignMode: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undoLabel: string;
@@ -94,6 +96,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   // Toolbar state / actions
   historyMode,
   setHistoryMode,
+  forceAssignMode,
+  onToggleForceAssignMode,
   showImportModal,
   setShowImportModal,
   cascadeStartDate,
@@ -193,9 +197,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           onImportSchedule={() => setShowImportModal(true)}
           historyMode={historyMode}
           onToggleHistoryMode={() => setHistoryMode((v) => !v)}
-          onToggleRowFilter={(filter) =>
-            setRowFilter((prev) => (prev === filter ? 'all' : filter))
-          }
+          forceAssignMode={forceAssignMode}
+          onToggleForceAssignMode={onToggleForceAssignMode}
+          onToggleRowFilter={(filter) => setRowFilter((prev) => (prev === filter ? 'all' : filter))}
           canUndo={canUndo}
           canRedo={canRedo}
           undoLabel={undoLabel}
@@ -219,6 +223,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           rowFilter={rowFilter}
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
+          forceAssignMode={forceAssignMode}
           onUserClick={handleStartEdit}
           dowHistoryWeeks={dowHistoryWeeks}
           dowHistoryMode={dowHistoryMode}
@@ -276,7 +281,9 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
         setSwapMode={setSwapMode}
         pendingAssignConfirm={pendingAssignConfirm}
         setPendingAssignConfirm={setPendingAssignConfirm}
-        executeAssign={executeAssign}
+        executeAssign={(userId, penalize, isForced) =>
+          void executeAssign(userId, penalize, undefined, isForced)
+        }
         handleAssign={(userId, penalize) => handleAssign(userId, penalize)}
         handleSwap={handleSwap}
         handleRemove={handleRemove}

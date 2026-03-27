@@ -26,6 +26,7 @@ interface PendingAssignConfirm {
   daysSinceLastDuty?: number;
   isRestDay: boolean;
   penalizeReplaced?: boolean;
+  isForced?: boolean;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ export interface ScheduleModalsProps {
   setSwapMode: (mode: SwapMode) => void;
   pendingAssignConfirm: PendingAssignConfirm | null;
   setPendingAssignConfirm: (val: PendingAssignConfirm | null) => void;
-  executeAssign: (userId: number, penalize?: boolean) => void;
+  executeAssign: (userId: number, penalize?: boolean, isForced?: boolean) => void;
   handleAssign: (userId: number, penalize: boolean) => Promise<void>;
   handleSwap: (swapUserId: number, swapDate: string) => Promise<void>;
   handleRemove: (reason: 'request' | 'work') => Promise<void>;
@@ -152,8 +153,17 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
       pending={pendingAssignConfirm}
       targetDate={selectedCell?.date || ''}
       users={users}
-      onConfirm={(userId) => executeAssign(userId, pendingAssignConfirm?.penalizeReplaced)}
-      onClose={() => setPendingAssignConfirm(null)}
+      onConfirm={(userId) =>
+        executeAssign(
+          userId,
+          pendingAssignConfirm?.penalizeReplaced,
+          pendingAssignConfirm?.isForced
+        )
+      }
+      onClose={() => {
+        setPendingAssignConfirm(null);
+        setSelectedCell(null);
+      }}
     />
 
     {editingUser && !pendingEditReview && (

@@ -79,7 +79,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   // ── UI state ────────────────────────────────────────────────────────────
   const [showImportModal, setShowImportModal] = useState(false);
   const [historyMode, setHistoryMode] = useState(false);
-
+  const [forceAssignMode, setForceAssignMode] = useState(false);
   // ── User edit flow ───────────────────────────────────────────────────────
   const {
     editingUser,
@@ -138,6 +138,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     dayWeights,
     dutiesPerDay,
     historyMode,
+    forceAssignMode,
     pushHistory,
     assignUser,
     removeAssignment,
@@ -244,6 +245,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       cascadeStartDate={cascadeStartDate}
       historyMode={historyMode}
       setHistoryMode={setHistoryMode}
+      forceAssignMode={forceAssignMode}
+      onToggleForceAssignMode={() => setForceAssignMode((v) => !v)}
       showImportModal={showImportModal}
       setShowImportModal={setShowImportModal}
       canUndo={canUndo}
