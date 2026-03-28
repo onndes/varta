@@ -70,8 +70,6 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   redoLabel,
   onUndo,
   onRedo,
-  violationsCount = 0,
-  onPrint,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
