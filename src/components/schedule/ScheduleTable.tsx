@@ -183,7 +183,19 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   return (
     <div className="view-table">
       <div className="card shadow-sm border-0">
-        <table className="compact-table">
+        <table
+          className="compact-table"
+          onDragOver={
+            dragDropHandlers
+              ? (e) => {
+                  // Fallback preventDefault for elements without their own onDragOver
+                  // (e.g. header <th> cells). Without this WebView2 (Windows) resets
+                  // the drag gesture when the pointer passes over non-droppable children.
+                  if (dragDropHandlers.dragState) e.preventDefault();
+                }
+              : undefined
+          }
+        >
           <ScheduleTableHeader
             weekDates={weekDates}
             sortKey={sortKey}

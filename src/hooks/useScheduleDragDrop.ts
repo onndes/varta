@@ -201,9 +201,11 @@ export const useScheduleDragDrop = ({
 
   const handleDragOver = useCallback(
     (e: React.DragEvent, targetUserId: number, targetDate: string) => {
-      if (!isDropValid(targetUserId, targetDate)) return;
+      // Always preventDefault so the browser/WebView2 allows the drop gesture
+      // and doesn't show the "prohibited" cursor unconditionally.
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
+      const valid = isDropValid(targetUserId, targetDate);
+      e.dataTransfer.dropEffect = valid ? 'move' : 'none';
       // Compute rule validation and store in dragState for CSS feedback
       const drag = dragStateRef.current;
       if (!drag) return;
