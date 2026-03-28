@@ -48,6 +48,8 @@ interface ScheduleViewProps {
   dowHistoryMode: 'numbers' | 'dots';
   violationsCount?: number;
   onPrint?: (mode: PrintMode) => void;
+  zenMode?: boolean;
+  onZenToggle?: () => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -74,6 +76,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   dowHistoryMode,
   violationsCount = 0,
   onPrint,
+  zenMode = false,
+  onZenToggle,
 }) => {
   // ── Deleted users (historical display) ──────────────────────────────────
   const [deletedUserNames, setDeletedUserNames] = useState<Record<number, DeletedUserInfo>>({});
@@ -324,6 +328,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       dowHistoryMode={dowHistoryMode}
       violationsCount={violationsCount}
       onPrint={onPrint}
+      zenMode={zenMode}
+      onZenToggle={onZenToggle}
       dragDropHandlers={dragDropHandlers}
     />
   );

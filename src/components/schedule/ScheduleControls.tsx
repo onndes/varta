@@ -34,6 +34,8 @@ interface ScheduleControlsProps {
   onRedo: () => void;
   violationsCount?: number;
   onPrint?: (mode: PrintMode) => void;
+  zenMode?: boolean;
+  onZenToggle?: () => void;
 }
 
 /**
@@ -70,6 +72,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   redoLabel,
   onUndo,
   onRedo,
+  zenMode = false,
+  onZenToggle,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
@@ -118,6 +122,16 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           onChange={(e) => onDatePick(e.target.value)}
           value={weekDates[0]}
         />
+        <div className="flex-grow-1" />
+        <button
+          className={`btn btn-sm ${zenMode ? 'btn-warning' : 'btn-outline-secondary'}`}
+          onClick={onZenToggle}
+          title={
+            zenMode ? 'Вийти з повноекранного режиму (Esc)' : 'Розгорнути графік на весь екран'
+          }
+        >
+          <i className={`fas ${zenMode ? 'fa-compress' : 'fa-expand'}`}></i>
+        </button>
       </div>
 
       {/* Row 2: history/import + undo/redo */}

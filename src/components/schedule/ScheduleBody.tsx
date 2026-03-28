@@ -82,6 +82,8 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   dragDropHandlers?: DragDropHandlers;
   violationsCount?: number;
   onPrint?: (mode: PrintMode) => void;
+  zenMode?: boolean;
+  onZenToggle?: () => void;
 }
 
 /**
@@ -143,6 +145,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   dragDropHandlers,
   violationsCount = 0,
   onPrint,
+  zenMode = false,
+  onZenToggle,
   // Modal passthrough
   executeAssign,
   handleSwap,
@@ -215,6 +219,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           onRedo={runRedo}
           violationsCount={violationsCount}
           onPrint={onPrint}
+          zenMode={zenMode}
+          onZenToggle={onZenToggle}
         />
       </div>
 

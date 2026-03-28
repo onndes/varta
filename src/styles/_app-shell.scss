@@ -356,3 +356,22 @@
     display: none;
   }
 }
+
+// ─── Zen Mode: fullscreen schedule editing ────────────────────────────────────
+.app-shell--zen {
+  .app-sidebar {
+    display: none;
+  }
+
+  .app-header {
+    display: none;
+  }
+
+  .app-footer {
+    display: none;
+  }
+
+  .app-content {
+    padding: 0.5rem;
+  }
+}

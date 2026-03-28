@@ -45,6 +45,7 @@ const App = () => {
   );
   const [workspaceVersion, setWorkspaceVersion] = useState(() => getActiveWorkspaceId());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [zenMode, setZenMode] = useState(false);
   const [appVersion, setAppVersion] = useState('');
 
   // Use custom hooks
@@ -113,6 +114,16 @@ const App = () => {
       document.documentElement.removeAttribute('data-bs-theme');
     }
   }, [theme]);
+
+  // Escape exits zen mode
+  useEffect(() => {
+    if (!zenMode) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZenMode(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [zenMode]);
 
   // Read runtime app version (Tauri bundle version or web package version)
   useEffect(() => {
@@ -285,7 +296,7 @@ const App = () => {
 
   return (
     <div
-      className={`app-shell ${sidebarCollapsed ? 'app-shell--collapsed' : ''} show-print-${printMode}`}
+      className={`app-shell ${sidebarCollapsed ? 'app-shell--collapsed' : ''} ${zenMode ? 'app-shell--zen' : ''} show-print-${printMode}`}
     >
       {loading && (
         <div className="loading-overlay">
@@ -368,6 +379,8 @@ const App = () => {
               dowHistoryMode={dowHistoryMode}
               violationsCount={scheduleViolations.length}
               onPrint={(mode) => guardedPrint(() => handlePrint(mode))}
+              zenMode={zenMode}
+              onZenToggle={() => setZenMode((v) => !v)}
             />
           )}
           {activeTab === 'users' && (
