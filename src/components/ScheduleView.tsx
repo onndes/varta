@@ -295,7 +295,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       setSwapMode={setSwapMode}
       pendingAssignConfirm={pendingAssignConfirm}
       setPendingAssignConfirm={setPendingAssignConfirm}
-      executeAssign={executeAssign}
+      executeAssign={(userId, penalize, isForced) =>
+        void executeAssign(userId, penalize, undefined, isForced)
+      }
       handleAssign={handleAssign}
       handleSwap={handleSwap}
       handleRemove={handleRemove}

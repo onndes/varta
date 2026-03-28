@@ -292,7 +292,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
         pendingAssignConfirm={pendingAssignConfirm}
         setPendingAssignConfirm={setPendingAssignConfirm}
         executeAssign={(userId, penalize, isForced) =>
-          void executeAssign(userId, penalize, undefined, isForced)
+          void executeAssign(userId, penalize, isForced)
         }
         handleAssign={(userId, penalize) => handleAssign(userId, penalize)}
         handleSwap={handleSwap}

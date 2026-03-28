@@ -40,6 +40,7 @@ interface UseAssignmentModalArgs {
       replaceUserId?: number;
       penalizeReplaced?: boolean;
       historyMode?: boolean;
+      isForced?: boolean;
     }
   ) => Promise<void>;
   removeAssignment: (
