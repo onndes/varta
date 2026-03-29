@@ -319,6 +319,11 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             >
               <span className="no-print">{screenContent}</span>
               <span className="print-only">{printContent}</span>
+              {user.excludeFromAuto && (
+                <span className="exclude-auto-marker no-print" aria-hidden="true">
+                  А
+                </span>
+              )}
               {dowWeeksAgo.length > 0 && (
                 <span
                   className="dow-repeat-dots no-print"
