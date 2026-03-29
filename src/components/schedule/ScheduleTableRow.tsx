@@ -91,6 +91,8 @@ interface ScheduleTableRowProps {
   onQuickAssignClick: (date: string, user: User) => void;
   forceAssignMode?: boolean;
   dragDropHandlers?: DragDropHandlers;
+  /** Preview-mode entries (never saved to DB). Keyed by date. */
+  previewSchedule?: Record<string, ScheduleEntry>;
 }
 
 /**
@@ -110,6 +112,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   onQuickAssignClick,
   forceAssignMode = false,
   dragDropHandlers,
+  previewSchedule,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
 
@@ -179,6 +182,11 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         {weekDates.map((date) => {
           const entry = schedule[date];
           const isAssigned = isAssignedInEntry(entry, user.id!);
+          // Preview: would this user be auto-assigned here (no real assignment yet)?
+          const isPreview =
+            !isAssigned &&
+            !!previewSchedule?.[date] &&
+            isAssignedInEntry(previewSchedule[date], user.id!);
           const availabilityStatus = getUserAvailabilityStatus(user, date);
           const available = availabilityStatus === 'AVAILABLE';
           const prevDate = new Date(date);
@@ -249,6 +257,9 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           } else if (!available) {
             cellClass += ' unavailable';
             screenContent = getUnavailableContent(availabilityStatus, user, date);
+          } else if (isPreview) {
+            cellClass += ' preview-assignment';
+            screenContent = "ПРЕВ'Ю";
           }
 
           const canDrag =

@@ -36,6 +36,11 @@ interface ScheduleControlsProps {
   onPrint?: (mode: PrintMode) => void;
   zenMode?: boolean;
   onZenToggle?: () => void;
+  previewMode?: boolean;
+  isPreviewComputing?: boolean;
+  /** True while silently prefetching next week — shows a subtle pulsing eye. */
+  isPreviewPrefetching?: boolean;
+  onPreviewToggle?: () => void;
 }
 
 /**
@@ -74,6 +79,10 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onRedo,
   zenMode = false,
   onZenToggle,
+  previewMode = false,
+  isPreviewComputing = false,
+  isPreviewPrefetching = false,
+  onPreviewToggle,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
@@ -158,6 +167,35 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             >
               <i className={`fas ${forceAssignMode ? 'fa-unlock' : 'fa-user-lock'} me-1`}></i>
               {forceAssignMode ? 'Форсаж ✅' : 'Форсаж'}
+            </button>
+            <button
+              className={`btn btn-sm position-relative ${previewMode ? 'btn-success' : 'btn-outline-secondary'}`}
+              onClick={onPreviewToggle}
+              title={
+                isPreviewComputing
+                  ? 'Обчислення превью...'
+                  : isPreviewPrefetching
+                    ? 'Попереднє обчислення наступного тижня...'
+                    : 'Показує, як виглядатиме авто-генерація — без збереження'
+              }
+            >
+              {isPreviewComputing ? (
+                <span
+                  className="spinner-border spinner-border-sm me-1"
+                  role="status"
+                  aria-hidden="true"
+                />
+              ) : (
+                <i
+                  className={`fas fa-eye${previewMode ? '' : '-slash'} me-1${
+                    isPreviewPrefetching ? ' preview-eye-pulse' : ''
+                  }`}
+                />
+              )}
+              {previewMode ? "Прев'ю ✅" : "Прев'ю"}
+              {previewMode && isPreviewPrefetching && (
+                <span className="preview-prefetch-dot" aria-hidden="true" />
+              )}
             </button>
             <button
               className="btn btn-sm btn-outline-secondary"

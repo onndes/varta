@@ -1,4 +1,30 @@
 // Keyframes
+
+@keyframes preview-eye-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.preview-eye-pulse {
+  animation: preview-eye-pulse 1.2s ease-in-out infinite;
+}
+
+.preview-prefetch-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #ffc107;
+  animation: preview-eye-pulse 1s ease-in-out infinite;
+}
+
 @keyframes pulse-border {
   0% {
     border-color: #f5c2c7;

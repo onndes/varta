@@ -21,6 +21,7 @@ import { useAssignAndRemove } from '../hooks/useAssignAndRemove';
 import { useScheduleUserQueries } from '../hooks/useScheduleUserQueries';
 import { useScheduleKeyboard } from '../hooks/useScheduleKeyboard';
 import { useScheduleDragDrop } from '../hooks/useScheduleDragDrop';
+import { useSchedulePreview } from '../hooks/useSchedulePreview';
 import ScheduleBody from './schedule/ScheduleBody';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
@@ -243,6 +244,23 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     dutiesPerDay,
   });
 
+  // ── Preview mode ─────────────────────────────────────────────────────────
+  const {
+    previewMode,
+    previewSchedule,
+    isComputing: isPreviewComputing,
+    isPrefetching: isPreviewPrefetching,
+    togglePreviewMode,
+  } = useSchedulePreview(
+    weekDates,
+    schedule,
+    users,
+    dayWeights,
+    dutiesPerDay,
+    autoScheduleOptions,
+    ignoreHistoryInLogic
+  );
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useScheduleKeyboard({
     schedule,
@@ -330,6 +348,11 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       onPrint={onPrint}
       zenMode={zenMode}
       onZenToggle={onZenToggle}
+      previewMode={previewMode}
+      isPreviewComputing={isPreviewComputing}
+      isPreviewPrefetching={isPreviewPrefetching}
+      previewSchedule={previewSchedule}
+      onPreviewToggle={togglePreviewMode}
       dragDropHandlers={dragDropHandlers}
     />
   );

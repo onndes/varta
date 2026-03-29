@@ -84,6 +84,11 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   onPrint?: (mode: PrintMode) => void;
   zenMode?: boolean;
   onZenToggle?: () => void;
+  previewMode?: boolean;
+  isPreviewComputing?: boolean;
+  isPreviewPrefetching?: boolean;
+  previewSchedule?: Record<string, ScheduleEntry>;
+  onPreviewToggle?: () => void;
 }
 
 /**
@@ -147,6 +152,11 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   onPrint,
   zenMode = false,
   onZenToggle,
+  previewMode = false,
+  isPreviewComputing = false,
+  isPreviewPrefetching = false,
+  previewSchedule,
+  onPreviewToggle,
   // Modal passthrough
   executeAssign,
   handleSwap,
@@ -221,6 +231,10 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           onPrint={onPrint}
           zenMode={zenMode}
           onZenToggle={onZenToggle}
+          previewMode={previewMode}
+          isPreviewComputing={isPreviewComputing}
+          isPreviewPrefetching={isPreviewPrefetching}
+          onPreviewToggle={onPreviewToggle}
         />
       </div>
 
@@ -243,6 +257,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           dowHistoryWeeks={dowHistoryWeeks}
           dowHistoryMode={dowHistoryMode}
           dragDropHandlers={dragDropHandlers}
+          previewSchedule={previewSchedule}
           onCellClick={(date, entry, assignedUserId) => {
             setPendingAssignConfirm(null);
             setSelectedCell({ date, entry, assignedUserId });

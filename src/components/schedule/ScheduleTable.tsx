@@ -35,6 +35,7 @@ interface ScheduleTableProps {
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
   dragDropHandlers?: DragDropHandlers;
+  previewSchedule?: Record<string, ScheduleEntry>;
 }
 
 // ─── Deleted-user row (historical display) ────────────────────────────────────
@@ -117,6 +118,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   onCellClick,
   onQuickAssignClick,
   dragDropHandlers,
+  previewSchedule,
 }) => {
   const activeUsers = users.filter((u) => u.isActive);
   const usersById = Object.fromEntries(activeUsers.map((u) => [u.id!, u]));
@@ -227,6 +229,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   onCellClick={onCellClick}
                   onQuickAssignClick={onQuickAssignClick}
                   dragDropHandlers={dragDropHandlers}
+                  previewSchedule={previewSchedule}
                 />
               ))
             )}

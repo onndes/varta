@@ -146,13 +146,24 @@
     color: inherit;
     cursor: not-allowed;
   }
+
+  // Preview Mode: shows where the auto-scheduler would assign this user
+  // without committing anything to the DB.
+  &.preview-assignment {
+    background-color: rgba(40, 167, 69, 0.15) !important;
+    color: var(--app-cell-assigned-color, #1b5e20);
+    border: 2px dashed rgba(40, 167, 69, 0.5) !important;
+    opacity: 0.85;
+    font-weight: 600;
+    font-size: 0.72rem;
+  }
 }
 
 .dow-repeat-dots {
   position: absolute;
   bottom: 2px;
   right: 4px;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   color: var(--bs-body-color, #495057);
