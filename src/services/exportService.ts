@@ -1,7 +1,7 @@
 // src/services/exportService.ts
 
 import { db, createDatabase, switchDatabase } from '../db/db';
-import type { DayWeights, Signatories, AutoScheduleOptions } from '../types';
+import type { DayWeights, Signatories, AutoScheduleOptions, BirthdayBlockOpts } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
 import {
   getWorkspaces,
@@ -35,6 +35,9 @@ export interface ExportData {
   deletedUsers?: Record<number, unknown>;
   cascadeStartDate?: string | null;
   theme?: string;
+  dowHistoryWeeks?: number;
+  dowHistoryMode?: 'numbers' | 'dots';
+  birthdayBlockOpts?: BirthdayBlockOpts;
 }
 
 export interface MultiWorkspaceExportData {
@@ -105,6 +108,9 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     deletedUsersRec,
     cascadeStartDateRec,
     themeRec,
+    dowHistoryWeeksRec,
+    dowHistoryModeRec,
+    birthdayBlockOptsRec,
   ] = await Promise.all([
     targetDb.users.toArray(),
     targetDb.schedule.toArray(),
@@ -121,6 +127,9 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('deletedUsers'),
     targetDb.appState.get('cascadeStartDate'),
     targetDb.appState.get('theme'),
+    targetDb.appState.get('dowHistoryWeeks'),
+    targetDb.appState.get('dowHistoryMode'),
+    targetDb.appState.get('birthdayBlockOpts'),
   ]);
   return {
     version: CURRENT_BACKUP_VERSION,
@@ -139,13 +148,16 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
       : undefined,
     ignoreHistoryInLogic: ignoreHistoryRec ? (ignoreHistoryRec.value as boolean) : undefined,
     uiScale: uiScaleRec ? (uiScaleRec.value as number) : undefined,
-    deletedUsers: deletedUsersRec
-      ? (deletedUsersRec.value as Record<number, unknown>)
-      : undefined,
+    deletedUsers: deletedUsersRec ? (deletedUsersRec.value as Record<number, unknown>) : undefined,
     cascadeStartDate: cascadeStartDateRec
       ? ((cascadeStartDateRec.value as string | null) ?? null)
       : undefined,
     theme: themeRec ? (themeRec.value as string) : undefined,
+    dowHistoryWeeks: dowHistoryWeeksRec ? (dowHistoryWeeksRec.value as number) : undefined,
+    dowHistoryMode: dowHistoryModeRec ? (dowHistoryModeRec.value as 'numbers' | 'dots') : undefined,
+    birthdayBlockOpts: birthdayBlockOptsRec
+      ? (birthdayBlockOptsRec.value as BirthdayBlockOpts)
+      : undefined,
   };
 };
 
@@ -197,12 +209,19 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
           key: 'ignoreHistoryInLogic',
           value: data.ignoreHistoryInLogic,
         });
-      if (data.uiScale != null) await targetDb.appState.put({ key: 'uiScale', value: data.uiScale });
+      if (data.uiScale != null)
+        await targetDb.appState.put({ key: 'uiScale', value: data.uiScale });
       if (typeof data.deletedUsers !== 'undefined')
         await targetDb.appState.put({ key: 'deletedUsers', value: data.deletedUsers });
       if (typeof data.cascadeStartDate !== 'undefined')
         await targetDb.appState.put({ key: 'cascadeStartDate', value: data.cascadeStartDate });
       if (data.theme) await targetDb.appState.put({ key: 'theme', value: data.theme });
+      if (data.dowHistoryWeeks != null)
+        await targetDb.appState.put({ key: 'dowHistoryWeeks', value: data.dowHistoryWeeks });
+      if (data.dowHistoryMode)
+        await targetDb.appState.put({ key: 'dowHistoryMode', value: data.dowHistoryMode });
+      if (data.birthdayBlockOpts)
+        await targetDb.appState.put({ key: 'birthdayBlockOpts', value: data.birthdayBlockOpts });
 
       // Прапорці
       await targetDb.appState.put({ key: 'needsExport', value: false });
