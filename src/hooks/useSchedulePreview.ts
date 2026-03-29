@@ -2,14 +2,14 @@
 // Preview Mode: runs autoFillSchedule without saving — shows what auto-generation
 // would produce for the current week without committing anything to the DB.
 //
-// Next-week prefetch:
-//   After the current week's preview is rendered the hook starts computing the
-//   following week in the background via startPrefetchJob(). The result goes
-//   into completedCacheRef.
+// Multi-week cache (cacheMapRef):
+//   Stores computed previews for every visited week in a Map<monday, data>.
+//   After the current week is rendered, the hook prefetches N+1 and stores
+//   the result in the same map.
 //
-//   On navigation:
+//   On navigation (forward OR backward):
 //    ┌─ Render phase (before paint) ────────────────────────────────────────┐
-//    │  completedCacheRef.monday === N?                                      │
+//    │  cacheMapRef.has(N)?                                                  │
 //    │  YES → setState during render (React restarts render before paint).   │
 //    │        User NEVER sees a blank frame. Zero flicker.                   │
 //    │  NO  → clear old preview; effect handles the rest after paint.        │
@@ -19,6 +19,10 @@
 //    │  prefetchJobRef for N (in-flight)?  → await it (Case B)              │
 //    │  nothing?  → compute from scratch (Case C)                           │
 //    └──────────────────────────────────────────────────────────────────────┘
+//
+//   Eviction: on every navigation, cached weeks more than 7 days ahead of
+//   the current monday are evicted. This keeps at most current + next week
+//   in the forward direction, while past weeks stay cached.
 //
 // Cancellation: monotonic genRef ensures stale async work never mutates state.
 
@@ -50,6 +54,19 @@ export interface UseSchedulePreviewResult {
   togglePreviewMode: () => void;
 }
 
+/** Delete all cache entries whose monday is more than 7 days after `currentMonday`. */
+const evictBeyondNextWeek = (
+  map: Map<string, Record<string, ScheduleEntry>>,
+  currentMonday: string
+) => {
+  const limit = new Date(currentMonday);
+  limit.setDate(limit.getDate() + 7);
+  const limitStr = toLocalISO(limit);
+  for (const key of [...map.keys()]) {
+    if (key > limitStr) map.delete(key);
+  }
+};
+
 export const useSchedulePreview = (
   weekDates: string[],
   schedule: Record<string, ScheduleEntry>,
@@ -72,7 +89,7 @@ export const useSchedulePreview = (
   const [isPrefetching, setIsPrefetching] = useState(false);
 
   const genRef = useRef(0);
-  const completedCacheRef = useRef<WeekPreviewResult | null>(null);
+  const cacheMapRef = useRef(new Map<string, Record<string, ScheduleEntry>>());
   const prefetchJobRef = useRef<PrefetchJob | null>(null);
   const prevDataRef = useRef({
     schedule,
@@ -91,7 +108,7 @@ export const useSchedulePreview = (
     setPreviewSchedule({});
     setIsComputing(false);
     setIsPrefetching(false);
-    completedCacheRef.current = null;
+    cacheMapRef.current.clear();
     prefetchJobRef.current = null;
     syncAppliedRef.current = false;
   }, []);
@@ -112,7 +129,7 @@ export const useSchedulePreview = (
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER-PHASE cache application (React 18 "adjust state during render").
   //
-  // When weekDates[0] changes (navigation), we check completedCacheRef.
+  // When weekDates[0] changes (navigation), we check cacheMapRef.
   // If there's a hit we call setState during render, which makes React
   // DISCARD the current (blank) render and restart with the cached preview.
   // The browser never paints the blank frame → zero flicker.
@@ -121,6 +138,17 @@ export const useSchedulePreview = (
 
   if (weekDates[0] !== prevMonday) {
     setPrevMonday(weekDates[0]);
+
+    // Evict future cache beyond next week on every navigation.
+    evictBeyondNextWeek(cacheMapRef.current, weekDates[0]);
+    // Cancel in-flight prefetch if it's for an evicted week.
+    if (prefetchJobRef.current) {
+      const limitDate = new Date(weekDates[0]);
+      limitDate.setDate(limitDate.getDate() + 7);
+      if (prefetchJobRef.current.monday > toLocalISO(limitDate)) {
+        prefetchJobRef.current = null;
+      }
+    }
 
     // Guard: don't apply stale cache if data deps also changed.
     const prev = prevDataRef.current;
@@ -133,11 +161,10 @@ export const useSchedulePreview = (
       prev.ignoreHistoryInLogic !== ignoreHistoryInLogic;
 
     if (previewMode && !dataStale) {
-      const cache = completedCacheRef.current;
-      if (cache && cache.monday === weekDates[0]) {
+      const cached = cacheMapRef.current.get(weekDates[0]);
+      if (cached) {
         // ✅ Cache hit — apply instantly before paint.
-        completedCacheRef.current = null;
-        setPreviewSchedule(cache.data);
+        setPreviewSchedule(cached);
         setIsComputing(false);
         setIsPrefetching(false);
         syncAppliedRef.current = true;
@@ -184,7 +211,7 @@ export const useSchedulePreview = (
     };
 
     if (dataChanged) {
-      completedCacheRef.current = null;
+      cacheMapRef.current.clear();
       prefetchJobRef.current = null;
     }
 
@@ -220,6 +247,21 @@ export const useSchedulePreview = (
       const nextBase = new Date(currentMonday);
       nextBase.setDate(nextBase.getDate() + 7);
       const nextMonday = toLocalISO(nextBase);
+
+      // Already cached — return instantly resolved job.
+      const existing = cacheMapRef.current.get(nextMonday);
+      if (existing !== undefined) {
+        return {
+          monday: nextMonday,
+          settle: Promise.resolve({ monday: nextMonday, data: existing }),
+        };
+      }
+
+      // Already in flight — reuse.
+      if (prefetchJobRef.current?.monday === nextMonday) {
+        return prefetchJobRef.current;
+      }
+
       const nextDates = buildWeek(nextMonday);
       const targets = nextDates.filter(
         (d) => d >= todayStr && toAssignedUserIds(schedule[d]?.userId).length === 0
@@ -237,7 +279,7 @@ export const useSchedulePreview = (
 
       void settle.then((result) => {
         if (prefetchJobRef.current === job) {
-          completedCacheRef.current = result;
+          cacheMapRef.current.set(result.monday, result.data);
           prefetchJobRef.current = null;
         }
       });
@@ -272,6 +314,7 @@ export const useSchedulePreview = (
         const result = await job.settle;
         if (genRef.current !== gen) return;
 
+        cacheMapRef.current.set(weekDates[0], result.data);
         setPreviewSchedule(result.data);
         setIsComputing(false);
         setIsPrefetching(true);
@@ -287,11 +330,10 @@ export const useSchedulePreview = (
     }
 
     // ── Case A (effect-side fallback, rarely hit): completed cache ────────
-    const cache = completedCacheRef.current;
-    if (!dataChanged && cache !== null && cache.monday === weekDates[0]) {
-      completedCacheRef.current = null;
+    const cachedData = cacheMapRef.current.get(weekDates[0]);
+    if (!dataChanged && cachedData) {
       setIsComputing(false);
-      setPreviewSchedule(cache.data);
+      setPreviewSchedule(cachedData);
       setIsPrefetching(true);
 
       const timerId = window.setTimeout(async () => {
@@ -314,6 +356,7 @@ export const useSchedulePreview = (
       // Nothing to preview on THIS week (all past or assigned), but we MUST
       // still prefetch the next week so navigation is instant.
       setPreviewSchedule({});
+      cacheMapRef.current.set(weekDates[0], {});
       setIsComputing(false);
       setIsPrefetching(true);
 
@@ -336,6 +379,7 @@ export const useSchedulePreview = (
         const result = await runFill(targets);
         if (genRef.current !== gen) return;
 
+        cacheMapRef.current.set(weekDates[0], result);
         setPreviewSchedule(result);
         setIsComputing(false);
         setIsPrefetching(true);
