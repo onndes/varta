@@ -43,6 +43,8 @@ export interface UseSettingsFormProps {
   onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
   birthdayBlockOpts: BirthdayBlockOpts;
   onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
+  karmaOnManualChanges: boolean;
+  onSaveKarmaOnManualChanges: (value: boolean) => Promise<void>;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
@@ -80,6 +82,8 @@ export const useSettingsForm = ({
   onSaveDowHistoryWeeks,
   onSaveDowHistoryMode,
   onSaveBirthdayBlockOpts,
+  karmaOnManualChanges,
+  onSaveKarmaOnManualChanges,
   refreshData,
   updateCascadeTrigger,
   logAction,
@@ -96,6 +100,7 @@ export const useSettingsForm = ({
   const [histWeeks, setHistWeeks] = useState<number>(dowHistoryWeeks);
   const [histMode, setHistMode] = useState<'numbers' | 'dots'>(dowHistoryMode);
   const [birthdayOpts, setBirthdayOpts] = useState<BirthdayBlockOpts>(birthdayBlockOpts);
+  const [karmaManual, setKarmaManual] = useState(karmaOnManualChanges);
   const [isSaving, setIsSaving] = useState(false);
 
   // DB maintenance modal state
@@ -140,6 +145,9 @@ export const useSettingsForm = ({
   useEffect(() => {
     setBirthdayOpts(birthdayBlockOpts);
   }, [birthdayBlockOpts]);
+  useEffect(() => {
+    setKarmaManual(karmaOnManualChanges);
+  }, [karmaOnManualChanges]);
 
   const { showAlert, showConfirm } = useDialog();
 
@@ -183,6 +191,7 @@ export const useSettingsForm = ({
   const histWeeksChanged = histWeeks !== dowHistoryWeeks;
   const histModeChanged = histMode !== dowHistoryMode;
   const birthdayOptsChanged = JSON.stringify(birthdayOpts) !== JSON.stringify(birthdayBlockOpts);
+  const karmaManualChanged = karmaManual !== karmaOnManualChanges;
   const hasUnsavedChanges =
     weightsChanged ||
     signatoriesChanged ||
@@ -195,14 +204,16 @@ export const useSettingsForm = ({
     scaleChanged ||
     histWeeksChanged ||
     histModeChanged ||
-    birthdayOptsChanged;
+    birthdayOptsChanged ||
+    karmaManualChanged;
   const dirtySections = {
     logic:
       weightsChanged ||
       dutiesChanged ||
       logicAutoOptionsChanged ||
       debtChanged ||
-      ignoreHistoryChanged,
+      ignoreHistoryChanged ||
+      karmaManualChanged,
     print: signatoriesChanged || maxRowsChanged || printAllUsersChanged,
     interface: scaleChanged || histWeeksChanged || histModeChanged || birthdayOptsChanged,
     experimental: experimentalAutoOptionsChanged,
@@ -236,6 +247,10 @@ export const useSettingsForm = ({
       if (ignoreHistoryChanged) {
         await onSaveIgnoreHistoryInLogic(ignoreHistory);
         sections.push('режим історії');
+      }
+      if (karmaManualChanged) {
+        await onSaveKarmaOnManualChanges(karmaManual);
+        sections.push('карма при ручних змінах');
       }
       if (scaleChanged) {
         await onSaveUiScale(scale);
@@ -282,6 +297,8 @@ export const useSettingsForm = ({
     hasUnsavedChanges,
     ignoreHistory,
     ignoreHistoryChanged,
+    karmaManual,
+    karmaManualChanged,
     logAction,
     maxRows,
     maxRowsChanged,
@@ -290,6 +307,7 @@ export const useSettingsForm = ({
     onSaveAutoScheduleOptions,
     onSaveDutiesPerDay,
     onSaveIgnoreHistoryInLogic,
+    onSaveKarmaOnManualChanges,
     onSaveMaxDebt,
     onSavePrintMaxRows,
     onSaveSignatories,
@@ -362,6 +380,18 @@ export const useSettingsForm = ({
     setMaintenanceNeeded(needs);
   }, [showAlert, showConfirm]);
 
+  /** Reset karma (debt + owedDays) for all users to zero. */
+  const handleResetAllKarma = useCallback(async () => {
+    const confirmed = await showConfirm(
+      'Скинути карму (борг та бонуси) та боргові дні для всіх осіб?\n\nЦю дію неможливо скасувати.'
+    );
+    if (!confirmed) return;
+    await userService.resetAllKarma();
+    await logAction('KARMA_RESET', 'Скинуто карму всіх осіб');
+    await refreshData();
+    await showAlert('Карму скинуто для всіх осіб');
+  }, [logAction, refreshData, showAlert, showConfirm]);
+
   return {
     weights,
     setWeights,
@@ -387,6 +417,8 @@ export const useSettingsForm = ({
     setHistMode,
     birthdayOpts,
     setBirthdayOpts,
+    karmaManual,
+    setKarmaManual,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
@@ -398,5 +430,6 @@ export const useSettingsForm = ({
     maintenanceNeeded,
     handleOpenDbModal,
     handleMaintenance,
+    handleResetAllKarma,
   };
 };

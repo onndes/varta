@@ -3,6 +3,7 @@
 import { db } from '../db/db';
 import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as userService from './userService';
+import * as settingsService from './settingsService';
 import { toAssignedUserIds, isAssignedInEntry } from '../utils/assignment';
 
 /**
@@ -51,6 +52,7 @@ export const removeAssignmentWithDebt = async (
   dayWeights: DayWeights,
   targetUserId?: number
 ): Promise<void> => {
+  const karmaEnabled = await settingsService.getKarmaOnManualChanges();
   await db.transaction('rw', db.schedule, db.users, async () => {
     const entry = await db.schedule.get(date);
     if (!entry || !entry.userId) return;
@@ -66,7 +68,7 @@ export const removeAssignmentWithDebt = async (
         : [assignedIds[0]];
     if (removedIds.length === 0) return;
 
-    if (reason === 'request') {
+    if (reason === 'request' && karmaEnabled) {
       const dayIdx = new Date(date).getDay();
       const weight = dayWeights[dayIdx] || 1.0;
       for (const userId of removedIds) {

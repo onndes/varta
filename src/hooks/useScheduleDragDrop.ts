@@ -3,6 +3,7 @@ import { useState, useCallback, useRef } from 'react';
 import type { ScheduleEntry, User, DayWeights, AutoScheduleOptions } from '../types';
 import { getUserAvailabilityStatus } from '../services/userService';
 import { applyKarmaForTransfer, saveScheduleEntry } from '../services/scheduleService';
+import { getKarmaOnManualChanges } from '../services/settingsService';
 import { useDialog } from '../components/useDialog';
 import { toAssignedUserIds, isAssignedInEntry } from '../utils/assignment';
 import { toLocalISO } from '../utils/dateUtils';
@@ -297,8 +298,10 @@ export const useScheduleDragDrop = ({
               type: 'swap',
               isLocked: false,
             });
-            await applyKarmaForTransfer(sourceUserId, sourceDate, targetDate, dayWeights);
-            await applyKarmaForTransfer(targetUserId, targetDate, sourceDate, dayWeights);
+            if (await getKarmaOnManualChanges()) {
+              await applyKarmaForTransfer(sourceUserId, sourceDate, targetDate, dayWeights);
+              await applyKarmaForTransfer(targetUserId, targetDate, sourceDate, dayWeights);
+            }
             await logAction('DRAG_SWAP', `${srcName} ↔ ${tgtName}: ${sourceDate} ↔ ${targetDate}`);
             await updateCascadeTrigger(sourceDate);
             await updateCascadeTrigger(targetDate);

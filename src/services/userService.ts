@@ -194,6 +194,20 @@ export const resetUserDebt = async (id: number): Promise<void> => {
 };
 
 /**
+ * Reset karma (debt + owedDays) for ALL users to zero.
+ */
+export const resetAllKarma = async (): Promise<void> => {
+  const users = await db.users.toArray();
+  await db.transaction('rw', db.users, async () => {
+    for (const u of users) {
+      if (u.id != null && (u.debt !== 0 || (u.owedDays && Object.keys(u.owedDays).length > 0))) {
+        await db.users.update(u.id, { debt: 0, owedDays: {} });
+      }
+    }
+  });
+};
+
+/**
  * Update user debt/karma (capped at -MAX_DEBT..0 range for negative, uncapped for positive)
  * Negative = soldier owes system (was removed by request)
  * Positive = soldier helped out (manually assigned to harder day)

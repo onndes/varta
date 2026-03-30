@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
 import { removeAssignmentWithDebt, bulkDeleteSchedule } from '../services/scheduleService';
+import { getKarmaOnManualChanges } from '../services/settingsService';
 import * as userService from '../services/userService';
 import * as auditService from '../services/auditService';
 import { toAssignedUserIds } from '../utils/assignment';
@@ -43,7 +44,7 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
         nextIds = nextIds.filter((id) => id !== replaceUserId);
         const prevUser = users.find((u) => u.id === replaceUserId);
         if (prevUser) {
-          if (options?.penalizeReplaced) {
+          if (options?.penalizeReplaced && (await getKarmaOnManualChanges())) {
             const dayIdx = new Date(date).getDay();
             const weight = dayWeights[dayIdx] || 1.0;
             await userService.updateUserDebt(replaceUserId, -weight);
@@ -85,9 +86,11 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
 
       const user = users.find((u) => u.id === userId);
       if (user && isManual) {
-        const dayIdx = new Date(date).getDay();
-        const weight = dayWeights[dayIdx] || 1.0;
-        await userService.repayOwedDay(userId, dayIdx, weight);
+        if (await getKarmaOnManualChanges()) {
+          const dayIdx = new Date(date).getDay();
+          const weight = dayWeights[dayIdx] || 1.0;
+          await userService.repayOwedDay(userId, dayIdx, weight);
+        }
         await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
       } else if (user) {
         await auditService.logAction('ASSIGN', `${user.name} на ${date}`);

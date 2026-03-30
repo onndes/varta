@@ -136,6 +136,14 @@ export const getBirthdayBlockOpts = async (): Promise<BirthdayBlockOpts> =>
 export const saveBirthdayBlockOpts = async (opts: BirthdayBlockOpts): Promise<void> =>
   saveSetting('birthdayBlockOpts', opts);
 
+// ── Karma on manual changes ───────────────────────────────────────────────
+
+export const getKarmaOnManualChanges = async (): Promise<boolean> =>
+  getJsonSetting('karmaOnManualChanges', false);
+
+export const saveKarmaOnManualChanges = async (value: boolean): Promise<void> =>
+  saveSetting('karmaOnManualChanges', value);
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 const THEME_LS_KEY = 'varta-theme';
@@ -210,5 +218,6 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('printDutyTableShowAllUsers', DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS);
   await saveSetting('ignoreHistoryInLogic', false);
   await saveSetting('uiScale', 100);
+  await saveSetting('karmaOnManualChanges', false);
   // theme is intentionally NOT reset — user preference
 };

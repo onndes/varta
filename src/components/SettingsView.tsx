@@ -43,6 +43,8 @@ interface SettingsViewProps {
   onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
   birthdayBlockOpts: BirthdayBlockOpts;
   onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
+  karmaOnManualChanges: boolean;
+  onSaveKarmaOnManualChanges: (value: boolean) => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
@@ -105,6 +107,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setHistMode,
     birthdayOpts,
     setBirthdayOpts,
+    karmaManual,
+    setKarmaManual,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
@@ -116,6 +120,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     maintenanceNeeded,
     handleOpenDbModal,
     handleMaintenance,
+    handleResetAllKarma,
   } = useSettingsForm(props);
   const dirtyTabLabels = (Object.entries(dirtySections) as Array<[SubTab, boolean]>)
     .filter(([, isDirty]) => isDirty)
@@ -174,6 +179,9 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onApplyFirstDutyDates={() => void applyFirstDutyDates()}
           birthdayOpts={birthdayOpts}
           onBirthdayOptsChange={setBirthdayOpts}
+          karmaManual={karmaManual}
+          onKarmaManualChange={setKarmaManual}
+          onResetAllKarma={handleResetAllKarma}
         />
       )}
       {subTab === 'interface' && (

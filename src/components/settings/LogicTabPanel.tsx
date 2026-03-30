@@ -38,6 +38,9 @@ interface LogicTabPanelProps {
   onApplyFirstDutyDates: () => void;
   birthdayOpts: BirthdayBlockOpts;
   onBirthdayOptsChange: (opts: BirthdayBlockOpts) => void;
+  karmaManual: boolean;
+  onKarmaManualChange: (b: boolean) => void;
+  onResetAllKarma: () => void;
 }
 
 /**
@@ -58,6 +61,9 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
   onApplyFirstDutyDates,
   birthdayOpts,
   onBirthdayOptsChange,
+  karmaManual,
+  onKarmaManualChange,
+  onResetAllKarma,
 }) => (
   <>
     {/* Day Weights */}
@@ -184,6 +190,35 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
               За замовчуванням: 4.0
             </div>
           </div>
+        </div>
+        <hr className="my-3" />
+        <div className="form-check form-switch">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="karmaOnManualChanges"
+            checked={karmaManual}
+            onChange={(e) => onKarmaManualChange(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          <label
+            className="form-check-label"
+            htmlFor="karmaOnManualChanges"
+            style={{ cursor: 'pointer' }}
+          >
+            <strong>Змінювати карму при ручних змінах</strong>
+            <div className="text-muted small">
+              Якщо вимкнено — перетягування, заміна, додавання та видалення дежурств адміністратором
+              не впливають на карму. За замовчуванням: вимкнено.
+            </div>
+          </label>
+        </div>
+        <hr className="my-3" />
+        <button type="button" className="btn btn-outline-danger btn-sm" onClick={onResetAllKarma}>
+          <i className="fas fa-eraser me-1"></i>Скинути карму у всіх
+        </button>
+        <div className="form-text mt-1">
+          Обнулить карму (борг та бонуси) та боргові дні для всіх осіб.
         </div>
       </div>
     </div>

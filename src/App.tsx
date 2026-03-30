@@ -64,6 +64,7 @@ const App = () => {
     dowHistoryWeeks,
     dowHistoryMode,
     birthdayBlockOpts,
+    karmaOnManualChanges,
     theme,
     loadSettings,
     saveDayWeights,
@@ -78,6 +79,7 @@ const App = () => {
     saveDowHistoryWeeks,
     saveDowHistoryMode,
     saveBirthdayBlockOpts,
+    saveKarmaOnManualChanges,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -430,6 +432,8 @@ const App = () => {
               onSaveDowHistoryMode={saveDowHistoryMode}
               birthdayBlockOpts={birthdayBlockOpts}
               onSaveBirthdayBlockOpts={saveBirthdayBlockOpts}
+              karmaOnManualChanges={karmaOnManualChanges}
+              onSaveKarmaOnManualChanges={saveKarmaOnManualChanges}
               onExportExcel={(mode) => guardedPrint(() => requestExportExcel(mode))}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}

@@ -58,15 +58,22 @@ export const useSchedule = (users: User[]) => {
         if (typeof replaceUserId === 'number' && nextIds.includes(replaceUserId)) {
           nextIds = nextIds.filter((id) => id !== replaceUserId);
 
-          const dayIdx = new Date(date).getDay();
-          const weight = dayWeights[dayIdx] || 1.0;
-          await userService.updateUserDebt(replaceUserId, -weight);
-          const prevUser = users.find((u) => u.id === replaceUserId);
-          if (prevUser) {
-            await auditService.logAction(
-              'REMOVE',
-              `${prevUser.name} замінено на ${date} (Карма -${weight})`
-            );
+          if (await settingsService.getKarmaOnManualChanges()) {
+            const dayIdx = new Date(date).getDay();
+            const weight = dayWeights[dayIdx] || 1.0;
+            await userService.updateUserDebt(replaceUserId, -weight);
+            const prevUser = users.find((u) => u.id === replaceUserId);
+            if (prevUser) {
+              await auditService.logAction(
+                'REMOVE',
+                `${prevUser.name} замінено на ${date} (Карма -${weight})`
+              );
+            }
+          } else {
+            const prevUser = users.find((u) => u.id === replaceUserId);
+            if (prevUser) {
+              await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
+            }
           }
         }
 
@@ -88,9 +95,11 @@ export const useSchedule = (users: User[]) => {
         // Погасити борг якщо boєць винен саме цей день тижня
         const user = users.find((u) => u.id === userId);
         if (user && isManual) {
-          const dayIdx = new Date(date).getDay();
-          const weight = dayWeights[dayIdx] || 1.0;
-          await userService.repayOwedDay(userId, dayIdx, weight);
+          if (await settingsService.getKarmaOnManualChanges()) {
+            const dayIdx = new Date(date).getDay();
+            const weight = dayWeights[dayIdx] || 1.0;
+            await userService.repayOwedDay(userId, dayIdx, weight);
+          }
           await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
         } else if (user) {
           await auditService.logAction('ASSIGN', `${user.name} на ${date}`);

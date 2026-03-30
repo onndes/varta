@@ -38,6 +38,7 @@ export interface ExportData {
   dowHistoryWeeks?: number;
   dowHistoryMode?: 'numbers' | 'dots';
   birthdayBlockOpts?: BirthdayBlockOpts;
+  karmaOnManualChanges?: boolean;
 }
 
 export interface MultiWorkspaceExportData {
@@ -111,6 +112,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dowHistoryWeeksRec,
     dowHistoryModeRec,
     birthdayBlockOptsRec,
+    karmaOnManualChangesRec,
   ] = await Promise.all([
     targetDb.users.toArray(),
     targetDb.schedule.toArray(),
@@ -130,6 +132,7 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('dowHistoryWeeks'),
     targetDb.appState.get('dowHistoryMode'),
     targetDb.appState.get('birthdayBlockOpts'),
+    targetDb.appState.get('karmaOnManualChanges'),
   ]);
   return {
     version: CURRENT_BACKUP_VERSION,
@@ -157,6 +160,9 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dowHistoryMode: dowHistoryModeRec ? (dowHistoryModeRec.value as 'numbers' | 'dots') : undefined,
     birthdayBlockOpts: birthdayBlockOptsRec
       ? (birthdayBlockOptsRec.value as BirthdayBlockOpts)
+      : undefined,
+    karmaOnManualChanges: karmaOnManualChangesRec
+      ? (karmaOnManualChangesRec.value as boolean)
       : undefined,
   };
 };
@@ -222,6 +228,11 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
         await targetDb.appState.put({ key: 'dowHistoryMode', value: data.dowHistoryMode });
       if (data.birthdayBlockOpts)
         await targetDb.appState.put({ key: 'birthdayBlockOpts', value: data.birthdayBlockOpts });
+      if (data.karmaOnManualChanges != null)
+        await targetDb.appState.put({
+          key: 'karmaOnManualChanges',
+          value: data.karmaOnManualChanges,
+        });
 
       // Прапорці
       await targetDb.appState.put({ key: 'needsExport', value: false });

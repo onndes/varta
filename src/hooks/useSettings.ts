@@ -46,6 +46,7 @@ export const useSettings = () => {
   const [birthdayBlockOpts, setBirthdayBlockOpts] = useState<BirthdayBlockOpts>(
     DEFAULT_BIRTHDAY_BLOCK_OPTS
   );
+  const [karmaOnManualChanges, setKarmaOnManualChanges] = useState(false);
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +90,7 @@ export const useSettings = () => {
         savedDowHistoryWeeks,
         savedDowHistoryMode,
         savedBirthdayBlockOpts,
+        savedKarmaOnManualChanges,
         savedTheme,
       ] = await Promise.all([
         settingsService.getDayWeights(),
@@ -104,6 +106,7 @@ export const useSettings = () => {
         settingsService.getDowHistoryWeeks(),
         settingsService.getDowHistoryMode(),
         settingsService.getBirthdayBlockOpts(),
+        settingsService.getKarmaOnManualChanges(),
         settingsService.getTheme(),
       ]);
 
@@ -121,6 +124,7 @@ export const useSettings = () => {
       setDowHistoryMode(savedDowHistoryMode);
       setBirthdayBlockOpts(savedBirthdayBlockOpts);
       setBirthdayBlockConfig(savedBirthdayBlockOpts);
+      setKarmaOnManualChanges(savedKarmaOnManualChanges);
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
     } catch (err) {
@@ -186,6 +190,11 @@ export const useSettings = () => {
     'Failed to save birthday block opts',
     setBirthdayBlockConfig
   );
+  const saveKarmaOnManualChanges = makeSaver(
+    settingsService.saveKarmaOnManualChanges,
+    setKarmaOnManualChanges,
+    'Failed to save karma setting'
+  );
 
   // Update cascade trigger
   const updateCascadeTrigger = useCallback(
@@ -242,6 +251,7 @@ export const useSettings = () => {
     dowHistoryWeeks,
     dowHistoryMode,
     birthdayBlockOpts,
+    karmaOnManualChanges,
     theme,
     loading,
     error,
@@ -256,6 +266,7 @@ export const useSettings = () => {
     saveDowHistoryWeeks,
     saveDowHistoryMode,
     saveBirthdayBlockOpts,
+    saveKarmaOnManualChanges,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,
