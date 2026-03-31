@@ -235,6 +235,7 @@ const App = () => {
         weekRange,
         maxRowsPerPage: printMaxRows,
       });
+      await logAction('EXPORT', 'Таблиця Excel');
     } catch (err) {
       console.error(err);
       await showAlert('Не вдалося експортувати Excel');

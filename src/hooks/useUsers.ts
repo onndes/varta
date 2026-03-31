@@ -88,7 +88,9 @@ export const useUsers = () => {
   const resetUserDebt = useCallback(
     async (id: number) => {
       try {
+        const user = await userService.getUserById(id);
         await userService.resetUserDebt(id);
+        await auditService.logAction('EDIT', `Скинуто борг: ${user?.name ?? id}`);
         await loadUsers();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to reset debt');

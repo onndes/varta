@@ -267,7 +267,7 @@ export const useAssignmentModal = ({
         if (reason === 'request') {
           await logAction('REMOVE', `${u.name} рапорт (Карма -${weight})`);
         } else {
-          await logAction('REMOVE', `Службова`);
+          await logAction('REMOVE', `${u.name} службова`);
         }
       }
 

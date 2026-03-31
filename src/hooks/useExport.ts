@@ -38,6 +38,7 @@ export const useExport = () => {
       setError(null);
 
       await exportService.downloadBackup();
+      await auditService.logAction('EXPORT', 'Резервна копія (JSON)');
       await checkExportStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export data');
@@ -55,6 +56,7 @@ export const useExport = () => {
         setError(null);
 
         await exportService.uploadBackup(file);
+        await auditService.logAction('IMPORT', `Відновлено з: ${file.name}`);
         await checkExportStatus();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to import data');

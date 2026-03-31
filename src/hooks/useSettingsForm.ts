@@ -374,11 +374,15 @@ export const useSettingsForm = ({
     await showAlert(
       `Очищено:\n• Логів: ${results.logsDeleted}\n• Старих графіків: ${results.oldSchedulesDeleted}`
     );
+    await logAction(
+      'MAINTENANCE',
+      `Видалено логів: ${results.logsDeleted}, графіків: ${results.oldSchedulesDeleted}`
+    );
     const stats = await performanceService.getDatabaseStats();
     const needs = await performanceService.checkMaintenanceNeeded();
     setDbStats(stats);
     setMaintenanceNeeded(needs);
-  }, [showAlert, showConfirm]);
+  }, [logAction, showAlert, showConfirm]);
 
   /** Reset karma (debt + owedDays) for all users to zero. */
   const handleResetAllKarma = useCallback(async () => {

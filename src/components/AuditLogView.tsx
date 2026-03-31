@@ -21,9 +21,15 @@ const ACTION_LABELS: Record<string, { label: string; icon: string; color: string
   CLEAR_WEEK: { label: 'Очищення тижня', icon: 'fa-eraser', color: 'danger' },
   BULK_DELETE: { label: 'Масове видалення', icon: 'fa-trash-alt', color: 'danger' },
   BULK_ADD: { label: 'Масове додавання', icon: 'fa-users', color: 'success' },
+  BULK_EDIT: { label: 'Масове редагування', icon: 'fa-users-cog', color: 'info' },
   SETTINGS: { label: 'Налаштування', icon: 'fa-cog', color: 'secondary' },
   EXPORT: { label: 'Експорт', icon: 'fa-file-export', color: 'secondary' },
   IMPORT: { label: 'Імпорт', icon: 'fa-file-import', color: 'secondary' },
+  IMPORT_SCHEDULE: { label: 'Імпорт графіка', icon: 'fa-file-import', color: 'info' },
+  DRAG_MOVE: { label: 'Переміщення', icon: 'fa-arrows-alt', color: 'info' },
+  DRAG_SWAP: { label: 'Обмін (drag)', icon: 'fa-repeat', color: 'info' },
+  KARMA_RESET: { label: 'Скидання карми', icon: 'fa-undo', color: 'warning' },
+  MAINTENANCE: { label: 'Обслуговування БД', icon: 'fa-database', color: 'danger' },
 };
 
 const getActionInfo = (action: string) =>
@@ -71,10 +77,17 @@ const AuditLogView: React.FC = () => {
         'CASCADE',
         'CLEAR_WEEK',
         'BULK_DELETE',
+        'DRAG_MOVE',
+        'DRAG_SWAP',
+        'IMPORT_SCHEDULE',
       ]),
     []
   );
   const userActions = useMemo(() => new Set(['ADD', 'EDIT', 'DELETE', 'BULK_ADD']), []);
+  const settingsActions = useMemo(
+    () => new Set(['SETTINGS', 'BULK_EDIT', 'KARMA_RESET', 'MAINTENANCE', 'EXPORT', 'IMPORT']),
+    []
+  );
 
   const filteredLogs = useMemo(() => {
     let filtered = logs;
@@ -83,7 +96,7 @@ const AuditLogView: React.FC = () => {
     } else if (filter === 'users') {
       filtered = logs.filter((l) => userActions.has(l.action));
     } else if (filter === 'settings') {
-      filtered = logs.filter((l) => l.action === 'SETTINGS');
+      filtered = logs.filter((l) => settingsActions.has(l.action));
     }
     return filtered.slice(0, limit);
   }, [logs, filter, limit, scheduleActions, userActions]);
@@ -127,143 +140,143 @@ const AuditLogView: React.FC = () => {
 
   return (
     <div>
-        {/* Stats cards */}
-        <div className="row g-2 mb-3">
-          <div className="col-auto">
-            <div className="card border-0 shadow-sm">
-              <div className="card-body py-2 px-3">
-                <small className="text-muted">Всього записів</small>
-                <div className="fw-bold fs-5">{logs.length}</div>
-              </div>
+      {/* Stats cards */}
+      <div className="row g-2 mb-3">
+        <div className="col-auto">
+          <div className="card border-0 shadow-sm">
+            <div className="card-body py-2 px-3">
+              <small className="text-muted">Всього записів</small>
+              <div className="fw-bold fs-5">{logs.length}</div>
             </div>
           </div>
-          {Object.entries(stats)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([action, count]) => {
-              const info = getActionInfo(action);
-              return (
-                <div key={action} className="col-auto">
-                  <div className="card border-0 shadow-sm">
-                    <div className="card-body py-2 px-3">
-                      <small className={`text-${info.color}`}>
-                        <i className={`fas ${info.icon} me-1`} />
-                        {info.label}
-                      </small>
-                      <div className="fw-bold fs-5">{count}</div>
-                    </div>
+        </div>
+        {Object.entries(stats)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 5)
+          .map(([action, count]) => {
+            const info = getActionInfo(action);
+            return (
+              <div key={action} className="col-auto">
+                <div className="card border-0 shadow-sm">
+                  <div className="card-body py-2 px-3">
+                    <small className={`text-${info.color}`}>
+                      <i className={`fas ${info.icon} me-1`} />
+                      {info.label}
+                    </small>
+                    <div className="fw-bold fs-5">{count}</div>
                   </div>
                 </div>
-              );
-            })}
-        </div>
-
-        {/* Filters */}
-        <div className="card border-0 shadow-sm mb-3">
-          <div className="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div className="btn-group btn-group-sm">
-              <button
-                className={`btn ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setFilter('all')}
-              >
-                Всі
-              </button>
-              <button
-                className={`btn ${filter === 'schedule' ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setFilter('schedule')}
-              >
-                <i className="fas fa-calendar-alt me-1" />
-                Графік
-              </button>
-              <button
-                className={`btn ${filter === 'users' ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setFilter('users')}
-              >
-                <i className="fas fa-users me-1" />
-                Особовий склад
-              </button>
-              <button
-                className={`btn ${filter === 'settings' ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setFilter('settings')}
-              >
-                <i className="fas fa-cog me-1" />
-                Налаштування
-              </button>
-            </div>
-
-            <div className="d-flex align-items-center gap-2">
-              <button className="btn btn-sm btn-outline-secondary" onClick={loadLogs}>
-                <i className="fas fa-sync-alt me-1" />
-                Оновити
-              </button>
-              <button className="btn btn-sm btn-outline-danger" onClick={handleClearOldLogs}>
-                <i className="fas fa-broom me-1" />
-                Очистити старі
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Log entries */}
-        <div className="card border-0 shadow-sm">
-          <div className="card-body p-0">
-            {filteredLogs.length === 0 ? (
-              <div className="text-center text-muted py-5 d-flex flex-column align-items-center">
-                <i className="fas fa-clipboard-list fa-3x mb-3 opacity-25" />
-                <span>Журнал порожній</span>
               </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-hover table-sm mb-0 align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th style={{ width: '140px' }}>Час</th>
-                      <th style={{ width: '160px' }}>Дія</th>
-                      <th>Деталі</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLogs.map((log, idx) => {
-                      const info = getActionInfo(log.action);
-                      const { date, time } = formatTimestamp(log.timestamp);
-                      return (
-                        <tr key={log.id || idx}>
-                          <td className="text-nowrap">
-                            <small className="text-muted d-block">{date}</small>
-                            <small className="fw-semibold">{time}</small>
-                          </td>
-                          <td>
-                            <span
-                              className={`badge bg-${info.color} bg-opacity-10 text-${info.color}`}
-                            >
-                              <i className={`fas ${info.icon} me-1`} />
-                              {info.label}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="text-body-secondary">{log.details}</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            );
+          })}
+      </div>
+
+      {/* Filters */}
+      <div className="card border-0 shadow-sm mb-3">
+        <div className="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div className="btn-group btn-group-sm">
+            <button
+              className={`btn ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('all')}
+            >
+              Всі
+            </button>
+            <button
+              className={`btn ${filter === 'schedule' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('schedule')}
+            >
+              <i className="fas fa-calendar-alt me-1" />
+              Графік
+            </button>
+            <button
+              className={`btn ${filter === 'users' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('users')}
+            >
+              <i className="fas fa-users me-1" />
+              Особовий склад
+            </button>
+            <button
+              className={`btn ${filter === 'settings' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('settings')}
+            >
+              <i className="fas fa-cog me-1" />
+              Налаштування
+            </button>
           </div>
 
-          {/* Load more */}
-          {filteredLogs.length >= limit && (
-            <div className="card-footer text-center bg-transparent border-0">
-              <button
-                className="btn btn-sm btn-outline-primary"
-                onClick={() => setLimit((l) => l + 100)}
-              >
-                Показати більше
-              </button>
+          <div className="d-flex align-items-center gap-2">
+            <button className="btn btn-sm btn-outline-secondary" onClick={loadLogs}>
+              <i className="fas fa-sync-alt me-1" />
+              Оновити
+            </button>
+            <button className="btn btn-sm btn-outline-danger" onClick={handleClearOldLogs}>
+              <i className="fas fa-broom me-1" />
+              Очистити старі
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Log entries */}
+      <div className="card border-0 shadow-sm">
+        <div className="card-body p-0">
+          {filteredLogs.length === 0 ? (
+            <div className="text-center text-muted py-5 d-flex flex-column align-items-center">
+              <i className="fas fa-clipboard-list fa-3x mb-3 opacity-25" />
+              <span>Журнал порожній</span>
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-hover table-sm mb-0 align-middle">
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ width: '140px' }}>Час</th>
+                    <th style={{ width: '160px' }}>Дія</th>
+                    <th>Деталі</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLogs.map((log, idx) => {
+                    const info = getActionInfo(log.action);
+                    const { date, time } = formatTimestamp(log.timestamp);
+                    return (
+                      <tr key={log.id || idx}>
+                        <td className="text-nowrap">
+                          <small className="text-muted d-block">{date}</small>
+                          <small className="fw-semibold">{time}</small>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge bg-${info.color} bg-opacity-10 text-${info.color}`}
+                          >
+                            <i className={`fas ${info.icon} me-1`} />
+                            {info.label}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="text-body-secondary">{log.details}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
+
+        {/* Load more */}
+        {filteredLogs.length >= limit && (
+          <div className="card-footer text-center bg-transparent border-0">
+            <button
+              className="btn btn-sm btn-outline-primary"
+              onClick={() => setLimit((l) => l + 100)}
+            >
+              Показати більше
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
