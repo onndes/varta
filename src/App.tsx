@@ -3,7 +3,7 @@ import type { PrintMode, PrintWeekRange, ScheduleDocumentMode } from './types';
 import { useDialog } from './components/useDialog';
 import { getActiveWorkspaceId } from './services/workspaceService';
 import { getAppVersion, triggerPrint } from './utils/platform';
-import { getCurrentMonday, getWeekDates } from './utils/dateUtils';
+import { getCurrentMonday, getWeekDates, toLocalISO } from './utils/dateUtils';
 import { exportScheduleToExcel } from './services/scheduleExcelExportService';
 
 // Hooks
@@ -41,6 +41,7 @@ const App = () => {
   const [showViolationsModal, setShowViolationsModal] = useState(false);
   const [pendingPrintViolations, setPendingPrintViolations] = useState<ScheduleViolation[]>([]);
   const [pendingPrintAction, setPendingPrintAction] = useState<(() => void) | null>(null);
+  const [todayStr, setTodayStr] = useState(() => toLocalISO(new Date()));
   const [currentWeekDates, setCurrentWeekDates] = useState<string[]>(() =>
     getWeekDates(getCurrentMonday())
   );
@@ -67,6 +68,8 @@ const App = () => {
     birthdayBlockOpts,
     karmaOnManualChanges,
     showDevBanner,
+    devBannerDismissedOn,
+    devBannerSnoozeUntil,
     theme,
     loadSettings,
     saveDayWeights,
@@ -83,6 +86,8 @@ const App = () => {
     saveBirthdayBlockOpts,
     saveKarmaOnManualChanges,
     saveShowDevBanner,
+    saveDevBannerDismissedOn,
+    saveDevBannerSnoozeUntil,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -135,6 +140,15 @@ const App = () => {
     getAppVersion().then(setAppVersion);
   }, []);
 
+  // Keep "today" in sync so daily notices can reappear without app reload.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const nextToday = toLocalISO(new Date());
+      setTodayStr((prev) => (prev === nextToday ? prev : nextToday));
+    }, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   // Show one-time notice when app version changes (offline-friendly)
   useEffect(() => {
     if (!appVersion) return;
@@ -152,6 +166,9 @@ const App = () => {
 
   const displayVersion = appVersion || import.meta.env.VITE_APP_VERSION || '0.0.0';
   const displayVersionLabel = `v${displayVersion}-${APP_CHANNEL_LABEL}`;
+  const isDevBannerSnoozed = Boolean(devBannerSnoozeUntil && todayStr <= devBannerSnoozeUntil);
+  const isDevBannerVisible =
+    showDevBanner && devBannerDismissedOn !== todayStr && !isDevBannerSnoozed;
 
   // Global UI scale for cross-device readability
   useEffect(() => {
@@ -358,7 +375,7 @@ const App = () => {
           violationsCount={scheduleViolations.length}
         />
 
-        {showDevBanner && <DevBanner onClose={() => void saveShowDevBanner(false)} />}
+        {isDevBannerVisible && <DevBanner onClose={() => void saveDevBannerDismissedOn(todayStr)} />}
 
         <main
           className={`app-content ${activeTab === 'schedule' ? 'app-content--schedule' : ''} ${activeTab === 'settings' ? 'app-content--settings' : ''}`}
@@ -445,6 +462,8 @@ const App = () => {
               onSaveKarmaOnManualChanges={saveKarmaOnManualChanges}
               showDevBanner={showDevBanner}
               onSaveShowDevBanner={saveShowDevBanner}
+              devBannerSnoozeUntil={devBannerSnoozeUntil}
+              onSaveDevBannerSnoozeUntil={saveDevBannerSnoozeUntil}
               onExportExcel={(mode) => guardedPrint(() => requestExportExcel(mode))}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}

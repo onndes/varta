@@ -47,6 +47,8 @@ interface SettingsViewProps {
   onSaveKarmaOnManualChanges: (value: boolean) => Promise<void>;
   showDevBanner: boolean;
   onSaveShowDevBanner: (value: boolean) => Promise<void>;
+  devBannerSnoozeUntil: string | null;
+  onSaveDevBannerSnoozeUntil: (value: string | null) => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
@@ -196,6 +198,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onHistModeChange={setHistMode}
           showDevBanner={props.showDevBanner}
           onSaveShowDevBanner={props.onSaveShowDevBanner}
+          devBannerSnoozeUntil={props.devBannerSnoozeUntil}
+          onSaveDevBannerSnoozeUntil={props.onSaveDevBannerSnoozeUntil}
         />
       )}
       {subTab === 'experimental' && (

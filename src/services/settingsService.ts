@@ -151,6 +151,18 @@ export const getShowDevBanner = async (): Promise<boolean> => getJsonSetting('sh
 export const saveShowDevBanner = async (value: boolean): Promise<void> =>
   saveSetting('showDevBanner', value);
 
+export const getDevBannerDismissedOn = async (): Promise<string | null> =>
+  getJsonSetting<string | null>('devBannerDismissedOn', null);
+
+export const saveDevBannerDismissedOn = async (value: string | null): Promise<void> =>
+  saveSetting('devBannerDismissedOn', value);
+
+export const getDevBannerSnoozeUntil = async (): Promise<string | null> =>
+  getJsonSetting<string | null>('devBannerSnoozeUntil', null);
+
+export const saveDevBannerSnoozeUntil = async (value: string | null): Promise<void> =>
+  saveSetting('devBannerSnoozeUntil', value);
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 const THEME_LS_KEY = 'varta-theme';

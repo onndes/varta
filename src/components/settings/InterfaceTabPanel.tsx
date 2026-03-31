@@ -1,5 +1,6 @@
 // src/components/settings/InterfaceTabPanel.tsx
 import React from 'react';
+import { addDays, formatDate, toLocalISO } from '../../utils/dateUtils';
 
 /** Available UI scale values in percent. */
 const UI_SCALE_OPTIONS = [
@@ -24,6 +25,8 @@ interface InterfaceTabPanelProps {
   onHistModeChange: (m: 'numbers' | 'dots') => void;
   showDevBanner: boolean;
   onSaveShowDevBanner: (value: boolean) => Promise<void>;
+  devBannerSnoozeUntil: string | null;
+  onSaveDevBannerSnoozeUntil: (value: string | null) => Promise<void>;
 }
 
 /**
@@ -39,8 +42,14 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
   onHistModeChange,
   showDevBanner,
   onSaveShowDevBanner,
-}) => (
-  <>
+  devBannerSnoozeUntil,
+  onSaveDevBannerSnoozeUntil,
+}) => {
+  const todayStr = toLocalISO(new Date());
+  const isSnoozed = Boolean(devBannerSnoozeUntil && todayStr <= devBannerSnoozeUntil);
+
+  return (
+    <>
     <div className="card shadow-sm border-0 mb-4">
       <div className="card-header bg-white py-3">
         <h5 className="mb-0 fw-bold">
@@ -135,16 +144,54 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
             onChange={(e) => void onSaveShowDevBanner(e.target.checked)}
           />
           <label className="form-check-label" htmlFor="showDevBanner">
-            <strong>Показувати плашку «Додаток у стадії розробки»</strong>
+            <strong>Показувати щоденну плашку «Додаток у стадії розробки»</strong>
             <div className="text-muted small">
-              Жовта плашка-нагадування вгорі екрану про те, що застосунок не повністю протестований
-              у реальних умовах.
+              Верхня інформаційна плашка-нагадування про те, що застосунок ще не повністю
+              протестований у реальних умовах. Закриття хрестиком приховує її лише до наступного
+              дня.
             </div>
           </label>
         </div>
+        {showDevBanner && (
+          <div className="mt-3 pt-3 border-top">
+            <div className="fw-semibold mb-1">Тимчасова пауза</div>
+            <div className="text-muted small mb-3">
+              Якщо не хочете бачити нагадування щодня, тут можна призупинити його появу на 15 діб.
+            </div>
+            {isSnoozed ? (
+              <div className="alert alert-info py-2 small mb-3">
+                Плашку призупинено до <strong>{formatDate(devBannerSnoozeUntil!)}</strong>{' '}
+                включно.
+              </div>
+            ) : (
+              <div className="alert alert-secondary py-2 small mb-3">
+                Додаткової паузи немає. Після закриття плашка знову з’явиться завтра.
+              </div>
+            )}
+            <div className="d-flex gap-2 flex-wrap">
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => void onSaveDevBannerSnoozeUntil(addDays(todayStr, 14))}
+              >
+                Не показувати 15 діб
+              </button>
+              {isSnoozed && (
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => void onSaveDevBannerSnoozeUntil(null)}
+                >
+                  Показувати знову
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  </>
-);
+    </>
+  );
+};
 
 export default InterfaceTabPanel;

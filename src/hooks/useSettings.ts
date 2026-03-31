@@ -48,6 +48,8 @@ export const useSettings = () => {
   );
   const [karmaOnManualChanges, setKarmaOnManualChanges] = useState(false);
   const [showDevBanner, setShowDevBanner] = useState(true);
+  const [devBannerDismissedOn, setDevBannerDismissedOn] = useState<string | null>(null);
+  const [devBannerSnoozeUntil, setDevBannerSnoozeUntil] = useState<string | null>(null);
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +96,8 @@ export const useSettings = () => {
         savedKarmaOnManualChanges,
         savedTheme,
         savedShowDevBanner,
+        savedDevBannerDismissedOn,
+        savedDevBannerSnoozeUntil,
       ] = await Promise.all([
         settingsService.getDayWeights(),
         settingsService.getSignatories(),
@@ -111,6 +115,8 @@ export const useSettings = () => {
         settingsService.getKarmaOnManualChanges(),
         settingsService.getTheme(),
         settingsService.getShowDevBanner(),
+        settingsService.getDevBannerDismissedOn(),
+        settingsService.getDevBannerSnoozeUntil(),
       ]);
 
       setDayWeights(weights);
@@ -131,6 +137,8 @@ export const useSettings = () => {
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
       setShowDevBanner(savedShowDevBanner);
+      setDevBannerDismissedOn(savedDevBannerDismissedOn);
+      setDevBannerSnoozeUntil(savedDevBannerSnoozeUntil);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -199,10 +207,32 @@ export const useSettings = () => {
     setKarmaOnManualChanges,
     'Failed to save karma setting'
   );
-  const saveShowDevBanner = makeSaver(
-    settingsService.saveShowDevBanner,
-    setShowDevBanner,
-    'Failed to save dev banner setting'
+  const saveShowDevBanner = async (value: boolean) => {
+    try {
+      await settingsService.saveShowDevBanner(value);
+      setShowDevBanner(value);
+      if (value) {
+        await Promise.all([
+          settingsService.saveDevBannerDismissedOn(null),
+          settingsService.saveDevBannerSnoozeUntil(null),
+        ]);
+        setDevBannerDismissedOn(null);
+        setDevBannerSnoozeUntil(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save dev banner setting');
+      throw err;
+    }
+  };
+  const saveDevBannerDismissedOn = makeSaver(
+    settingsService.saveDevBannerDismissedOn,
+    setDevBannerDismissedOn,
+    'Failed to save dev banner dismissed date'
+  );
+  const saveDevBannerSnoozeUntil = makeSaver(
+    settingsService.saveDevBannerSnoozeUntil,
+    setDevBannerSnoozeUntil,
+    'Failed to save dev banner snooze date'
   );
 
   // Update cascade trigger
@@ -262,6 +292,8 @@ export const useSettings = () => {
     birthdayBlockOpts,
     karmaOnManualChanges,
     showDevBanner,
+    devBannerDismissedOn,
+    devBannerSnoozeUntil,
     theme,
     loading,
     error,
@@ -278,6 +310,8 @@ export const useSettings = () => {
     saveBirthdayBlockOpts,
     saveKarmaOnManualChanges,
     saveShowDevBanner,
+    saveDevBannerDismissedOn,
+    saveDevBannerSnoozeUntil,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,
