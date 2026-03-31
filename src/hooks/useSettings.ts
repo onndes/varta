@@ -52,7 +52,7 @@ export const useSettings = () => {
   const [devBannerSnoozeUntil, setDevBannerSnoozeUntil] = useState<string | null>(null);
   const [showDevToolsMenu, setShowDevToolsMenu] = useState(false);
   const [showExperimentalSettings, setShowExperimentalSettings] = useState(false);
-  const [theme, setTheme] = useState<AppTheme>('light');
+  const [theme, setTheme] = useState<AppTheme>('dark');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,7 +141,7 @@ export const useSettings = () => {
       setBirthdayBlockConfig(savedBirthdayBlockOpts);
       setKarmaOnManualChanges(savedKarmaOnManualChanges);
       const validThemes: AppTheme[] = ['light', 'dark'];
-      setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
+      setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'dark');
       setShowDevBanner(savedShowDevBanner);
       setDevBannerDismissedOn(savedDevBannerDismissedOn);
       setDevBannerSnoozeUntil(savedDevBannerSnoozeUntil);

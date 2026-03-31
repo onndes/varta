@@ -5,7 +5,7 @@
     <link rel="icon" type="image/png" href="/shield-x256.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Система автоматичного розподілу нарядів VARTA-2026" />
-    <meta name="theme-color" content="#6c757d" />
+    <meta name="theme-color" content="#1a1d21" />
     <title>VARTA-2026 Система нарядів</title>
     <!--
       Inline theme script: runs synchronously in <head> before any paint.
@@ -14,7 +14,7 @@
     -->
     <script>
       (function () {
-        if (localStorage.getItem('varta-theme') === 'dark') {
+        if (localStorage.getItem('varta-theme') !== 'light') {
           document.documentElement.setAttribute('data-bs-theme', 'dark');
         }
       })();

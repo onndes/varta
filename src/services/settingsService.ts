@@ -191,7 +191,8 @@ export const getTheme = async (): Promise<string> => {
 
   const lsVal = localStorage.getItem(THEME_LS_KEY);
   if (lsVal === 'light' || lsVal === 'dark') return lsVal;
-  return 'light';
+  localStorage.setItem(THEME_LS_KEY, 'dark');
+  return 'dark';
 };
 
 export const saveTheme = async (theme: string): Promise<void> => {
