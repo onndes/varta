@@ -34,6 +34,7 @@ const defaultOptions: AutoScheduleOptions = {
   prioritizeFasterDebtRepayment: false,
   forceUseAllWhenFew: true,
   evenWeeklyDistribution: false,
+  useFirstDutyDateAsActiveFrom: true,
 };
 
 const defaultDayWeights: DayWeights = {

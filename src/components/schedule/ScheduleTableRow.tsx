@@ -349,6 +349,24 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
         ReactDOM.createPortal(
           <Modal show onClose={() => setActiveLog(null)} title="Чому цей боєць?" size="modal-md">
             <div style={{ fontSize: '0.88rem', lineHeight: 1.65 }}>
+              {activeLog.debug?.winningCriterion && (
+                <div className="decision-log-notice mb-3" role="note">
+                  <div className="decision-log-notice__icon" aria-hidden="true">
+                    <i className="fas fa-circle-info"></i>
+                  </div>
+                  <div className="decision-log-notice__body">
+                    <div className="decision-log-notice__title">Пояснення ще допрацьовується</div>
+                    <div className="decision-log-notice__text">
+                      Цей блок уже показує основні причини вибору, але поки не охоплює всі кроки
+                      алгоритму. У складних випадках формулювання може бути спрощеним, а окремі
+                      деталі можуть бути неточними.
+                    </div>
+                    <div className="decision-log-notice__hint">
+                      Сприймайте його як зручну підказку, а не як повний технічний розбір.
+                    </div>
+                  </div>
+                </div>
+              )}
               {activeLog.sections && activeLog.sections.length > 0 ? (
                 activeLog.sections.map((section, si) => (
                   <div key={si} className={si > 0 ? 'mt-3' : ''}>

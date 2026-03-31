@@ -355,3 +355,57 @@ body.theme-light .dev-banner {
   border-bottom-color: #2e5080;
   color: #cce0f5;
 }
+
+// ─── Decision Log Notice ─────────────────────────────────────────────────────
+.decision-log-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid
+    color-mix(in srgb, var(--bs-warning-border-subtle, #ffda6a) 75%, transparent);
+  border-left: 4px solid var(--bs-warning, #fd7e14);
+  border-radius: 0.9rem;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 88%, transparent),
+    color-mix(in srgb, var(--bs-body-bg, #ffffff) 96%, transparent)
+  );
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bs-warning, #fd7e14) 16%, transparent);
+    color: var(--bs-warning, #fd7e14);
+    font-size: 0.95rem;
+    margin-top: 0.1rem;
+  }
+
+  &__body {
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--bs-emphasis-color, #111827);
+    margin-bottom: 0.12rem;
+  }
+
+  &__text {
+    font-size: 0.81rem;
+    color: var(--bs-body-color, #212529);
+  }
+
+  &__hint {
+    margin-top: 0.35rem;
+    font-size: 0.76rem;
+    color: var(--bs-secondary-color, #6c757d);
+  }
+}
