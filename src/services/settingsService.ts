@@ -144,6 +144,13 @@ export const getKarmaOnManualChanges = async (): Promise<boolean> =>
 export const saveKarmaOnManualChanges = async (value: boolean): Promise<void> =>
   saveSetting('karmaOnManualChanges', value);
 
+// ── Dev banner ────────────────────────────────────────────────────────────────
+
+export const getShowDevBanner = async (): Promise<boolean> => getJsonSetting('showDevBanner', true);
+
+export const saveShowDevBanner = async (value: boolean): Promise<void> =>
+  saveSetting('showDevBanner', value);
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 const THEME_LS_KEY = 'varta-theme';

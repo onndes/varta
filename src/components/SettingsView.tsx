@@ -45,6 +45,8 @@ interface SettingsViewProps {
   onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
   karmaOnManualChanges: boolean;
   onSaveKarmaOnManualChanges: (value: boolean) => Promise<void>;
+  showDevBanner: boolean;
+  onSaveShowDevBanner: (value: boolean) => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
@@ -192,6 +194,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onHistWeeksChange={setHistWeeks}
           histMode={histMode}
           onHistModeChange={setHistMode}
+          showDevBanner={props.showDevBanner}
+          onSaveShowDevBanner={props.onSaveShowDevBanner}
         />
       )}
       {subTab === 'experimental' && (

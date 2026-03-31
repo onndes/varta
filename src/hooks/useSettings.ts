@@ -47,6 +47,7 @@ export const useSettings = () => {
     DEFAULT_BIRTHDAY_BLOCK_OPTS
   );
   const [karmaOnManualChanges, setKarmaOnManualChanges] = useState(false);
+  const [showDevBanner, setShowDevBanner] = useState(true);
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export const useSettings = () => {
         savedBirthdayBlockOpts,
         savedKarmaOnManualChanges,
         savedTheme,
+        savedShowDevBanner,
       ] = await Promise.all([
         settingsService.getDayWeights(),
         settingsService.getSignatories(),
@@ -108,6 +110,7 @@ export const useSettings = () => {
         settingsService.getBirthdayBlockOpts(),
         settingsService.getKarmaOnManualChanges(),
         settingsService.getTheme(),
+        settingsService.getShowDevBanner(),
       ]);
 
       setDayWeights(weights);
@@ -127,6 +130,7 @@ export const useSettings = () => {
       setKarmaOnManualChanges(savedKarmaOnManualChanges);
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'light');
+      setShowDevBanner(savedShowDevBanner);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -195,6 +199,11 @@ export const useSettings = () => {
     setKarmaOnManualChanges,
     'Failed to save karma setting'
   );
+  const saveShowDevBanner = makeSaver(
+    settingsService.saveShowDevBanner,
+    setShowDevBanner,
+    'Failed to save dev banner setting'
+  );
 
   // Update cascade trigger
   const updateCascadeTrigger = useCallback(
@@ -252,6 +261,7 @@ export const useSettings = () => {
     dowHistoryMode,
     birthdayBlockOpts,
     karmaOnManualChanges,
+    showDevBanner,
     theme,
     loading,
     error,
@@ -267,6 +277,7 @@ export const useSettings = () => {
     saveDowHistoryMode,
     saveBirthdayBlockOpts,
     saveKarmaOnManualChanges,
+    saveShowDevBanner,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,

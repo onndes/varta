@@ -22,6 +22,8 @@ interface InterfaceTabPanelProps {
   onHistWeeksChange: (n: number) => void;
   histMode: 'numbers' | 'dots';
   onHistModeChange: (m: 'numbers' | 'dots') => void;
+  showDevBanner: boolean;
+  onSaveShowDevBanner: (value: boolean) => Promise<void>;
 }
 
 /**
@@ -35,6 +37,8 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
   onHistWeeksChange,
   histMode,
   onHistModeChange,
+  showDevBanner,
+  onSaveShowDevBanner,
 }) => (
   <>
     <div className="card shadow-sm border-0 mb-4">
@@ -110,6 +114,33 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
               Цифри — номер тижня через /. Крапки — фіксовані позиції (ярка = було).
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Dev banner toggle */}
+    <div className="card shadow-sm border-0 mb-4">
+      <div className="card-header bg-white py-3">
+        <h5 className="mb-0 fw-bold">
+          <i className="fas fa-triangle-exclamation me-2"></i>Попередження про стадію розробки
+        </h5>
+      </div>
+      <div className="card-body">
+        <div className="form-check form-switch">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="showDevBanner"
+            checked={showDevBanner}
+            onChange={(e) => void onSaveShowDevBanner(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="showDevBanner">
+            <strong>Показувати плашку «Додаток у стадії розробки»</strong>
+            <div className="text-muted small">
+              Жовта плашка-нагадування вгорі екрану про те, що застосунок не повністю протестований
+              у реальних умовах.
+            </div>
+          </label>
         </div>
       </div>
     </div>

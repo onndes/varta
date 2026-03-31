@@ -17,6 +17,7 @@ import UsersView from './components/UsersView';
 import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
+import DevBanner from './components/DevBanner';
 import AuditLogView from './components/AuditLogView';
 import AppSidebar from './components/AppSidebar';
 import PrintWeekRangeModal from './components/schedule/PrintWeekRangeModal';
@@ -65,6 +66,7 @@ const App = () => {
     dowHistoryMode,
     birthdayBlockOpts,
     karmaOnManualChanges,
+    showDevBanner,
     theme,
     loadSettings,
     saveDayWeights,
@@ -80,6 +82,7 @@ const App = () => {
     saveDowHistoryMode,
     saveBirthdayBlockOpts,
     saveKarmaOnManualChanges,
+    saveShowDevBanner,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -355,6 +358,8 @@ const App = () => {
           violationsCount={scheduleViolations.length}
         />
 
+        {showDevBanner && <DevBanner onClose={() => void saveShowDevBanner(false)} />}
+
         <main
           className={`app-content ${activeTab === 'schedule' ? 'app-content--schedule' : ''} ${activeTab === 'settings' ? 'app-content--settings' : ''}`}
         >
@@ -438,6 +443,8 @@ const App = () => {
               onSaveBirthdayBlockOpts={saveBirthdayBlockOpts}
               karmaOnManualChanges={karmaOnManualChanges}
               onSaveKarmaOnManualChanges={saveKarmaOnManualChanges}
+              showDevBanner={showDevBanner}
+              onSaveShowDevBanner={saveShowDevBanner}
               onExportExcel={(mode) => guardedPrint(() => requestExportExcel(mode))}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}

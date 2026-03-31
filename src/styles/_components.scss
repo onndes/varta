@@ -299,3 +299,59 @@
     }
   }
 }
+
+// ─── Dev Banner ───────────────────────────────────────────────────────────────
+.dev-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 16px;
+  font-size: 0.81rem;
+  line-height: 1.45;
+  background-color: #1e3a5f;
+  border-bottom: 1px solid #2e5080;
+  color: #cce0f5;
+
+  &__icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: #7ab8f5;
+  }
+
+  &__text {
+    flex-grow: 1;
+
+    strong {
+      color: #e8f4ff;
+    }
+  }
+
+  &__link {
+    color: #7ab8f5;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: #a8d0ff;
+    }
+  }
+
+  &__close {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    // Override default btn-close filter so it shows white on dark bg
+    filter: invert(1) grayscale(1) brightness(1.4);
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+// Light theme: slightly softer navy
+body.theme-light .dev-banner {
+  background-color: #1e3a5f;
+  border-bottom-color: #2e5080;
+  color: #cce0f5;
+}
