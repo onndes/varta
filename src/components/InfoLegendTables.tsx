@@ -150,26 +150,46 @@ export const TabsTable: React.FC = () => (
   <table className="table table-sm table-bordered mb-3" style={{ fontSize: '0.85rem' }}>
     <tbody>
       <tr>
-        <td className="fw-bold" style={{ width: '140px' }}>
-          Графік
+        <td className="fw-bold" style={{ width: '160px' }}>
+          <i className="fas fa-calendar-days me-1 text-primary"></i>Графік
         </td>
-        <td>Тижневий розклад з ручним редагуванням, авторозподілом, каскадною перебудовою.</td>
+        <td>
+          Тижневий розклад: автогенерація, ручне редагування, drag & drop, каскадна перебудова,
+          превʼю, undo/redo.
+        </td>
       </tr>
       <tr>
-        <td className="fw-bold">Особовий склад</td>
-        <td>Управління: додавання, редагування, статуси, блокування днів тижня з коментарями.</td>
+        <td className="fw-bold">
+          <i className="fas fa-users me-1 text-primary"></i>Особовий склад
+        </td>
+        <td>
+          Управління: додавання, редагування, статуси, блокування днів тижня, несумісні пари, дні
+          народження.
+        </td>
       </tr>
       <tr>
-        <td className="fw-bold">Статистика</td>
-        <td>Кількість чергувань, розподіл по днях, борг, вага, карма, індекс справедливості.</td>
+        <td className="fw-bold">
+          <i className="fas fa-chart-bar me-1 text-primary"></i>Статистика
+        </td>
+        <td>
+          Кількість чергувань, розподіл по днях, борг, вага, карма, індекс справедливості, детальна
+          картка кожної особи.
+        </td>
       </tr>
       <tr>
-        <td className="fw-bold">Налаштування</td>
-        <td>Логіка алгоритму та параметри друку. Небезпечні опції позначені червоним.</td>
+        <td className="fw-bold">
+          <i className="fas fa-cogs me-1 text-primary"></i>Налаштування
+        </td>
+        <td>Логіка алгоритму, друк та підписанти, масштаб інтерфейсу, експериментальні опції.</td>
       </tr>
       <tr>
-        <td className="fw-bold">Журнал</td>
-        <td>Повна історія всіх дій у системі з фільтрацією.</td>
+        <td className="fw-bold">
+          <i className="fas fa-book me-1 text-primary"></i>Журнал
+        </td>
+        <td>
+          Повна історія всіх дій у системі (призначення, заміни, обміни, генерація, імпорт,
+          налаштування) з фільтрацією.
+        </td>
       </tr>
     </tbody>
   </table>
