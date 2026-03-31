@@ -455,9 +455,21 @@ describe('computeUserLoadRate', () => {
       '2026-01-04': { date: '2026-01-04', userId: 1, type: 'auto' },
       '2026-01-06': { date: '2026-01-06', userId: 1, type: 'auto' },
     };
-    // 3 assignments / 10 days active = 0.3
-    const rate = computeUserLoadRate(1, schedule, '2026-01-11', users);
+    // 3 assignments / 10 days active = 0.3 (using dateAddedToAuto)
+    const rate = computeUserLoadRate(1, schedule, '2026-01-11', users, false);
     expect(rate).toBeCloseTo(0.3, 5);
+  });
+
+  it('rate uses first duty date by default', () => {
+    const users = [makeUser({ id: 1, dateAddedToAuto: '2026-01-01' })];
+    const schedule: Record<string, ScheduleEntry> = {
+      '2026-01-02': { date: '2026-01-02', userId: 1, type: 'auto' },
+      '2026-01-04': { date: '2026-01-04', userId: 1, type: 'auto' },
+      '2026-01-06': { date: '2026-01-06', userId: 1, type: 'auto' },
+    };
+    // firstDuty='2026-01-02', daysActive=9, rate=3/9
+    const rate = computeUserLoadRate(1, schedule, '2026-01-11', users, true);
+    expect(rate).toBeCloseTo(3 / 9, 5);
   });
 
   it('newcomer with few days has higher rate appropriately', () => {
@@ -469,9 +481,9 @@ describe('computeUserLoadRate', () => {
       '2026-01-04': { date: '2026-01-04', userId: 1, type: 'auto' },
       '2026-01-09': { date: '2026-01-09', userId: 2, type: 'auto' },
     };
-    const vetRate = computeUserLoadRate(1, schedule, '2026-01-11', users);
-    const newRate = computeUserLoadRate(2, schedule, '2026-01-11', users);
-    // veteran: 2/10 = 0.2, newcomer: 1/3 = 0.333
+    const vetRate = computeUserLoadRate(1, schedule, '2026-01-11', users, false);
+    const newRate = computeUserLoadRate(2, schedule, '2026-01-11', users, false);
+    // veteran: 2/10 = 0.2, newcomer: 1/3 = 0.333 (using dateAddedToAuto)
     expect(vetRate).toBeCloseTo(0.2, 5);
     expect(newRate).toBeCloseTo(1 / 3, 5);
   });
@@ -485,14 +497,14 @@ describe('calculateUserFairnessIndex', () => {
       makeUser({ id: 1, dateAddedToAuto: '2026-01-01' }),
       makeUser({ id: 2, dateAddedToAuto: '2026-01-01' }),
     ];
+    // Both users assigned on the same date — equal first duty, equal rate
     const schedule: Record<string, ScheduleEntry> = {
-      '2026-01-02': { date: '2026-01-02', userId: 1, type: 'auto' },
-      '2026-01-04': { date: '2026-01-04', userId: 2, type: 'auto' },
+      '2026-01-02': { date: '2026-01-02', userId: [1, 2], type: 'auto' },
     };
     const dayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
     const idx1 = calculateUserFairnessIndex(1, users, schedule, dayWeights, '2026-01-11');
     const idx2 = calculateUserFairnessIndex(2, users, schedule, dayWeights, '2026-01-11');
-    // Both have same rate (1/10), so fairness = 1
+    // Both have same rate (1/9), so fairness = 1
     expect(idx1).toBeCloseTo(1.0, 5);
     expect(idx2).toBeCloseTo(1.0, 5);
   });

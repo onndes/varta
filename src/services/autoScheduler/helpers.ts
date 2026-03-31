@@ -328,23 +328,34 @@ export const countUnavailableDaysInRange = (
  * **Subtracts** days in VACATION / SICK / TRIP / ABSENT / BLOCKED periods
  * so that a user returning from a 14-day vacation is NOT "behind" by 14 days.
  * Returns at least 1 to avoid division by zero.
+ *
+ * When `useFirstDutyDate` is true (default), the earliest assignment date
+ * takes precedence over `dateAddedToAuto` — this ensures fairness tracking
+ * starts from actual participation rather than the date the user was added.
  */
 export const computeDaysActive = (
   user: User,
   dateStr: string,
-  schedule: Record<string, ScheduleEntry>
+  schedule: Record<string, ScheduleEntry>,
+  useFirstDutyDate = true
 ): number => {
-  let from = user.dateAddedToAuto;
-  if (!from) {
-    // Fallback: earliest assignment in schedule
-    if (user.id) {
-      for (const entry of Object.values(schedule)) {
-        if (toAssignedUserIds(entry.userId).includes(user.id)) {
-          if (!from || entry.date < from) from = entry.date;
-        }
+  // Find earliest assignment in schedule
+  let firstDuty: string | undefined;
+  if (user.id) {
+    for (const entry of Object.values(schedule)) {
+      if (toAssignedUserIds(entry.userId).includes(user.id)) {
+        if (!firstDuty || entry.date < firstDuty) firstDuty = entry.date;
       }
     }
   }
+
+  let from: string | undefined;
+  if (useFirstDutyDate) {
+    from = firstDuty || user.dateAddedToAuto;
+  } else {
+    from = user.dateAddedToAuto || firstDuty;
+  }
+
   if (!from) from = dateStr; // brand-new user with no history
   if (from > dateStr) return 1;
   const totalDays = Math.floor(
@@ -362,12 +373,13 @@ export const computeUserLoadRate = (
   userId: number,
   schedule: Record<string, ScheduleEntry>,
   dateStr: string,
-  users: User[]
+  users: User[],
+  useFirstDutyDate = true
 ): number => {
   const user = users.find((u) => u.id === userId);
   if (!user) return 0;
   const total = countUserAssignments(userId, schedule);
-  const daysActive = computeDaysActive(user, dateStr, schedule);
+  const daysActive = computeDaysActive(user, dateStr, schedule, useFirstDutyDate);
   return total / daysActive;
 };
 

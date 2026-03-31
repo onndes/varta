@@ -4,7 +4,12 @@ import type { User, ScheduleEntry, DayWeights } from '../types';
 import { compareByRankAndName, sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
 import { getUserAvailabilityStatus } from '../services/userService';
-import { isAssignedInEntry, getLogicSchedule, isHistoryType } from '../utils/assignment';
+import {
+  isAssignedInEntry,
+  getLogicSchedule,
+  isHistoryType,
+  getFirstDutyDate,
+} from '../utils/assignment';
 
 export interface UserStats extends User {
   balance: number;
@@ -36,6 +41,7 @@ interface UseStatsDataProps {
   sortKey: SortKey | null;
   sortDir: SortDir;
   includeFuture: boolean;
+  useFirstDutyDateAsActiveFrom: boolean;
 }
 
 /** Computes per-user duty statistics and applies filtering and user-selected sort. */
@@ -49,6 +55,7 @@ export const useStatsData = ({
   sortKey,
   sortDir,
   includeFuture,
+  useFirstDutyDateAsActiveFrom,
 }: UseStatsDataProps) => {
   const todayStr = toLocalISO(new Date());
 
@@ -77,8 +84,14 @@ export const useStatsData = ({
         const allUserEntries = Object.values(logicSched).filter((s) => isAssignedInEntry(s, u.id!));
         const rawFairnessFrom = u.dateAddedToAuto;
         const fallbackFrom = earliestScheduleDate <= todayStr ? earliestScheduleDate : todayStr;
-        const trackingFrom = rawFairnessFrom || fallbackFrom;
-        const hasExplicitTracking = !!rawFairnessFrom;
+        const firstDuty = getFirstDutyDate(logicSched, u.id!);
+        let trackingFrom: string;
+        if (useFirstDutyDateAsActiveFrom) {
+          trackingFrom = firstDuty || rawFairnessFrom || fallbackFrom;
+        } else {
+          trackingFrom = rawFairnessFrom || firstDuty || fallbackFrom;
+        }
+        const hasExplicitTracking = !!rawFairnessFrom || !!firstDuty;
 
         const comparableEntries = allUserEntries.filter((s) => {
           if (s.date >= trackingFrom) return true;
@@ -143,7 +156,15 @@ export const useStatsData = ({
         const loadDiff = a.effectiveComparable - b.effectiveComparable;
         return loadDiff !== 0 ? loadDiff : compareByRankAndName(a, b);
       });
-  }, [users, schedule, dayWeights, todayStr, ignoreHistoryInLogic, includeFuture]);
+  }, [
+    users,
+    schedule,
+    dayWeights,
+    todayStr,
+    ignoreHistoryInLogic,
+    includeFuture,
+    useFirstDutyDateAsActiveFrom,
+  ]);
 
   const filteredStats = allStats.filter((u) => {
     if (u.isActive && !showActive) return false;

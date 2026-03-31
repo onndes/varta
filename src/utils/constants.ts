@@ -110,6 +110,7 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   prioritizeFasterDebtRepayment: true,
   forceUseAllWhenFew: true,
   evenWeeklyDistribution: true,
+  useFirstDutyDateAsActiveFrom: true,
   useExperimentalStatsView: false,
 };
 

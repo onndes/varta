@@ -1,6 +1,11 @@
 // src/hooks/useSchedulePreview.ts
 // Preview Mode: runs autoFillSchedule without saving — shows what auto-generation
-// would produce for the current week without committing anything to the DB.
+// would produce for each future week without committing anything to the DB.
+//
+// Multi-week chaining:
+//   Each week's preview is computed using DB schedule MERGED with all prior
+//   cached preview results, so week N+2's preview "sees" the preview from N+1.
+//   This produces a realistic multi-week lookahead.
 //
 // Multi-week cache (cacheMapRef):
 //   Stores computed previews for every visited week in a Map<monday, data>.
@@ -20,9 +25,8 @@
 //    │  nothing?  → compute from scratch (Case C)                           │
 //    └──────────────────────────────────────────────────────────────────────┘
 //
-//   Eviction: on every navigation, cached weeks more than 7 days ahead of
-//   the current monday are evicted. This keeps at most current + next week
-//   in the forward direction, while past weeks stay cached.
+//   Eviction: cached weeks more than 28 days behind the current monday are
+//   evicted. Future weeks are kept so the chain stays intact.
 //
 // Cancellation: monotonic genRef ensures stale async work never mutates state.
 
@@ -54,16 +58,13 @@ export interface UseSchedulePreviewResult {
   togglePreviewMode: () => void;
 }
 
-/** Delete all cache entries whose monday is more than 7 days after `currentMonday`. */
-const evictBeyondNextWeek = (
-  map: Map<string, Record<string, ScheduleEntry>>,
-  currentMonday: string
-) => {
+/** Delete cache entries whose monday is more than 28 days behind `currentMonday`. */
+const evictOldWeeks = (map: Map<string, Record<string, ScheduleEntry>>, currentMonday: string) => {
   const limit = new Date(currentMonday);
-  limit.setDate(limit.getDate() + 7);
+  limit.setDate(limit.getDate() - 28);
   const limitStr = toLocalISO(limit);
   for (const key of [...map.keys()]) {
-    if (key > limitStr) map.delete(key);
+    if (key < limitStr) map.delete(key);
   }
 };
 
@@ -139,16 +140,8 @@ export const useSchedulePreview = (
   if (weekDates[0] !== prevMonday) {
     setPrevMonday(weekDates[0]);
 
-    // Evict future cache beyond next week on every navigation.
-    evictBeyondNextWeek(cacheMapRef.current, weekDates[0]);
-    // Cancel in-flight prefetch if it's for an evicted week.
-    if (prefetchJobRef.current) {
-      const limitDate = new Date(weekDates[0]);
-      limitDate.setDate(limitDate.getDate() + 7);
-      if (prefetchJobRef.current.monday > toLocalISO(limitDate)) {
-        prefetchJobRef.current = null;
-      }
-    }
+    // Evict old cached weeks to bound memory usage.
+    evictOldWeeks(cacheMapRef.current, weekDates[0]);
 
     // Guard: don't apply stale cache if data deps also changed.
     const prev = prevDataRef.current;
@@ -226,11 +219,25 @@ export const useSchedulePreview = (
       });
     };
 
+    /** Build a merged schedule: DB data + all cached preview entries. */
+    const getMergedSchedule = (): Record<string, ScheduleEntry> => {
+      const merged = { ...schedule };
+      for (const data of cacheMapRef.current.values()) {
+        for (const [date, entry] of Object.entries(data)) {
+          if (!merged[date] || toAssignedUserIds(merged[date].userId).length === 0) {
+            merged[date] = entry;
+          }
+        }
+      }
+      return merged;
+    };
+
     const runFill = async (targets: string[]): Promise<Record<string, ScheduleEntry>> => {
+      const mergedSchedule = getMergedSchedule();
       const entries = await autoFillSchedule(
         targets,
         users,
-        schedule,
+        mergedSchedule,
         dayWeights,
         dutiesPerDay,
         autoScheduleOptions,
@@ -263,8 +270,9 @@ export const useSchedulePreview = (
       }
 
       const nextDates = buildWeek(nextMonday);
+      const mergedSchedule = getMergedSchedule();
       const targets = nextDates.filter(
-        (d) => d >= todayStr && toAssignedUserIds(schedule[d]?.userId).length === 0
+        (d) => d >= todayStr && toAssignedUserIds(mergedSchedule[d]?.userId).length === 0
       );
 
       const settle: Promise<WeekPreviewResult> =
@@ -348,8 +356,9 @@ export const useSchedulePreview = (
     }
 
     // ── Case C: no cache, no job — compute from scratch ──────────────────
+    const mergedScheduleForTargets = getMergedSchedule();
     const targets = weekDates.filter(
-      (d) => d >= todayStr && toAssignedUserIds(schedule[d]?.userId).length === 0
+      (d) => d >= todayStr && toAssignedUserIds(mergedScheduleForTargets[d]?.userId).length === 0
     );
 
     if (targets.length === 0) {

@@ -403,6 +403,9 @@ const App = () => {
               dayWeights={dayWeights}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
               useExperimentalStatsView={!!autoScheduleOptions.useExperimentalStatsView}
+              useFirstDutyDateAsActiveFrom={
+                autoScheduleOptions.useFirstDutyDateAsActiveFrom ?? true
+              }
             />
           )}
           {activeTab === 'settings' && (

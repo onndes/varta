@@ -19,6 +19,7 @@ interface StatsViewProps {
   dayWeights: DayWeights;
   ignoreHistoryInLogic: boolean;
   useExperimentalStatsView: boolean;
+  useFirstDutyDateAsActiveFrom: boolean;
 }
 
 const StatsView: React.FC<StatsViewProps> = ({
@@ -27,11 +28,12 @@ const StatsView: React.FC<StatsViewProps> = ({
   dayWeights,
   ignoreHistoryInLogic,
   useExperimentalStatsView,
+  useFirstDutyDateAsActiveFrom,
 }) => {
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
   const [showDayBreakdown, setShowDayBreakdown] = useState(false);
-  const [includeFuture, setIncludeFuture] = useState(useExperimentalStatsView);
+  const [includeFuture, setIncludeFuture] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserStats | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -64,6 +66,7 @@ const StatsView: React.FC<StatsViewProps> = ({
     sortKey,
     sortDir,
     includeFuture,
+    useFirstDutyDateAsActiveFrom,
   });
 
   useEffect(() => {

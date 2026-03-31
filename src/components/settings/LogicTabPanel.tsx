@@ -145,6 +145,30 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
         </h5>
       </div>
       <div className="card-body">
+        <div className="form-check form-switch mb-3">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="useFirstDutyDateAsActiveFrom"
+            checked={autoOpts.useFirstDutyDateAsActiveFrom ?? true}
+            onChange={(e) =>
+              onAutoOptsChange({ ...autoOpts, useFirstDutyDateAsActiveFrom: e.target.checked })
+            }
+            style={{ cursor: 'pointer' }}
+          />
+          <label
+            className="form-check-label"
+            htmlFor="useFirstDutyDateAsActiveFrom"
+            style={{ cursor: 'pointer' }}
+          >
+            <strong>Рахувати з дати першого чергування</strong>
+            <div className="text-muted small">
+              Увімкнено (за замовчуванням): старт відліку справедливості — дата першого чергування
+              особи. Вимкнено: старт відліку — дата додавання особи до списку.
+            </div>
+          </label>
+        </div>
+        <hr className="my-3" />
         <div className="text-muted small mb-3">
           Масово проставляє поле "З дати" як дату першого чергування для кожної особи.
         </div>

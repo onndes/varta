@@ -6,6 +6,7 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { calculateUserLoad, countUserDaysOfWeek } from '../scheduleService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
+import { compareByRankAndName } from '../../utils/helpers';
 import {
   countEligibleUsersForWeek,
   countUserAssignmentsInRange,
@@ -252,15 +253,16 @@ export const buildUserComparator = (
     //     Prevents newcomers from being overloaded and ensures users with
     //     different available-day counts converge to the same rate.
     const allUsers = fairnessUsers?.length ? fairnessUsers : candidatePool || [];
+    const useFirstDutyDate = options.useFirstDutyDateAsActiveFrom ?? true;
     const rateA = (() => {
       if (loadRateCache.has(a.id!)) return loadRateCache.get(a.id!)!;
-      const v = computeUserLoadRate(a.id!, fs, dateStr, allUsers);
+      const v = computeUserLoadRate(a.id!, fs, dateStr, allUsers, useFirstDutyDate);
       loadRateCache.set(a.id!, v);
       return v;
     })();
     const rateB = (() => {
       if (loadRateCache.has(b.id!)) return loadRateCache.get(b.id!)!;
-      const v = computeUserLoadRate(b.id!, fs, dateStr, allUsers);
+      const v = computeUserLoadRate(b.id!, fs, dateStr, allUsers, useFirstDutyDate);
       loadRateCache.set(b.id!, v);
       return v;
     })();
@@ -301,8 +303,8 @@ export const buildUserComparator = (
     const waitB = getWaitDays(b.id);
     if (waitA !== waitB) return waitB - waitA;
 
-    // 8. Stable tie-break.
-    return a.id - b.id;
+    // 8. Stable tie-break — by rank+name (matches visual order), then by id.
+    return compareByRankAndName(a, b) || a.id - b.id;
   };
 };
 
