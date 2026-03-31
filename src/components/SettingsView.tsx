@@ -1,5 +1,5 @@
 // src/components/SettingsView.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type {
   DayWeights,
   Signatories,
@@ -49,6 +49,10 @@ interface SettingsViewProps {
   onSaveShowDevBanner: (value: boolean) => Promise<void>;
   devBannerSnoozeUntil: string | null;
   onSaveDevBannerSnoozeUntil: (value: string | null) => Promise<void>;
+  showDevToolsMenu: boolean;
+  onSaveShowDevToolsMenu: (value: boolean) => Promise<void>;
+  showExperimentalSettings: boolean;
+  onSaveShowExperimentalSettings: (value: boolean) => Promise<void>;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
@@ -129,13 +133,22 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const dirtyTabLabels = (Object.entries(dirtySections) as Array<[SubTab, boolean]>)
     .filter(([, isDirty]) => isDirty)
     .map(([tab]) => SUBTAB_LABELS[tab]);
+  const visibleSubTabs = SUBTABS.filter(
+    (tab) => tab.key !== 'experimental' || props.showExperimentalSettings
+  );
+
+  useEffect(() => {
+    if (!props.showExperimentalSettings && subTab === 'experimental') {
+      setSubTab('logic');
+    }
+  }, [props.showExperimentalSettings, subTab]);
 
   return (
     <div>
       {/* Sub-tab navigation */}
       <div className="d-flex align-items-center justify-content-between mb-4">
         <ul className="nav nav-pills">
-          {SUBTABS.map(({ key, icon, muted, extraClass, title }) => (
+          {visibleSubTabs.map(({ key, icon, muted, extraClass, title }) => (
             <li key={key} className={`nav-item ${extraClass ?? ''}`}>
               <button
                 className={[
@@ -200,9 +213,13 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onSaveShowDevBanner={props.onSaveShowDevBanner}
           devBannerSnoozeUntil={props.devBannerSnoozeUntil}
           onSaveDevBannerSnoozeUntil={props.onSaveDevBannerSnoozeUntil}
+          showDevToolsMenu={props.showDevToolsMenu}
+          onSaveShowDevToolsMenu={props.onSaveShowDevToolsMenu}
+          showExperimentalSettings={props.showExperimentalSettings}
+          onSaveShowExperimentalSettings={props.onSaveShowExperimentalSettings}
         />
       )}
-      {subTab === 'experimental' && (
+      {props.showExperimentalSettings && subTab === 'experimental' && (
         <ExperimentalTabPanel autoOpts={autoOpts} onAutoOptsChange={setAutoOpts} />
       )}
       {subTab === 'print' && (

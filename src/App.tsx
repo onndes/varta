@@ -70,6 +70,8 @@ const App = () => {
     showDevBanner,
     devBannerDismissedOn,
     devBannerSnoozeUntil,
+    showDevToolsMenu,
+    showExperimentalSettings,
     theme,
     loadSettings,
     saveDayWeights,
@@ -88,6 +90,8 @@ const App = () => {
     saveShowDevBanner,
     saveDevBannerDismissedOn,
     saveDevBannerSnoozeUntil,
+    saveShowDevToolsMenu,
+    saveShowExperimentalSettings,
     saveTheme,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -134,6 +138,12 @@ const App = () => {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [zenMode]);
+
+  useEffect(() => {
+    if (!showDevToolsMenu && activeTab === 'dev') {
+      setActiveTab('schedule');
+    }
+  }, [showDevToolsMenu, activeTab]);
 
   // Read runtime app version (Tauri bundle version or web package version)
   useEffect(() => {
@@ -359,6 +369,7 @@ const App = () => {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         displayVersionLabel={displayVersionLabel}
+        showDevToolsMenu={showDevToolsMenu}
       />
 
       {/* ─── Main area ──────────────────────────────────────────── */}
@@ -464,6 +475,10 @@ const App = () => {
               onSaveShowDevBanner={saveShowDevBanner}
               devBannerSnoozeUntil={devBannerSnoozeUntil}
               onSaveDevBannerSnoozeUntil={saveDevBannerSnoozeUntil}
+              showDevToolsMenu={showDevToolsMenu}
+              onSaveShowDevToolsMenu={saveShowDevToolsMenu}
+              showExperimentalSettings={showExperimentalSettings}
+              onSaveShowExperimentalSettings={saveShowExperimentalSettings}
               onExportExcel={(mode) => guardedPrint(() => requestExportExcel(mode))}
               refreshData={refreshData}
               updateCascadeTrigger={updateCascadeTrigger}
@@ -471,7 +486,7 @@ const App = () => {
             />
           )}
           {activeTab === 'logs' && <AuditLogView key={workspaceVersion} />}
-          {activeTab === 'dev' && <DevTools refreshData={refreshData} />}
+          {showDevToolsMenu && activeTab === 'dev' && <DevTools refreshData={refreshData} />}
         </main>
 
         <footer className="app-footer no-print">

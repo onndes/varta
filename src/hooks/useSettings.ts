@@ -50,6 +50,8 @@ export const useSettings = () => {
   const [showDevBanner, setShowDevBanner] = useState(true);
   const [devBannerDismissedOn, setDevBannerDismissedOn] = useState<string | null>(null);
   const [devBannerSnoozeUntil, setDevBannerSnoozeUntil] = useState<string | null>(null);
+  const [showDevToolsMenu, setShowDevToolsMenu] = useState(false);
+  const [showExperimentalSettings, setShowExperimentalSettings] = useState(false);
   const [theme, setTheme] = useState<AppTheme>('light');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,8 @@ export const useSettings = () => {
         savedShowDevBanner,
         savedDevBannerDismissedOn,
         savedDevBannerSnoozeUntil,
+        savedShowDevToolsMenu,
+        savedShowExperimentalSettings,
       ] = await Promise.all([
         settingsService.getDayWeights(),
         settingsService.getSignatories(),
@@ -117,6 +121,8 @@ export const useSettings = () => {
         settingsService.getShowDevBanner(),
         settingsService.getDevBannerDismissedOn(),
         settingsService.getDevBannerSnoozeUntil(),
+        settingsService.getShowDevToolsMenu(),
+        settingsService.getShowExperimentalSettings(),
       ]);
 
       setDayWeights(weights);
@@ -139,6 +145,8 @@ export const useSettings = () => {
       setShowDevBanner(savedShowDevBanner);
       setDevBannerDismissedOn(savedDevBannerDismissedOn);
       setDevBannerSnoozeUntil(savedDevBannerSnoozeUntil);
+      setShowDevToolsMenu(savedShowDevToolsMenu);
+      setShowExperimentalSettings(savedShowExperimentalSettings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
       console.error('Error loading settings:', err);
@@ -234,6 +242,16 @@ export const useSettings = () => {
     setDevBannerSnoozeUntil,
     'Failed to save dev banner snooze date'
   );
+  const saveShowDevToolsMenu = makeSaver(
+    settingsService.saveShowDevToolsMenu,
+    setShowDevToolsMenu,
+    'Failed to save Dev menu setting'
+  );
+  const saveShowExperimentalSettings = makeSaver(
+    settingsService.saveShowExperimentalSettings,
+    setShowExperimentalSettings,
+    'Failed to save experimental settings visibility'
+  );
 
   // Update cascade trigger
   const updateCascadeTrigger = useCallback(
@@ -294,6 +312,8 @@ export const useSettings = () => {
     showDevBanner,
     devBannerDismissedOn,
     devBannerSnoozeUntil,
+    showDevToolsMenu,
+    showExperimentalSettings,
     theme,
     loading,
     error,
@@ -312,6 +332,8 @@ export const useSettings = () => {
     saveShowDevBanner,
     saveDevBannerDismissedOn,
     saveDevBannerSnoozeUntil,
+    saveShowDevToolsMenu,
+    saveShowExperimentalSettings,
     saveTheme,
     saveAutoScheduleOptions,
     saveMaxDebt,

@@ -163,6 +163,20 @@ export const getDevBannerSnoozeUntil = async (): Promise<string | null> =>
 export const saveDevBannerSnoozeUntil = async (value: string | null): Promise<void> =>
   saveSetting('devBannerSnoozeUntil', value);
 
+// ── Advanced UI visibility ───────────────────────────────────────────────────
+
+export const getShowDevToolsMenu = async (): Promise<boolean> =>
+  getJsonSetting('showDevToolsMenu', false);
+
+export const saveShowDevToolsMenu = async (value: boolean): Promise<void> =>
+  saveSetting('showDevToolsMenu', value);
+
+export const getShowExperimentalSettings = async (): Promise<boolean> =>
+  getJsonSetting('showExperimentalSettings', false);
+
+export const saveShowExperimentalSettings = async (value: boolean): Promise<void> =>
+  saveSetting('showExperimentalSettings', value);
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 const THEME_LS_KEY = 'varta-theme';

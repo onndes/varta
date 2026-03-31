@@ -27,6 +27,10 @@ interface InterfaceTabPanelProps {
   onSaveShowDevBanner: (value: boolean) => Promise<void>;
   devBannerSnoozeUntil: string | null;
   onSaveDevBannerSnoozeUntil: (value: string | null) => Promise<void>;
+  showDevToolsMenu: boolean;
+  onSaveShowDevToolsMenu: (value: boolean) => Promise<void>;
+  showExperimentalSettings: boolean;
+  onSaveShowExperimentalSettings: (value: boolean) => Promise<void>;
 }
 
 /**
@@ -44,6 +48,10 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
   onSaveShowDevBanner,
   devBannerSnoozeUntil,
   onSaveDevBannerSnoozeUntil,
+  showDevToolsMenu,
+  onSaveShowDevToolsMenu,
+  showExperimentalSettings,
+  onSaveShowExperimentalSettings,
 }) => {
   const todayStr = toLocalISO(new Date());
   const isSnoozed = Boolean(devBannerSnoozeUntil && todayStr <= devBannerSnoozeUntil);
@@ -188,6 +196,52 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
             </div>
           </div>
         )}
+      </div>
+    </div>
+
+    <div className="card shadow-sm border-0 mb-4">
+      <div className="card-header bg-white py-3">
+        <h5 className="mb-0 fw-bold">
+          <i className="fas fa-sliders-h me-2"></i>Додаткові розділи
+        </h5>
+      </div>
+      <div className="card-body">
+        <div className="alert alert-secondary py-2 small mb-3">
+          За замовчуванням ці розділи приховані, щоб інтерфейс залишався чистішим для звичайної
+          роботи.
+        </div>
+
+        <div className="form-check form-switch mb-3">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="showDevToolsMenu"
+            checked={showDevToolsMenu}
+            onChange={(e) => void onSaveShowDevToolsMenu(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="showDevToolsMenu">
+            <strong>Показувати пункт Dev у лівому меню</strong>
+            <div className="text-muted small">
+              Відкриває службовий розділ з Dev-інструментами в боковій навігації.
+            </div>
+          </label>
+        </div>
+
+        <div className="form-check form-switch">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="showExperimentalSettings"
+            checked={showExperimentalSettings}
+            onChange={(e) => void onSaveShowExperimentalSettings(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="showExperimentalSettings">
+            <strong>Показувати вкладку «Експериментальні» в налаштуваннях</strong>
+            <div className="text-muted small">
+              Відкриває окрему вкладку з нестандартними та тестовими параметрами алгоритму.
+            </div>
+          </label>
+        </div>
       </div>
     </div>
     </>

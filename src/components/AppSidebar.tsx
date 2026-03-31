@@ -24,6 +24,7 @@ interface AppSidebarProps {
   activeTab: string;
   onTabChange: (id: string) => void;
   displayVersionLabel: string;
+  showDevToolsMenu?: boolean;
 }
 
 /** Application sidebar with brand header, tab navigation, and collapse control. */
@@ -33,6 +34,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   activeTab,
   onTabChange,
   displayVersionLabel,
+  showDevToolsMenu = false,
 }) => (
   <aside className="app-sidebar no-print">
     <div className="app-sidebar__brand">
@@ -57,15 +59,16 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
           <span className="app-sidebar__label">{tab.label}</span>
         </button>
       ))}
-      {/* Dev tab — dimmed, separated from main nav */}
-      <button
-        className={`app-sidebar__item app-sidebar__item--dev ${activeTab === 'dev' ? 'app-sidebar__item--active' : ''}`}
-        onClick={() => onTabChange('dev')}
-        title="Dev tools"
-      >
-        <i className="fas fa-flask app-sidebar__icon"></i>
-        <span className="app-sidebar__label">Dev</span>
-      </button>
+      {showDevToolsMenu && (
+        <button
+          className={`app-sidebar__item app-sidebar__item--dev ${activeTab === 'dev' ? 'app-sidebar__item--active' : ''}`}
+          onClick={() => onTabChange('dev')}
+          title="Dev tools"
+        >
+          <i className="fas fa-flask app-sidebar__icon"></i>
+          <span className="app-sidebar__label">Dev</span>
+        </button>
+      )}
     </nav>
 
     <div className="app-sidebar__bottom">
