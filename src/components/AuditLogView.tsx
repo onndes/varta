@@ -99,7 +99,7 @@ const AuditLogView: React.FC = () => {
       filtered = logs.filter((l) => settingsActions.has(l.action));
     }
     return filtered.slice(0, limit);
-  }, [logs, filter, limit, scheduleActions, userActions]);
+  }, [logs, filter, limit, scheduleActions, userActions, settingsActions]);
 
   const stats = useMemo(() => {
     const counts: Record<string, number> = {};

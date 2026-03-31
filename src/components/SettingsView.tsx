@@ -1,5 +1,5 @@
 // src/components/SettingsView.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type {
   DayWeights,
   Signatories,
@@ -136,12 +136,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const visibleSubTabs = SUBTABS.filter(
     (tab) => tab.key !== 'experimental' || props.showExperimentalSettings
   );
-
-  useEffect(() => {
-    if (!props.showExperimentalSettings && subTab === 'experimental') {
-      setSubTab('logic');
-    }
-  }, [props.showExperimentalSettings, subTab]);
+  const currentSubTab =
+    !props.showExperimentalSettings && subTab === 'experimental' ? 'logic' : subTab;
 
   return (
     <div>
@@ -153,8 +149,9 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
               <button
                 className={[
                   'nav-link',
-                  subTab === key && 'active',
-                  muted && (subTab === key ? 'opacity-100' : 'text-secondary opacity-50 small'),
+                  currentSubTab === key && 'active',
+                  muted &&
+                    (currentSubTab === key ? 'opacity-100' : 'text-secondary opacity-50 small'),
                   dirtySections[key] && 'settings-subtab-dirty',
                 ]
                   .filter(Boolean)
@@ -181,7 +178,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
       </div>
 
       {/* Tab panels */}
-      {subTab === 'logic' && (
+      {currentSubTab === 'logic' && (
         <LogicTabPanel
           weights={weights}
           onWeightsChange={setWeights}
@@ -201,7 +198,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onResetAllKarma={handleResetAllKarma}
         />
       )}
-      {subTab === 'interface' && (
+      {currentSubTab === 'interface' && (
         <InterfaceTabPanel
           scale={scale}
           onScaleChange={setScale}
@@ -219,10 +216,10 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onSaveShowExperimentalSettings={props.onSaveShowExperimentalSettings}
         />
       )}
-      {props.showExperimentalSettings && subTab === 'experimental' && (
+      {props.showExperimentalSettings && currentSubTab === 'experimental' && (
         <ExperimentalTabPanel autoOpts={autoOpts} onAutoOptsChange={setAutoOpts} />
       )}
-      {subTab === 'print' && (
+      {currentSubTab === 'print' && (
         <PrintTabPanel
           sigs={sigs}
           onSigsChange={setSigs}
