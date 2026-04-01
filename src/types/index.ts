@@ -57,6 +57,7 @@ export interface User {
   status: UserStatus;
   statusFrom?: string;
   statusTo?: string;
+  isPersonnel?: boolean; // true = особа є в загальному о/с; undefined/false = не додана
   isActive: boolean; // Full participation (if false - user is absent, shown gray in separate tab)
   excludeFromAuto?: boolean; // Exclude from automatic scheduling (manual assignment only)
   note?: string;

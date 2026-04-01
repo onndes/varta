@@ -11,7 +11,7 @@ type VartaDB = Dexie & {
 
 const STORES_V9 = {
   users:
-    '++id, name, rank, status, statusFrom, statusTo, isActive, note, debt, restBeforeStatus, restAfterStatus, blockedDays, owedDays, isExtra, dateAddedToAuto, excludeFromAuto',
+    '++id, name, rank, status, statusFrom, statusTo, isActive, note, debt, restBeforeStatus, restAfterStatus, blockedDays, owedDays, isExtra, dateAddedToAuto, excludeFromAuto, isPersonnel',
   schedule: 'date, userId, type, isLocked',
   auditLog: '++id, timestamp, action',
   appState: 'key, value',
@@ -24,6 +24,7 @@ export function createDatabase(name: string): VartaDB {
   d.version(7).stores(STORES_V9);
   d.version(8).stores(STORES_V9);
   d.version(9).stores(STORES_V9);
+  d.version(10).stores(STORES_V9);
 
   return d;
 }

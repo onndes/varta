@@ -41,6 +41,7 @@ export const useUsersActions = ({
         name,
         rank,
         status: 'ACTIVE',
+        isPersonnel: true,
         isActive: true,
         excludeFromAuto: false,
         note,

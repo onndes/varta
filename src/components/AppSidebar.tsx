@@ -12,7 +12,8 @@ interface NavTab {
 /** Tabs shown in the sidebar navigation. */
 const NAV_TABS: NavTab[] = [
   { id: 'schedule', icon: 'fa-calendar-alt', label: 'Графік' },
-  { id: 'users', icon: 'fa-users', label: 'Особовий склад' },
+  { id: 'users', icon: 'fa-users', label: 'Чергові' },
+  { id: 'personnel', icon: 'fa-id-card', label: 'Особовий склад' },
   { id: 'stats', icon: 'fa-chart-bar', label: 'Статистика' },
   { id: 'settings', icon: 'fa-cog', label: 'Налаштування' },
   { id: 'logs', icon: 'fa-history', label: 'Журнал' },

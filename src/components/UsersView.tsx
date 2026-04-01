@@ -66,15 +66,17 @@ const UsersView: React.FC<UsersViewProps> = ({
     onAddDone: () => setShowAddModal(false),
   });
 
+  const dutyUsers = useMemo(() => users.filter((u) => u.isPersonnel !== false), [users]);
+
   const sortedActiveUsers = useMemo(() => {
-    const active = users.filter((u) => u.isActive);
+    const active = dutyUsers.filter((u) => u.isActive);
     return sortKey ? sortUsersBy(active, sortKey, sortDir) : active;
-  }, [users, sortKey, sortDir]);
+  }, [dutyUsers, sortKey, sortDir]);
 
   const sortedInactiveUsers = useMemo(() => {
-    const inactive = users.filter((u) => !u.isActive);
+    const inactive = dutyUsers.filter((u) => !u.isActive);
     return sortKey ? sortUsersBy(inactive, sortKey, sortDir) : inactive;
-  }, [users, sortKey, sortDir]);
+  }, [dutyUsers, sortKey, sortDir]);
 
   const activeCount = sortedActiveUsers.length;
   const inactiveCount = sortedInactiveUsers.length;
@@ -86,17 +88,17 @@ const UsersView: React.FC<UsersViewProps> = ({
         <div className="d-flex align-items-center gap-2">
           <h5 className="mb-0 fw-bold">
             <i className="fas fa-users me-2 text-primary"></i>
-            Особовий склад
+            Чергові
           </h5>
           <span
             className="badge bg-primary bg-opacity-10 text-primary"
             style={{ fontSize: '0.75rem' }}
           >
-            {activeCount} {activeCount === 1 ? 'особа' : activeCount < 5 ? 'особи' : 'осіб'}
+            {activeCount} {activeCount === 1 ? 'черговий' : activeCount < 5 ? 'чергових' : 'чергових'}
           </span>
         </div>
         <button className="btn btn-success btn-sm" onClick={() => setShowAddModal(true)}>
-          <i className="fas fa-user-plus me-1"></i>Додати особу
+          <i className="fas fa-user-plus me-1"></i>Додати чергового
         </button>
       </div>
 
@@ -118,7 +120,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                       className="btn btn-outline-success btn-sm mt-2"
                       onClick={() => setShowAddModal(true)}
                     >
-                      Додати першу особу
+                      Додати першого чергового
                     </button>
                   </td>
                 </tr>
@@ -127,7 +129,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                   <UserRow
                     key={u.id}
                     user={u}
-                    allUsers={users}
+                    allUsers={dutyUsers}
                     rowNumber={idx + 1}
                     onEdit={handleStartEdit}
                     onDelete={handleDelete}
@@ -160,7 +162,7 @@ const UsersView: React.FC<UsersViewProps> = ({
                   <UserRow
                     key={u.id}
                     user={u}
-                    allUsers={users}
+                    allUsers={dutyUsers}
                     rowNumber={idx + 1}
                     onEdit={handleStartEdit}
                     onDelete={handleDelete}
@@ -177,7 +179,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       <Modal
         show={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title="Додати нову особу"
+        title="Додати нового чергового"
         size="modal-sm"
       >
         <AddUserForm onAdd={handleAdd} />
@@ -187,7 +189,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         <EditUserModal
           user={editingUser}
           onChange={setEditingUser}
-          onClose={() => handleCloseEditModal(users)}
+          onClose={() => handleCloseEditModal(dutyUsers)}
           onSave={() => handleSaveDirectly()}
           isSaving={isApplyingEdit}
           computedFairnessDate={(() => {
@@ -195,7 +197,7 @@ const UsersView: React.FC<UsersViewProps> = ({
             return dates[0] || toLocalISO(new Date());
           })()}
           firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
-          allUsers={users}
+          allUsers={dutyUsers}
         />
       )}
 
@@ -214,7 +216,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       {viewStatsUser && (
         <UserStatsModal
           user={viewStatsUser}
-          users={users}
+          users={dutyUsers}
           schedule={schedule}
           dayWeights={dayWeights}
           onClose={() => setViewStatsUser(null)}

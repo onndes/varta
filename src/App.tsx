@@ -14,6 +14,7 @@ import Header from './components/Header';
 import BackupAlert from './components/BackupAlert';
 import ScheduleView from './components/ScheduleView';
 import UsersView from './components/UsersView';
+import PersonnelView from './components/PersonnelView';
 import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import DevTools from './components/DevTools';
@@ -104,6 +105,7 @@ const App = () => {
     logAction,
   } = useExport();
   const hasData = users.length > 0 || Object.keys(schedule).length > 0;
+  const dutyUsers = useMemo(() => users.filter((user) => user.isPersonnel !== false), [users]);
 
   const loading = usersLoading || scheduleLoading;
 
@@ -421,7 +423,7 @@ const App = () => {
           )}
           {activeTab === 'users' && (
             <UsersView
-              users={users}
+              users={dutyUsers}
               schedule={schedule}
               refreshData={refreshData}
               logAction={logAction}
@@ -429,9 +431,18 @@ const App = () => {
               updateCascadeTrigger={updateCascadeTrigger}
             />
           )}
+          {activeTab === 'personnel' && (
+            <PersonnelView
+              users={users}
+              schedule={schedule}
+              refreshData={refreshData}
+              logAction={logAction}
+              updateCascadeTrigger={updateCascadeTrigger}
+            />
+          )}
           {activeTab === 'stats' && (
             <StatsView
-              users={users}
+              users={dutyUsers}
               schedule={schedule}
               dayWeights={dayWeights}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
