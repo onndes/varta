@@ -45,18 +45,10 @@ import { FILTER_PHRASES } from './decisionPhrases';
 
 /** Track a filter step for the enhanced decision log pipeline. */
 const trackFilterStep = (name: string, prePool: User[], postPool: User[]): FilterStepResult => {
-  const preIds = new Set(prePool.map((u) => u.id!));
   const postIds = new Set(postPool.map((u) => u.id!));
   const eliminated = prePool
     .filter((u) => !postIds.has(u.id!))
     .map((u) => ({ userId: u.id!, userName: u.name }));
-  const wasFallback =
-    eliminated.length === 0 &&
-    prePool.length === postPool.length &&
-    prePool.length > 0 &&
-    prePool.some((u) => !postIds.has(u.id!)) === false &&
-    postPool.length === prePool.length &&
-    preIds.size === postIds.size;
   return {
     filterName: name,
     inputCount: prePool.length,
