@@ -38,35 +38,42 @@ export const useUserEditFlow = ({
   const saveEditedUser = useCallback(
     async (user: User) => {
       if (!user.id) return;
+      const userId = user.id;
+      const originalUser = await userService.getUserById(userId);
+      const safeUser = {
+        ...user,
+        isDutyMember: user.isDutyMember ?? originalUser?.isDutyMember ?? originalUser?.isActive ?? false,
+      };
       const todayStr = toLocalISO(new Date());
-      const normalizedPeriods = getUserStatusPeriods(user);
-      const currentPeriod = getStatusPeriodAtDate(user, todayStr);
-      const nextPeriod = getFutureStatusPeriods(user, todayStr)[0];
+      const normalizedPeriods = getUserStatusPeriods(safeUser);
+      const currentPeriod = getStatusPeriodAtDate(safeUser, todayStr);
+      const nextPeriod = getFutureStatusPeriods(safeUser, todayStr)[0];
       const legacyPeriod = currentPeriod || null;
       const legacyRestBefore = legacyPeriod?.restBefore || false;
       const legacyRestAfter = legacyPeriod?.restAfter || false;
 
-      await userService.updateUser(user.id, {
-        name: user.name,
-        rank: user.rank,
+      await userService.updateUser(userId, {
+        name: safeUser.name,
+        rank: safeUser.rank,
         status: legacyPeriod ? legacyPeriod.status : 'ACTIVE',
         statusFrom: legacyPeriod ? legacyPeriod.from : undefined,
         statusTo: legacyPeriod ? legacyPeriod.to : undefined,
-        isActive: user.isActive,
-        excludeFromAuto: user.excludeFromAuto,
-        note: user.note,
+        isDutyMember: safeUser.isDutyMember,
+        isActive: safeUser.isActive,
+        excludeFromAuto: safeUser.excludeFromAuto,
+        note: safeUser.note,
         restBeforeStatus: legacyRestBefore,
         restAfterStatus: legacyRestAfter,
-        blockedDays: user.blockedDays,
-        blockedDaysFrom: user.blockedDaysFrom,
-        blockedDaysTo: user.blockedDaysTo,
-        blockedDaysComment: user.blockedDaysComment,
+        blockedDays: safeUser.blockedDays,
+        blockedDaysFrom: safeUser.blockedDaysFrom,
+        blockedDaysTo: safeUser.blockedDaysTo,
+        blockedDaysComment: safeUser.blockedDaysComment,
         statusComment: legacyPeriod?.status === 'ABSENT' ? legacyPeriod.comment : undefined,
         statusPeriods: normalizedPeriods,
-        dateAddedToAuto: user.dateAddedToAuto,
-        birthday: user.birthday,
+        dateAddedToAuto: safeUser.dateAddedToAuto,
+        birthday: safeUser.birthday,
       });
-      await userService.syncUserIncompatibility(user.id, user.incompatibleWith);
+      await userService.syncUserIncompatibility(userId, safeUser.incompatibleWith);
 
       if (legacyPeriod?.from) {
         await updateCascadeTrigger(legacyPeriod.from);

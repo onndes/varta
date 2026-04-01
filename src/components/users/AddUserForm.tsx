@@ -1,21 +1,37 @@
 import React, { useState } from 'react';
+import type { User } from '../../types';
 import { RANKS } from '../../utils/constants';
+import { isDuplicateName } from '../../services/importPersonnelFromExcelService';
 
 interface AddUserFormProps {
   onAdd: (name: string, rank: string, note: string) => Promise<void>;
+  existingUsers?: User[];
 }
 
-const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd }) => {
+const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd, existingUsers }) => {
   const [name, setName] = useState('');
   const [rank, setRank] = useState('Солдат');
   const [note, setNote] = useState('');
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+
+  const submitUser = async (forceDuplicate = false) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    if (!forceDuplicate && existingUsers && isDuplicateName(trimmedName, existingUsers)) {
+      setShowDuplicateWarning(true);
+      return;
+    }
+
+    await onAdd(trimmedName, rank, note.trim());
+    setName('');
+    setNote('');
+    setShowDuplicateWarning(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    await onAdd(name, rank, note);
-    setName('');
-    setNote('');
+    await submitUser();
   };
 
   return (
@@ -39,11 +55,20 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd }) => {
         <input
           className="form-control form-control-sm"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setShowDuplicateWarning(false);
+          }}
           placeholder="ШЕВЧЕНКО Тарас Григорович"
           required
           autoFocus
         />
+        {showDuplicateWarning && (
+          <div className="text-warning small mt-1">
+            <i className="fas fa-exclamation-triangle me-1"></i>
+            Можливо, така особа вже є в списку. Все одно додати?
+          </div>
+        )}
       </div>
       <div className="mb-3">
         <label className="form-label small fw-medium">Посада / Примітка</label>
@@ -54,9 +79,29 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd }) => {
           placeholder="Необов'язково"
         />
       </div>
-      <button className="btn btn-success w-100" disabled={!name.trim()}>
-        <i className="fas fa-user-plus me-1"></i>Додати
-      </button>
+      {showDuplicateWarning ? (
+        <div className="d-flex gap-2">
+          <button
+            type="button"
+            className="btn btn-warning btn-sm flex-grow-1"
+            onClick={() => void submitUser(true)}
+          >
+            <i className="fas fa-exclamation-circle me-1"></i>
+            Все одно додати
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-secondary btn-sm"
+            onClick={() => setShowDuplicateWarning(false)}
+          >
+            Скасувати
+          </button>
+        </div>
+      ) : (
+        <button className="btn btn-success w-100" disabled={!name.trim()}>
+          <i className="fas fa-user-plus me-1"></i>Додати
+        </button>
+      )}
     </form>
   );
 };

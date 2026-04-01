@@ -66,7 +66,15 @@ const UsersView: React.FC<UsersViewProps> = ({
     onAddDone: () => setShowAddModal(false),
   });
 
-  const dutyUsers = useMemo(() => users.filter((u) => u.isPersonnel !== false), [users]);
+  const dutyUsers = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          u.isDutyMember === true ||
+          (u.isDutyMember === undefined && u.isPersonnel !== false)
+      ),
+    [users]
+  );
 
   const sortedActiveUsers = useMemo(() => {
     const active = dutyUsers.filter((u) => u.isActive);

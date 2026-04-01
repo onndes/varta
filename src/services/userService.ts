@@ -51,18 +51,29 @@ const wasPrevDayAssigned = (
  * Service for managing users
  */
 
+const normalizeUserRecord = (user: User): User => {
+  const isDutyMember = user.isDutyMember === undefined ? user.isActive === true : user.isDutyMember;
+  return {
+    ...user,
+    isDutyMember,
+    isActive: isDutyMember ? user.isActive : false,
+  };
+};
+
 /**
  * Get all users
  */
 export const getAllUsers = async (): Promise<User[]> => {
-  return await db.users.toArray();
+  const rawUsers = await db.users.toArray();
+  return rawUsers.map(normalizeUserRecord);
 };
 
 /**
  * Get user by ID
  */
 export const getUserById = async (id: number): Promise<User | undefined> => {
-  return await db.users.get(id);
+  const user = await db.users.get(id);
+  return user ? normalizeUserRecord(user) : undefined;
 };
 
 /**
@@ -72,6 +83,9 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<number | undef
   const nextUser = { ...user };
   if (nextUser.isPersonnel === undefined) {
     delete nextUser.isPersonnel;
+  }
+  if (nextUser.isDutyMember === undefined) {
+    delete nextUser.isDutyMember;
   }
   return await db.users.add(nextUser);
 };

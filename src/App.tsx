@@ -105,7 +105,15 @@ const App = () => {
     logAction,
   } = useExport();
   const hasData = users.length > 0 || Object.keys(schedule).length > 0;
-  const dutyUsers = useMemo(() => users.filter((user) => user.isPersonnel !== false), [users]);
+  const dutyUsers = useMemo(
+    () =>
+      users.filter(
+        (user) =>
+          user.isDutyMember === true ||
+          (user.isDutyMember === undefined && user.isPersonnel !== false)
+      ),
+    [users]
+  );
 
   const loading = usersLoading || scheduleLoading;
 

@@ -4,6 +4,7 @@ import * as userService from '../services/userService';
 import { useDialog } from './useDialog';
 import Modal from './Modal';
 import AddUserForm from './users/AddUserForm';
+import ImportPersonnelModal from './users/ImportPersonnelModal';
 import { toLocalISO } from '../utils/dateUtils';
 import { compareByRankAndName } from '../utils/helpers';
 
@@ -19,6 +20,7 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
   const { users, refreshData, logAction, updateCascadeTrigger } = props;
   const { showConfirm } = useDialog();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<'rank' | 'name'>('rank');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -79,18 +81,20 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
   const handleToggleInDuty = async (user: User) => {
     if (!user.id) return;
 
-    if (user.isPersonnel !== false && user.isActive) {
-      await userService.updateUser(user.id, { isPersonnel: false, isActive: false });
-      await logAction('EDIT', `${user.name}: прибрано з черги`);
+    if (user.isDutyMember === true) {
+      await userService.updateUser(user.id, {
+        isDutyMember: false,
+        isActive: false,
+      });
+      await logAction('EDIT', `${user.name}: прибрано зі складу чергових`);
     } else {
       const todayStr = toLocalISO(new Date());
-      const dateAddedToAuto = user.dateAddedToAuto || todayStr;
       await userService.updateUser(user.id, {
-        isPersonnel: true,
-        isActive: true,
-        dateAddedToAuto,
+        isDutyMember: true,
+        isActive: false,
+        dateAddedToAuto: user.dateAddedToAuto || todayStr,
       });
-      await logAction('EDIT', `${user.name}: додано до черги`);
+      await logAction('EDIT', `${user.name}: додано до складу чергових`);
     }
 
     await updateCascadeTrigger(toLocalISO(new Date()));
@@ -103,6 +107,7 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
       rank,
       note,
       status: 'ACTIVE',
+      isDutyMember: false,
       isActive: false,
       isPersonnel: true,
       excludeFromAuto: false,
@@ -128,7 +133,8 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
     setSelectedUserId((current) => (current === user.id ? null : current));
   };
 
-  const inDutyCount = users.filter((user) => user.isPersonnel !== false && user.isActive).length;
+  const dutyMemberCount = users.filter((user) => user.isDutyMember).length;
+  const activeDutyCount = users.filter((user) => user.isDutyMember && user.isActive).length;
   const hasQuery = searchQuery.trim().length > 0;
 
   return (
@@ -160,6 +166,14 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
           >
             <i className="fas fa-plus me-1"></i>
             Додати
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-success btn-sm"
+            onClick={() => setShowImportModal(true)}
+          >
+            <i className="fas fa-file-excel me-1"></i>
+            Імпорт з Excel
           </button>
           <button
             type="button"
@@ -228,7 +242,8 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
                 filteredUsers.map((user, index) => {
                   const { surname, rest } = splitName(user.name);
                   const isSelected = selectedUser?.id === user.id;
-                  const isInDutyQueue = user.isActive && user.isPersonnel !== false;
+                  const isInDutyRoster = user.isDutyMember === true;
+                  const isInactiveDutyMember = user.isDutyMember === true && !user.isActive;
 
                   return (
                     <tr
@@ -259,17 +274,32 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
                       <td>{formatBirthday(user.birthday)}</td>
                       <td className="text-center">
                         <div
-                          className="form-check form-switch d-inline-flex justify-content-center"
+                          className="d-inline-flex flex-column align-items-center justify-content-center gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            role="switch"
-                            checked={isInDutyQueue}
-                            onChange={() => void handleToggleInDuty(user)}
-                            title={isInDutyQueue ? 'Прибрати з черги' : 'Додати до черги'}
-                          />
+                          <div className="form-check form-switch m-0">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              role="switch"
+                              checked={isInDutyRoster}
+                              onChange={() => void handleToggleInDuty(user)}
+                              title={
+                                isInDutyRoster
+                                  ? 'Прибрати зі складу чергових'
+                                  : 'Додати до складу чергових'
+                              }
+                            />
+                          </div>
+                          {isInactiveDutyMember && (
+                            <span
+                              className="text-muted"
+                              style={{ fontSize: '0.7rem', opacity: 0.6 }}
+                              title="Черговий тимчасово неактивний"
+                            >
+                              <i className="fas fa-pause-circle me-1"></i>неактивний
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="text-end">
@@ -293,7 +323,7 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
           </table>
         </div>
         <div className="card-footer bg-white text-muted small">
-          Всього: {users.length} | В черзі: {inDutyCount}
+          Всього: {users.length} | Чергових: {dutyMemberCount} | Активних: {activeDutyCount}
         </div>
       </div>
 
@@ -303,8 +333,19 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
         title="Додати особу"
         size="modal-sm"
       >
-        <AddUserForm onAdd={handleAddPersonnel} />
+        <AddUserForm onAdd={handleAddPersonnel} existingUsers={users} />
       </Modal>
+
+      <ImportPersonnelModal
+        show={showImportModal}
+        existingUsers={users}
+        onClose={() => setShowImportModal(false)}
+        onImported={async (count) => {
+          setShowImportModal(false);
+          await refreshData();
+          await logAction('IMPORT_EXCEL', `Імпортовано з Excel: ${count} осіб`);
+        }}
+      />
     </div>
   );
 };
