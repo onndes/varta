@@ -52,7 +52,9 @@ const wasPrevDayAssigned = (
  */
 
 const normalizeUserRecord = (user: User): User => {
-  const isDutyMember = user.isDutyMember === undefined ? user.isActive === true : user.isDutyMember;
+  // Legacy users have no isDutyMember field in DB — default to true (they were always duty members).
+  // Only users explicitly created with isDutyMember: false (pure personnel) should be excluded.
+  const isDutyMember = user.isDutyMember ?? true;
   return {
     ...user,
     isDutyMember,
