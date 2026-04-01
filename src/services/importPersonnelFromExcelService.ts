@@ -188,13 +188,13 @@ export function isDataRow(rawName: unknown): boolean {
   if (s === '') return false;
   if (s.length < 2) return false;
 
-  if (/^[\d\s.,;:\-\/\\()№#]+$/.test(s)) return false;
+  if (/^[\d\s.,;:\-/\\()№#]+$/.test(s)) return false;
 
   const lower = s.toLowerCase();
 
   if (HEADER_MARKERS.some((marker) => lower.includes(marker))) return false;
 
-  if (/^\d+[\.\)]\s*/.test(s) && s.replace(/^\d+[\.\)]\s*/, '').trim().length < 3) return false;
+  if (/^\d+[.)]\s*/.test(s) && s.replace(/^\d+[.)]\s*/, '').trim().length < 3) return false;
 
   if (!/[а-яёіїєґА-ЯЁІЇЄҐ]/.test(s)) return false;
 
