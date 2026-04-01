@@ -101,11 +101,17 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
     await refreshData();
   };
 
-  const handleAddPersonnel = async (name: string, rank: string, note: string) => {
+  const handleAddPersonnel = async (
+    name: string,
+    rank: string,
+    note: string,
+    birthday?: string
+  ) => {
     await userService.createUser({
       name,
       rank,
       note,
+      birthday,
       status: 'ACTIVE',
       isDutyMember: false,
       isActive: false,

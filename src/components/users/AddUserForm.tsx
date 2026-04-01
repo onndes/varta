@@ -4,7 +4,7 @@ import { RANKS } from '../../utils/constants';
 import { isDuplicateName } from '../../services/importPersonnelFromExcelService';
 
 interface AddUserFormProps {
-  onAdd: (name: string, rank: string, note: string) => Promise<void>;
+  onAdd: (name: string, rank: string, note: string, birthday?: string) => Promise<void>;
   existingUsers?: User[];
 }
 
@@ -12,6 +12,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd, existingUsers }) => {
   const [name, setName] = useState('');
   const [rank, setRank] = useState('Солдат');
   const [note, setNote] = useState('');
+  const [birthday, setBirthday] = useState('');
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
   const submitUser = async (forceDuplicate = false) => {
@@ -23,9 +24,10 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd, existingUsers }) => {
       return;
     }
 
-    await onAdd(trimmedName, rank, note.trim());
+    await onAdd(trimmedName, rank, note.trim(), birthday || undefined);
     setName('');
     setNote('');
+    setBirthday('');
     setShowDuplicateWarning(false);
   };
 
@@ -78,6 +80,16 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ onAdd, existingUsers }) => {
           onChange={(e) => setNote(e.target.value)}
           placeholder="Необов'язково"
         />
+      </div>
+      <div className="mb-3">
+        <label className="form-label small fw-medium">Дата народження</label>
+        <input
+          type="date"
+          className="form-control form-control-sm"
+          value={birthday}
+          onChange={(e) => setBirthday(e.target.value)}
+        />
+        <div className="form-text small">Необов'язково. Використовується для блокування наряду в день народження.</div>
       </div>
       {showDuplicateWarning ? (
         <div className="d-flex gap-2">

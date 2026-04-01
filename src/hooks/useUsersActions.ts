@@ -25,7 +25,7 @@ export const useUsersActions = ({
   const { showConfirm } = useDialog();
 
   const handleAdd = useCallback(
-    async (name: string, rank: string, note: string) => {
+    async (name: string, rank: string, note: string, birthday?: string) => {
       const scheduleDates = Object.keys(schedule).sort();
       const lastScheduleDate = scheduleDates[scheduleDates.length - 1];
       const todayStr = toLocalISO(new Date());
@@ -53,6 +53,7 @@ export const useUsersActions = ({
         restAfterStatus: false,
         owedDays: {},
         dateAddedToAuto,
+        birthday,
       });
       await logAction('ADD', `Додано: ${name}`);
       await refreshData();

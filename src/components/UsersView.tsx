@@ -190,7 +190,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         title="Додати нового чергового"
         size="modal-sm"
       >
-        <AddUserForm onAdd={handleAdd} />
+        <AddUserForm onAdd={handleAdd} existingUsers={dutyUsers} />
       </Modal>
 
       {editingUser && !pendingEditReview && (
