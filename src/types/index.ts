@@ -1,6 +1,5 @@
 // src/types/index.ts
 
-/** Режим друку: календар / таблиця чергувань / тижневий календар / довідка по складу */
 export type PrintMode = 'calendar' | 'duty-table' | 'week-calendar-table' | 'status-list';
 export type ScheduleDocumentMode = Exclude<PrintMode, 'status-list'>;
 
@@ -134,6 +133,83 @@ export interface DecisionLogSection {
   items: string[];
 }
 
+// ─── Enhanced Decision Log types ─────────────────────────────────────────
+
+/** Filter pipeline step result — one per filter applied during candidate selection. */
+export interface FilterStepResult {
+  filterName: string;
+  inputCount: number;
+  outputCount: number;
+  eliminated: { userId: number; userName: string }[];
+  reason: string;
+  wasFallback: boolean;
+}
+
+/** Full metrics for a candidate in the selection table. */
+export interface CandidateRow {
+  userId: number;
+  userName: string;
+  rank: string;
+  dowCount: number;
+  weeklyCount: number;
+  waitDays: number;
+  loadRate: number;
+  sameDowPenalty: number;
+  crossDowGuard: number;
+  debt: number;
+  status: 'winner' | 'soft-eliminated' | 'hard-eliminated' | 'filter-eliminated';
+  eliminatedByFilter?: string;
+  eliminatedReason?: string;
+}
+
+/** Detailed metrics for the winning candidate. */
+export interface UserMetricsFull {
+  dowCount: number;
+  dowSSE: number;
+  sameDowPenalty: number;
+  crossDowGuard: number;
+  weeklyCount: number;
+  dowRecency: number;
+  loadRate: number;
+  waitDays: number;
+  debt: number;
+  avgLoadRate: number;
+  avgDowCount: number;
+  winningCriterion: string;
+  winningCriterionDelta: number;
+}
+
+/** Week context information — who does what this week. */
+export interface WeekContext {
+  weekFrom: string;
+  weekTo: string;
+  userDutiesThisWeek: number;
+  groupDutiesThisWeek: Record<number, number>;
+  isSecondDutyThisWeek: boolean;
+  isThirdOrMoreDutyThisWeek: boolean;
+  whyExtraDutyAllowed: string | null;
+}
+
+/** Anomaly flag for noteworthy situations. */
+export interface AnomalyFlag {
+  code: string;
+  severity: 'info' | 'warning' | 'critical';
+  humanText: string;
+  adminText: string;
+  relatedValue?: number;
+}
+
+/** Comparator criterion value snapshot for a single candidate. */
+export interface ComparatorCriterion {
+  priority: number;
+  name: string;
+  description: string;
+  value: number | string;
+  isActive: boolean;
+  isDecisive?: boolean;
+  isAnomalous?: boolean;
+}
+
 /** Full decision log attached to a ScheduleEntry after auto-fill. */
 export interface DecisionLog {
   /** Human-readable explanation for end users. */
@@ -162,6 +238,22 @@ export interface DecisionLog {
     alternatives: CandidateSnapshot[];
     globalObjective_Z?: number;
   };
+  /** Filter pipeline steps (enhanced decision log). */
+  filterPipeline?: FilterStepResult[];
+  /** Full candidate table with all metrics (enhanced decision log). */
+  candidateTable?: CandidateRow[];
+  /** Detailed metrics for the assigned user (enhanced decision log). */
+  assignedMetrics?: UserMetricsFull;
+  /** Week context — duties this week for all users (enhanced decision log). */
+  weekContext?: WeekContext;
+  /** Anomaly flags for noteworthy situations (enhanced decision log). */
+  anomalyFlags?: AnomalyFlag[];
+  /** Comparator criteria values for the assigned user (enhanced decision log). */
+  comparatorCriteria?: ComparatorCriterion[];
+  /** Day-of-week weight for the assigned date. */
+  dayWeight?: number;
+  /** Whether the entry was changed by swap optimization after the greedy pass. */
+  wasSwapOptimized?: boolean;
 }
 
 export interface ScheduleEntry {

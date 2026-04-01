@@ -220,6 +220,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   index={idx}
                   weekDates={weekDates}
                   schedule={schedule}
+                  allUsers={users}
                   todayStr={todayStr}
                   historyMode={historyMode}
                   dowHistoryWeeks={dowHistoryWeeks}

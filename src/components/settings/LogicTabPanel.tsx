@@ -24,9 +24,16 @@ const DEBT_DEFAULT = 4;
 // Day-of-week render order: Mon–Sat then Sun
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
+export type WeightApplyMode = 'next-only' | 'recalculate-all' | 'recalculate-from';
+
 interface LogicTabPanelProps {
   weights: DayWeights;
   onWeightsChange: (w: DayWeights) => void;
+  weightApplyMode: WeightApplyMode;
+  onWeightApplyModeChange: (m: WeightApplyMode) => void;
+  weightApplyDate: string;
+  onWeightApplyDateChange: (d: string) => void;
+  weightsChanged: boolean;
   perDay: number;
   onPerDayChange: (n: number) => void;
   autoOpts: AutoScheduleOptions;
@@ -50,6 +57,11 @@ interface LogicTabPanelProps {
 const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
   weights,
   onWeightsChange,
+  weightApplyMode,
+  onWeightApplyModeChange,
+  weightApplyDate,
+  onWeightApplyDateChange,
+  weightsChanged,
   perDay,
   onPerDayChange,
   autoOpts,
@@ -109,6 +121,65 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
         <div className="mt-3 text-muted small">
           Нові ваги будуть застосовані після натискання загальної кнопки збереження внизу сторінки.
         </div>
+        {weightsChanged && (
+          <div className="mt-3 p-3 border rounded bg-white">
+            <label className="form-label fw-bold small mb-2">
+              <i className="fas fa-sync-alt me-1"></i>Як застосувати нові ваги?
+            </label>
+            <div className="d-flex flex-column gap-2">
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  id="wm-next"
+                  checked={weightApplyMode === 'next-only'}
+                  onChange={() => onWeightApplyModeChange('next-only')}
+                />
+                <label className="form-check-label small" htmlFor="wm-next">
+                  <strong>Тільки для нових генерацій</strong> — ваги будуть застосовані при
+                  наступному авто-заповненні. Існуючий графік не зміниться.
+                </label>
+              </div>
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  id="wm-all"
+                  checked={weightApplyMode === 'recalculate-all'}
+                  onChange={() => onWeightApplyModeChange('recalculate-all')}
+                />
+                <label className="form-check-label small" htmlFor="wm-all">
+                  <strong>Перерахувати весь графік</strong> — система перебудує всі автоматичні
+                  чергування з новими вагами. Ручні та заблоковані залишаться.
+                </label>
+              </div>
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  id="wm-from"
+                  checked={weightApplyMode === 'recalculate-from'}
+                  onChange={() => onWeightApplyModeChange('recalculate-from')}
+                />
+                <label className="form-check-label small" htmlFor="wm-from">
+                  <strong>Перерахувати з дати</strong> — перебудувати графік починаючи з обраної
+                  дати.
+                </label>
+              </div>
+              {weightApplyMode === 'recalculate-from' && (
+                <div className="ms-4 mt-1">
+                  <input
+                    type="date"
+                    className="form-control form-control-sm"
+                    style={{ width: '180px' }}
+                    value={weightApplyDate}
+                    onChange={(e) => onWeightApplyDateChange(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
 

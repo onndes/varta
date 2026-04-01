@@ -129,6 +129,11 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     handleOpenDbModal,
     handleMaintenance,
     handleResetAllKarma,
+    weightApplyMode,
+    setWeightApplyMode,
+    weightApplyDate,
+    setWeightApplyDate,
+    weightsChanged,
   } = useSettingsForm(props);
   const dirtyTabLabels = (Object.entries(dirtySections) as Array<[SubTab, boolean]>)
     .filter(([, isDirty]) => isDirty)
@@ -182,6 +187,11 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
         <LogicTabPanel
           weights={weights}
           onWeightsChange={setWeights}
+          weightApplyMode={weightApplyMode}
+          onWeightApplyModeChange={setWeightApplyMode}
+          weightApplyDate={weightApplyDate}
+          onWeightApplyDateChange={setWeightApplyDate}
+          weightsChanged={weightsChanged}
           perDay={perDay}
           onPerDayChange={setPerDay}
           autoOpts={autoOpts}

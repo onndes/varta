@@ -1,7 +1,19 @@
 // src/services/autoScheduler/decisionLog.ts
 // Decision log builder for the auto-scheduler info button («i»).
 
-import type { User, ScheduleEntry, DecisionLog, CandidateSnapshot } from '../../types';
+import type {
+  User,
+  ScheduleEntry,
+  DecisionLog,
+  CandidateSnapshot,
+  FilterStepResult,
+  CandidateRow,
+  UserMetricsFull,
+  WeekContext,
+  AnomalyFlag,
+  ComparatorCriterion,
+  AutoScheduleOptions,
+} from '../../types';
 import { getUserAvailabilityStatus } from '../userService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { countUserDaysOfWeek } from '../scheduleService';
@@ -13,7 +25,11 @@ import {
   countUserAssignmentsInRange,
   countUnavailableDaysInRange,
   getLastAssignmentDate,
+  getWeekWindow,
+  getUserMaxDowCount,
+  getUserMinDowCount,
 } from './helpers';
+import { ANOMALY_PHRASES, COMPARATOR_CRITERIA, getExtraDutyReason } from './decisionPhrases';
 
 // ─── Decision Log Builder (Info Button «i») ──────────────────────────────────
 
@@ -113,7 +129,11 @@ export const buildDecisionLog = (
   poolSizes: DecisionLog['debug']['poolSizes'],
   alternatives: CandidateSnapshot[],
   week: { from: string; to: string },
-  allDates: string[]
+  allDates: string[],
+  filterPipelineInput?: FilterStepResult[],
+  allCandidates?: User[],
+  options?: AutoScheduleOptions,
+  dayWeight?: number
 ): DecisionLog => {
   const dowCount = countUserDaysOfWeek(assignedId, schedule)[dayIdx] || 0;
   const dowSSE = computeDowFairnessObjective(dayIdx, population, schedule, assignedId);
@@ -243,6 +263,15 @@ export const buildDecisionLog = (
     whyYou.push(
       `Також враховано борг з попередніх місяців — ${debtAbs} пропущених ` +
         `нарядів, які система поступово відпрацьовує.`
+    );
+  }
+
+  // Day weight info
+  if (dayWeight != null && dayWeight !== 1) {
+    const dowNomForWeight = DOW_NAMES_NOMINATIVE[dayIdx] || `день ${dayIdx}`;
+    whyYou.push(
+      `Вага цього дня (${dowNomForWeight}) — ${dayWeight.toFixed(2)}. ` +
+        `${dayWeight > 1 ? 'Це важчий день — нараховується більше балів.' : 'Це легший день — нараховується менше балів.'}`
     );
   }
 
@@ -449,6 +478,289 @@ export const buildDecisionLog = (
     textLines.push('');
   }
 
+  // ─── Build enhanced decision log data ──────────────────────────────
+  const filterPipeline = filterPipelineInput || [];
+
+  // Build candidate table from all candidates who went through the pipeline
+  const candidateTable: CandidateRow[] = [];
+  const candidatePool = allCandidates || allUsers;
+  const weekWindow = getWeekWindow(dateStr);
+
+  // Collect hard-eliminated from alternatives
+  const hardEliminated = new Set(
+    alternatives.filter((a) => a.rejectPhase === 'hardConstraint').map((a) => a.userId)
+  );
+  // Collect filter-eliminated from pipeline
+  const filterEliminated = new Map<number, string>();
+  for (const step of filterPipeline) {
+    for (const e of step.eliminated) {
+      if (!filterEliminated.has(e.userId)) {
+        filterEliminated.set(e.userId, step.filterName);
+      }
+    }
+  }
+
+  for (const u of candidatePool) {
+    if (!u.id) continue;
+    const isWinner = u.id === assignedId;
+    const isHardElim = hardEliminated.has(u.id);
+    const filterName = filterEliminated.get(u.id);
+    let status: CandidateRow['status'] = 'soft-eliminated';
+    if (isWinner) status = 'winner';
+    else if (isHardElim) status = 'hard-eliminated';
+    else if (filterName) status = 'filter-eliminated';
+
+    const uDowCount = countUserDaysOfWeek(u.id, schedule)[dayIdx] || 0;
+    const uWeeklyCount = countUserAssignmentsInRange(
+      u.id,
+      schedule,
+      weekWindow.from,
+      weekWindow.to
+    );
+    const uWaitDays = daysSinceLastAssignment(u.id, schedule, dateStr);
+    const uLoadRate = computeUserLoadRate(u.id, schedule, dateStr, allUsers);
+    const uSameDow = daysSinceLastSameDowAssignment(u.id, schedule, dateStr);
+    const uSameDowPenalty = uSameDow <= 7 ? 100 : uSameDow <= 14 ? 25 : uSameDow <= 21 ? 6.25 : 0;
+
+    const maxDow = getUserMaxDowCount(u.id, schedule, u.blockedDays);
+    const minDow = getUserMinDowCount(u.id, schedule, u.blockedDays);
+    let crossDowGuard = 0;
+    if (maxDow > minDow && uDowCount > minDow) {
+      crossDowGuard = 5000 + 2500 * (uDowCount - minDow + 1);
+    }
+
+    candidateTable.push({
+      userId: u.id,
+      userName: u.name,
+      rank: u.rank || '',
+      dowCount: uDowCount,
+      weeklyCount: uWeeklyCount,
+      waitDays: uWaitDays === Infinity ? -1 : uWaitDays,
+      loadRate: uLoadRate,
+      sameDowPenalty: uSameDowPenalty,
+      crossDowGuard,
+      debt: u.debt || 0,
+      status,
+      eliminatedByFilter: filterName,
+      eliminatedReason: isHardElim
+        ? (alternatives.find((a) => a.userId === u.id)?.rejectReason as string)
+        : filterName,
+    });
+  }
+
+  // Sort: winner first, then soft-eliminated, filter-eliminated, hard-eliminated
+  const statusOrder = {
+    winner: 0,
+    'soft-eliminated': 1,
+    'filter-eliminated': 2,
+    'hard-eliminated': 3,
+  };
+  candidateTable.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+  // Build assigned metrics
+  const maxDowW = getUserMaxDowCount(assignedId, schedule, user?.blockedDays);
+  const minDowW = getUserMinDowCount(assignedId, schedule, user?.blockedDays);
+  let assignedCrossDowGuard = 0;
+  if (maxDowW > minDowW && dowCount > minDowW) {
+    assignedCrossDowGuard = 5000 + 2500 * (dowCount - minDowW + 1);
+  }
+
+  const assignedMetrics: UserMetricsFull = {
+    dowCount,
+    dowSSE,
+    sameDowPenalty,
+    crossDowGuard: assignedCrossDowGuard,
+    weeklyCount,
+    dowRecency: sameDow === Infinity ? -1 : sameDow,
+    loadRate,
+    waitDays: waitDays === Infinity ? -1 : waitDays,
+    debt: user?.debt || 0,
+    avgLoadRate: avgRate,
+    avgDowCount: avgDow,
+    winningCriterion,
+    winningCriterionDelta: 0, // calculated below
+  };
+
+  // Calculate winning criterion delta (difference to next-best candidate)
+  if (alternatives.length > 0) {
+    const top = alternatives.find((a) => a.rejectPhase === 'comparator');
+    if (top?.metrics) {
+      if (winningCriterion === 'dowCount') {
+        assignedMetrics.winningCriterionDelta = top.metrics.dowCount - dowCount;
+      } else if (winningCriterion === 'sameDowPenalty') {
+        assignedMetrics.winningCriterionDelta = top.metrics.sameDowPenalty - sameDowPenalty;
+      } else if (winningCriterion === 'loadRate') {
+        assignedMetrics.winningCriterionDelta = top.metrics.loadRate - loadRate;
+      } else if (winningCriterion === 'waitDays') {
+        assignedMetrics.winningCriterionDelta = waitDays - top.metrics.waitDays;
+      }
+    }
+  }
+
+  // Build week context
+  const groupDutiesThisWeek: Record<number, number> = {};
+  for (const u of allUsers) {
+    if (!u.id) continue;
+    groupDutiesThisWeek[u.id] = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
+  }
+  const whyExtraDutyAllowed =
+    weeklyCount >= 2
+      ? getExtraDutyReason(
+          poolSizes.final,
+          poolSizes.initial,
+          (user?.debt || 0) < 0,
+          Math.abs(user?.debt || 0)
+        )
+      : null;
+
+  const weekContext: WeekContext = {
+    weekFrom: week.from,
+    weekTo: week.to,
+    userDutiesThisWeek: weeklyCount,
+    groupDutiesThisWeek,
+    isSecondDutyThisWeek: weeklyCount === 2,
+    isThirdOrMoreDutyThisWeek: weeklyCount >= 3,
+    whyExtraDutyAllowed,
+  };
+
+  // Build anomaly flags
+  const anomalyFlags: AnomalyFlag[] = [];
+
+  if (weeklyCount === 2) {
+    anomalyFlags.push({
+      code: 'SECOND_DUTY_WEEK',
+      severity: 'warning',
+      humanText: ANOMALY_PHRASES.SECOND_DUTY_WEEK.user(whyExtraDutyAllowed || ''),
+      adminText: ANOMALY_PHRASES.SECOND_DUTY_WEEK.admin(
+        poolSizes.final,
+        poolSizes.initial,
+        weeklyCount
+      ),
+      relatedValue: weeklyCount,
+    });
+  }
+  if (weeklyCount >= 3) {
+    anomalyFlags.push({
+      code: 'THIRD_DUTY_WEEK',
+      severity: 'critical',
+      humanText: ANOMALY_PHRASES.THIRD_DUTY_WEEK.user(whyExtraDutyAllowed || ''),
+      adminText: ANOMALY_PHRASES.THIRD_DUTY_WEEK.admin(
+        poolSizes.final,
+        poolSizes.initial,
+        weeklyCount
+      ),
+      relatedValue: weeklyCount,
+    });
+  }
+  if (sameDowPenalty >= 100) {
+    const dowName = DOW_NAMES_NOMINATIVE[dayIdx] || `день ${dayIdx}`;
+    anomalyFlags.push({
+      code: 'SAME_DOW_7D',
+      severity: 'warning',
+      humanText: ANOMALY_PHRASES.SAME_DOW_7D.user(dowName),
+      adminText: ANOMALY_PHRASES.SAME_DOW_7D.admin(sameDowPenalty),
+      relatedValue: sameDowPenalty,
+    });
+  } else if (sameDowPenalty >= 25) {
+    const dowName = DOW_NAMES_NOMINATIVE[dayIdx] || `день ${dayIdx}`;
+    anomalyFlags.push({
+      code: 'SAME_DOW_14D',
+      severity: 'info',
+      humanText: ANOMALY_PHRASES.SAME_DOW_14D.user(dowName, sameDow),
+      adminText: ANOMALY_PHRASES.SAME_DOW_14D.admin(sameDowPenalty),
+      relatedValue: sameDowPenalty,
+    });
+  }
+  if (avgRate > 0 && loadRate / avgRate > 1.3) {
+    anomalyFlags.push({
+      code: 'HIGH_LOAD_RATIO',
+      severity: 'warning',
+      humanText: ANOMALY_PHRASES.HIGH_LOAD_RATIO.user(Math.round((loadRate / avgRate - 1) * 100)),
+      adminText: ANOMALY_PHRASES.HIGH_LOAD_RATIO.admin(loadRate, avgRate),
+      relatedValue: loadRate / avgRate,
+    });
+  }
+  if (poolSizes.final === 1 && poolSizes.initial > 1) {
+    anomalyFlags.push({
+      code: 'ONLY_CANDIDATE',
+      severity: 'info',
+      humanText: ANOMALY_PHRASES.ONLY_CANDIDATE.user(poolSizes.initial),
+      adminText: ANOMALY_PHRASES.ONLY_CANDIDATE.admin(JSON.stringify(poolSizes)),
+    });
+  }
+  for (const step of filterPipeline) {
+    if (step.wasFallback) {
+      anomalyFlags.push({
+        code: 'FALLBACK_TRIGGERED',
+        severity: 'warning',
+        humanText: ANOMALY_PHRASES.FALLBACK_TRIGGERED.user(step.reason),
+        adminText: ANOMALY_PHRASES.FALLBACK_TRIGGERED.admin(step.filterName, step.inputCount),
+      });
+    }
+  }
+
+  // Build comparator criteria for the assigned user
+  const comparatorCriteria: ComparatorCriterion[] = COMPARATOR_CRITERIA.map((c) => {
+    let value: number | string = '—';
+    let isActive = true;
+    let isAnomalous = false;
+
+    switch (c.key) {
+      case 'crossDowGuard':
+        value = assignedCrossDowGuard;
+        isAnomalous = assignedCrossDowGuard > 0;
+        break;
+      case 'forceUseAll':
+        value = weeklyCount === 0 ? 1 : 0;
+        isActive = options?.forceUseAllWhenFew ?? false;
+        break;
+      case 'dowCount':
+        value = dowCount;
+        break;
+      case 'dowSSE':
+        value = Math.round(dowSSE * 100) / 100;
+        break;
+      case 'sameDowPenalty':
+        value = sameDowPenalty;
+        isAnomalous = sameDowPenalty >= 25;
+        break;
+      case 'loadRate':
+        value = Math.round(loadRate * 10000) / 10000;
+        break;
+      case 'weeklyCap':
+        value = weeklyCount;
+        isActive = options?.limitOneDutyPerWeekWhenSevenPlus ?? false;
+        break;
+      case 'dowRecency':
+        value = sameDow === Infinity ? 999 : sameDow;
+        break;
+      case 'remainingAvailability':
+        value = '—';
+        isActive = options?.forceUseAllWhenFew ?? false;
+        break;
+      case 'loadBalance':
+        value = '—';
+        isActive = options?.considerLoad ?? false;
+        break;
+      case 'waitDays':
+        value = waitDays === Infinity ? 999 : waitDays;
+        break;
+      case 'stableTieBreak':
+        value = assignedId;
+        break;
+    }
+
+    return {
+      priority: c.priority,
+      name: c.name,
+      description: c.description,
+      value,
+      isActive,
+      isDecisive: c.key === winningCriterion,
+      isAnomalous,
+    };
+  });
+
   return {
     userText: textLines.join('\n').trim(),
     sections,
@@ -464,5 +776,13 @@ export const buildDecisionLog = (
       poolSizes,
       alternatives,
     },
+    filterPipeline: filterPipeline.length > 0 ? filterPipeline : undefined,
+    candidateTable: candidateTable.length > 0 ? candidateTable : undefined,
+    assignedMetrics,
+    weekContext,
+    anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : undefined,
+    comparatorCriteria,
+    dayWeight,
+    wasSwapOptimized: false,
   };
 };

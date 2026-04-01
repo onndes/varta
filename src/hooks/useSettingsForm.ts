@@ -8,10 +8,12 @@ import type {
   ScheduleEntry,
   BirthdayBlockOpts,
 } from '../types';
+import type { WeightApplyMode } from '../components/settings/LogicTabPanel';
 import type { DatabaseStats } from '../services/performanceService';
 import * as performanceService from '../services/performanceService';
 import { toLocalISO } from '../utils/dateUtils';
 import { getFirstDutyDate } from '../utils/assignment';
+import { recalculateScheduleFrom } from '../services/autoScheduler';
 import * as userService from '../services/userService';
 import { useDialog } from '../components/useDialog';
 
@@ -102,6 +104,8 @@ export const useSettingsForm = ({
   const [birthdayOpts, setBirthdayOpts] = useState<BirthdayBlockOpts>(birthdayBlockOpts);
   const [karmaManual, setKarmaManual] = useState(karmaOnManualChanges);
   const [isSaving, setIsSaving] = useState(false);
+  const [weightApplyMode, setWeightApplyMode] = useState<WeightApplyMode>('next-only');
+  const [weightApplyDate, setWeightApplyDate] = useState(() => toLocalISO(new Date()));
 
   // DB maintenance modal state
   const [showDbModal, setShowDbModal] = useState(false);
@@ -231,6 +235,31 @@ export const useSettingsForm = ({
       if (weightsChanged) {
         await onSave(weights);
         sections.push('вага днів');
+
+        // Recalculate schedule with new weights if requested
+        if (weightApplyMode === 'recalculate-all' || weightApplyMode === 'recalculate-from') {
+          let startDate: string;
+          if (weightApplyMode === 'recalculate-all') {
+            const allDates = Object.keys(schedule).sort();
+            startDate = allDates[0] || toLocalISO(new Date());
+          } else {
+            startDate = weightApplyDate;
+          }
+          await recalculateScheduleFrom(
+            startDate,
+            users,
+            schedule,
+            weights,
+            dutiesPerDay,
+            autoScheduleOptions,
+            ignoreHistoryInLogic
+          );
+          sections.push(
+            weightApplyMode === 'recalculate-all'
+              ? 'перерахунок усього графіку'
+              : `перерахунок з ${weightApplyDate}`
+          );
+        }
       }
       if (dutiesChanged) {
         await onSaveDutiesPerDay(perDay);
@@ -282,6 +311,7 @@ export const useSettingsForm = ({
           sections.push('параметри друку');
         }
       }
+      setWeightApplyMode('next-only');
       await refreshData();
       await logAction('SETTINGS', `Збережено налаштування: ${sections.join(', ')}`);
       await showAlert('Налаштування збережено');
@@ -435,5 +465,10 @@ export const useSettingsForm = ({
     handleOpenDbModal,
     handleMaintenance,
     handleResetAllKarma,
+    weightApplyMode,
+    setWeightApplyMode,
+    weightApplyDate,
+    setWeightApplyDate,
+    weightsChanged,
   };
 };

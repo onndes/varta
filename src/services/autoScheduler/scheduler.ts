@@ -9,6 +9,7 @@ import type {
   AutoScheduleOptions,
   DecisionLog,
   CandidateSnapshot,
+  FilterStepResult,
 } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getLogicSchedule, isManualType, toAssignedUserIds } from '../../utils/assignment';
@@ -40,6 +41,31 @@ import {
   performSwapOptimization,
 } from './swapOptimizer';
 import { buildDecisionLog } from './decisionLog';
+import { FILTER_PHRASES } from './decisionPhrases';
+
+/** Track a filter step for the enhanced decision log pipeline. */
+const trackFilterStep = (name: string, prePool: User[], postPool: User[]): FilterStepResult => {
+  const preIds = new Set(prePool.map((u) => u.id!));
+  const postIds = new Set(postPool.map((u) => u.id!));
+  const eliminated = prePool
+    .filter((u) => !postIds.has(u.id!))
+    .map((u) => ({ userId: u.id!, userName: u.name }));
+  const wasFallback =
+    eliminated.length === 0 &&
+    prePool.length === postPool.length &&
+    prePool.length > 0 &&
+    prePool.some((u) => !postIds.has(u.id!)) === false &&
+    postPool.length === prePool.length &&
+    preIds.size === postIds.size;
+  return {
+    filterName: name,
+    inputCount: prePool.length,
+    outputCount: postPool.length,
+    eliminated,
+    reason: FILTER_PHRASES[name] || name,
+    wasFallback: false, // Will be refined below in the pipeline
+  };
+};
 
 /**
  * Multi-pass automatic fill using constraint optimization:
@@ -110,11 +136,14 @@ export const autoFillSchedule = async (
       final: 0,
     };
     const logAlternatives: CandidateSnapshot[] = [];
+    let logFilterPipeline: FilterStepResult[] = [];
+    let logAllAutoUsers: User[] = [];
 
     for (let slot = 0; slot < slotsToFill; slot++) {
       const allAutoUsers = users.filter(
         (u) => u.id && isAutoParticipant(u) && !selectedIds.includes(u.id)
       );
+      logAllAutoUsers = allAutoUsers;
       logPoolSizes.initial = allAutoUsers.length;
 
       const hardPool = allAutoUsers.filter((u) => isHardEligible(u, dateStr));
@@ -142,27 +171,65 @@ export const autoFillSchedule = async (
       let pool = [...hardPool];
       if (pool.length === 0) break;
 
+      // Enhanced decision log: track filter pipeline steps
+      const filterPipeline: FilterStepResult[] = [];
+
+      // Track hard eligibility step
+      filterPipeline.push(trackFilterStep('hardEligible', allAutoUsers, hardPool));
+
       // Optional constraints from settings.
       if (options.avoidConsecutiveDays) {
+        const preRestPool = [...pool];
         pool = filterByRestDays(pool, dateStr, options.minRestDays || 1, tempSchedule);
+        const step = trackFilterStep('restDays', preRestPool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preRestPool.length === pool.length &&
+          preRestPool.length > 0;
+        filterPipeline.push(step);
       }
       logPoolSizes.afterRestDays = pool.length;
 
-      pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
+      {
+        const preIncompatPool = [...pool];
+        pool = filterByIncompatiblePairs(pool, users, dateStr, tempSchedule);
+        const step = trackFilterStep('incompatiblePairs', preIncompatPool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preIncompatPool.length === pool.length &&
+          preIncompatPool.length > 0;
+        filterPipeline.push(step);
+      }
       logPoolSizes.afterIncompatiblePairs = pool.length;
 
-      pool = filterBySameWeekdayLastWeek(
-        pool,
-        dateStr,
-        tempSchedule,
-        !options.evenWeeklyDistribution // starvation exception disabled when evenWeekly is ON
-      );
+      {
+        const preSameDowPool = [...pool];
+        pool = filterBySameWeekdayLastWeek(
+          pool,
+          dateStr,
+          tempSchedule,
+          !options.evenWeeklyDistribution // starvation exception disabled when evenWeekly is ON
+        );
+        const step = trackFilterStep('sameWeekdayLastWeek', preSameDowPool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preSameDowPool.length === pool.length &&
+          preSameDowPool.length > 0;
+        filterPipeline.push(step);
+      }
 
       // Use week-based eligibility count for both forceUseAllWhenFew and the
       // comparator's totalEligibleCount parameter — consistent with filterByWeeklyCap.
       const totalEligibleCount = countEligibleUsersForWeek(users, tempSchedule, dateStr);
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
+        const preCapPool = [...pool];
         pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options);
+        const step = trackFilterStep('weeklyCap', preCapPool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preCapPool.length === pool.length &&
+          preCapPool.length > 0;
+        filterPipeline.push(step);
       }
       logPoolSizes.afterWeeklyCap = pool.length;
 
@@ -173,7 +240,14 @@ export const autoFillSchedule = async (
         totalEligibleCount !== undefined &&
         totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
       ) {
+        const preForcePool = [...pool];
         pool = filterForceUseAllWhenFew(pool, dateStr, tempSchedule);
+        const step = trackFilterStep('forceUseAll', preForcePool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preForcePool.length === pool.length &&
+          preForcePool.length > 0;
+        filterPipeline.push(step);
       }
 
       // evenWeeklyDistribution: multi-round round-robin.
@@ -184,7 +258,14 @@ export const autoFillSchedule = async (
         totalEligibleCount !== undefined &&
         totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
       ) {
+        const preEvenPool = [...pool];
         pool = filterEvenWeeklyDistribution(pool, dateStr, tempSchedule);
+        const step = trackFilterStep('evenDistribution', preEvenPool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preEvenPool.length === pool.length &&
+          preEvenPool.length > 0;
+        filterPipeline.push(step);
       }
       logPoolSizes.afterForceUseAll = pool.length;
 
@@ -194,6 +275,7 @@ export const autoFillSchedule = async (
         pool = [...hardPool];
       }
       logPoolSizes.final = pool.length;
+      logFilterPipeline = filterPipeline;
 
       if (pool.length === 0) break;
 
@@ -279,7 +361,11 @@ export const autoFillSchedule = async (
       logPoolSizes,
       logAlternatives,
       week,
-      dates
+      dates,
+      logFilterPipeline,
+      logAllAutoUsers,
+      options,
+      dayWeights[dayIdx]
     );
 
     const nextEntry: ScheduleEntry = {
@@ -363,8 +449,14 @@ export const autoFillSchedule = async (
           },
           [], // alternatives from greedy pass are stale after swap
           week,
-          dates
+          dates,
+          undefined,
+          undefined,
+          undefined,
+          dayWeights[dayIdx]
         );
+        // Mark that this entry was changed by swap optimization
+        existingUpdate.decisionLog.wasSwapOptimized = true;
       }
     }
   }

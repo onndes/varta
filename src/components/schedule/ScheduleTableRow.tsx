@@ -8,8 +8,8 @@ import { getUserAvailabilityStatus } from '../../services/userService';
 import { isAssignedInEntry } from '../../utils/assignment';
 import { getStatusPeriodAtDate } from '../../utils/userStatus';
 import { toLocalISO } from '../../utils/dateUtils';
-import Modal from '../Modal';
 import { buildStaticLog } from './scheduleTableUtils';
+import DecisionLogModal from './DecisionLogModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +82,7 @@ interface ScheduleTableRowProps {
   index: number;
   weekDates: string[];
   schedule: Record<string, ScheduleEntry>;
+  allUsers: User[];
   todayStr: string;
   historyMode?: boolean;
   dowHistoryWeeks?: number;
@@ -103,6 +104,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   index,
   weekDates,
   schedule,
+  allUsers,
   todayStr,
   historyMode = false,
   dowHistoryWeeks = 4,
@@ -115,6 +117,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   previewSchedule,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
+  const [activeLogDate, setActiveLogDate] = useState<string>('');
+  const [activeLogEntry, setActiveLogEntry] = useState<ScheduleEntry | null>(null);
 
   // Split name: surname (CAPS) + first/middle (dimmer)
   const nameParts = user.name.trim().split(/\s+/);
@@ -243,6 +247,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setActiveLog(log);
+                      setActiveLogDate(date);
+                      setActiveLogEntry(entry);
                     }}
                   >
                     <i className="bi bi-info-circle" />
@@ -347,71 +353,20 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
       </tr>
       {activeLog &&
         ReactDOM.createPortal(
-          <Modal show onClose={() => setActiveLog(null)} title="Чому цей боєць?" size="modal-md">
-            <div style={{ fontSize: '0.88rem', lineHeight: 1.65 }}>
-              {activeLog.debug?.winningCriterion && (
-                <div className="decision-log-notice mb-3" role="note">
-                  <div className="decision-log-notice__icon" aria-hidden="true">
-                    <i className="fas fa-circle-info"></i>
-                  </div>
-                  <div className="decision-log-notice__body">
-                    <div className="decision-log-notice__title">Пояснення ще допрацьовується</div>
-                    <div className="decision-log-notice__text">
-                      Цей блок уже показує основні причини вибору, але поки не охоплює всі кроки
-                      алгоритму. У складних випадках формулювання може бути спрощеним, а окремі
-                      деталі можуть бути неточними.
-                    </div>
-                    <div className="decision-log-notice__hint">
-                      Сприймайте його як зручну підказку, а не як повний технічний розбір.
-                    </div>
-                  </div>
-                </div>
-              )}
-              {activeLog.sections && activeLog.sections.length > 0 ? (
-                activeLog.sections.map((section, si) => (
-                  <div key={si} className={si > 0 ? 'mt-3' : ''}>
-                    <div className="fw-bold mb-1" style={{ fontSize: '0.92rem' }}>
-                      {section.icon} {section.title}
-                    </div>
-                    <ul className="mb-0 ps-3" style={{ listStyle: 'none' }}>
-                      {section.items.map((item, ii) => (
-                        <li
-                          key={ii}
-                          style={{
-                            paddingLeft: item.startsWith('  ') ? '1em' : 0,
-                            fontSize: item.startsWith('  ') ? '0.84rem' : undefined,
-                          }}
-                        >
-                          {item.startsWith('  ') ? item.trim() : `• ${item}`}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              ) : (
-                <div style={{ whiteSpace: 'pre-wrap' }}>{activeLog.userText}</div>
-              )}
-            </div>
-            {activeLog.debug?.winningCriterion && (
-              <details className="mt-3">
-                <summary className="text-muted" style={{ fontSize: '0.78rem', cursor: 'pointer' }}>
-                  🔍 Технічні деталі (Debug)
-                </summary>
-                <pre
-                  className="mt-2 p-2 rounded"
-                  style={{
-                    fontSize: '0.72rem',
-                    background: 'var(--bs-body-bg)',
-                    border: '1px solid var(--bs-border-color)',
-                    maxHeight: '260px',
-                    overflowY: 'auto',
-                  }}
-                >
-                  {JSON.stringify(activeLog.debug, null, 2)}
-                </pre>
-              </details>
-            )}
-          </Modal>,
+          <DecisionLogModal
+            log={activeLog}
+            userName={user.name}
+            userRank={user.rank}
+            dateStr={activeLogDate}
+            entryType={activeLogEntry?.type || 'auto'}
+            allUsers={allUsers}
+            schedule={schedule}
+            onClose={() => {
+              setActiveLog(null);
+              setActiveLogDate('');
+              setActiveLogEntry(null);
+            }}
+          />,
           document.body
         )}
     </>

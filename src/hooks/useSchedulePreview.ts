@@ -184,6 +184,10 @@ export const useSchedulePreview = (
     const gen = ++genRef.current;
     const todayStr = toLocalISO(new Date());
 
+    // True when at least one date in the current week is today or in the future.
+    // Past weeks need no prefetch indicator — background work runs silently.
+    const isCurrentOrFutureWeek = weekDates.some((d) => d >= todayStr);
+
     // ── Data-change detection ────────────────────────────────────────────
     const prev = prevDataRef.current;
     const dataChanged =
@@ -206,6 +210,9 @@ export const useSchedulePreview = (
     if (dataChanged) {
       cacheMapRef.current.clear();
       prefetchJobRef.current = null;
+      // Clear stale preview data immediately so the UI doesn't show
+      // outdated entries while the new computation is debouncing.
+      setPreviewSchedule({});
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -230,6 +237,24 @@ export const useSchedulePreview = (
         }
       }
       return merged;
+    };
+
+    /** Returns true only when the NEXT week actually has empty future slots to fill.
+     *  Used to avoid showing the prefetch indicator when the next week is already
+     *  fully generated or fully in the past — which would cause a spurious blink. */
+    const nextWeekNeedsPrefetch = (): boolean => {
+      const nextBase = new Date(weekDates[0]);
+      nextBase.setDate(nextBase.getDate() + 7);
+      const nextMonday = toLocalISO(nextBase);
+      // Already cached → nothing new to compute
+      if (cacheMapRef.current.has(nextMonday)) return false;
+      // Already in-flight → real work is ongoing, show indicator
+      if (prefetchJobRef.current?.monday === nextMonday) return true;
+      // Check synchronously if next week has any empty future dates to fill
+      const merged = getMergedSchedule();
+      return buildWeek(nextMonday).some(
+        (d) => d >= todayStr && toAssignedUserIds(merged[d]?.userId).length === 0
+      );
     };
 
     const runFill = async (targets: string[]): Promise<Record<string, ScheduleEntry>> => {
@@ -299,7 +324,8 @@ export const useSchedulePreview = (
     // Just start prefetching the next-next week.
     if (syncAppliedRef.current) {
       syncAppliedRef.current = false;
-      setIsPrefetching(true);
+      const shouldShowPrefetch = isCurrentOrFutureWeek && nextWeekNeedsPrefetch();
+      if (shouldShowPrefetch) setIsPrefetching(true);
 
       const timerId = window.setTimeout(async () => {
         const job = startPrefetchJob(weekDates[0]);
@@ -325,7 +351,7 @@ export const useSchedulePreview = (
         cacheMapRef.current.set(weekDates[0], result.data);
         setPreviewSchedule(result.data);
         setIsComputing(false);
-        setIsPrefetching(true);
+        if (nextWeekNeedsPrefetch()) setIsPrefetching(true);
 
         const nextJob = startPrefetchJob(weekDates[0]);
         await nextJob.settle;
@@ -342,7 +368,7 @@ export const useSchedulePreview = (
     if (!dataChanged && cachedData) {
       setIsComputing(false);
       setPreviewSchedule(cachedData);
-      setIsPrefetching(true);
+      if (isCurrentOrFutureWeek && nextWeekNeedsPrefetch()) setIsPrefetching(true);
 
       const timerId = window.setTimeout(async () => {
         const job = startPrefetchJob(weekDates[0]);
@@ -362,11 +388,27 @@ export const useSchedulePreview = (
     );
 
     if (targets.length === 0) {
-      // Nothing to preview on THIS week (all past or assigned), but we MUST
-      // still prefetch the next week so navigation is instant.
+      // Nothing to preview on THIS week (all past or assigned), but we still
+      // prefetch the next week so navigation is instant.
       setPreviewSchedule({});
       cacheMapRef.current.set(weekDates[0], {});
       setIsComputing(false);
+
+      // Only show prefetch indicator on current/future weeks.
+      // Past weeks run prefetch silently — no yellow dot blink.
+      // Only show indicator when there's actual computation needed for next week.
+      const willWork = isCurrentOrFutureWeek && nextWeekNeedsPrefetch();
+      if (!willWork) {
+        setIsPrefetching(false);
+        // Still prefetch silently so forward navigation benefits from the cache
+        const timerId = window.setTimeout(() => {
+          startPrefetchJob(weekDates[0]);
+        }, PREFETCH_DEBOUNCE_MS);
+        return () => {
+          clearTimeout(timerId);
+        };
+      }
+
       setIsPrefetching(true);
 
       const timerId = window.setTimeout(async () => {
@@ -391,7 +433,7 @@ export const useSchedulePreview = (
         cacheMapRef.current.set(weekDates[0], result);
         setPreviewSchedule(result);
         setIsComputing(false);
-        setIsPrefetching(true);
+        if (nextWeekNeedsPrefetch()) setIsPrefetching(true);
 
         const nextJob = startPrefetchJob(weekDates[0]);
         await nextJob.settle;

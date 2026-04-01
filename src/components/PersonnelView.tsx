@@ -6,7 +6,7 @@ import Modal from './Modal';
 import AddUserForm from './users/AddUserForm';
 import ImportPersonnelModal from './users/ImportPersonnelModal';
 import { toLocalISO } from '../utils/dateUtils';
-import { compareByRankAndName } from '../utils/helpers';
+import { compareByRankAndName, formatRank } from '../utils/helpers';
 
 interface PersonnelViewProps {
   users: User[];
@@ -151,7 +151,12 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
             <i className="fas fa-id-card me-2 text-primary"></i>
             Особовий склад
           </h5>
-          <span className="badge bg-primary bg-opacity-10 text-primary">{users.length}</span>
+          <span
+            className="badge bg-primary bg-opacity-10 text-primary"
+            style={{ fontSize: '0.75rem' }}
+          >
+            {users.length}
+          </span>
         </div>
 
         <div className="flex-grow-1" style={{ maxWidth: '360px' }}>
@@ -199,16 +204,30 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
 
       <div className="card shadow-sm border-0">
         <div className="table-responsive">
-          <table className="table table-hover align-middle mb-0">
+          <table className="table table-sm table-hover align-middle mb-0 users-table">
             <thead>
-              <tr>
+              <tr className="users-table__head">
                 <th
                   className="text-center"
-                  style={{ width: '56px', minWidth: '56px', maxWidth: '56px' }}
+                  style={{
+                    width: '44px',
+                    minWidth: '44px',
+                    maxWidth: '44px',
+                    userSelect: 'none',
+                    fontSize: '0.78rem',
+                  }}
                 >
-                  #
+                  №
                 </th>
-                <th style={{ width: '120px', minWidth: '120px' }}>
+                <th
+                  className="text-start ps-3"
+                  style={{
+                    width: '190px',
+                    minWidth: '190px',
+                    userSelect: 'none',
+                    fontSize: '0.8rem',
+                  }}
+                >
                   <button
                     type="button"
                     className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
@@ -217,7 +236,7 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
                     Звання {sortKey === 'rank' && (sortDir === 'asc' ? '▲' : '▼')}
                   </button>
                 </th>
-                <th>
+                <th style={{ minWidth: '260px', userSelect: 'none', fontSize: '0.8rem' }}>
                   <button
                     type="button"
                     className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
@@ -226,11 +245,21 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
                     ПІБ {sortKey === 'name' && (sortDir === 'asc' ? '▲' : '▼')}
                   </button>
                 </th>
-                <th style={{ width: '180px', minWidth: '180px' }}>Дата народження</th>
-                <th className="text-center" style={{ width: '110px', minWidth: '110px' }}>
+                <th
+                  style={{ width: '170px', minWidth: '170px', fontSize: '0.8rem', userSelect: 'none' }}
+                >
+                  Дата народження
+                </th>
+                <th
+                  className="text-center"
+                  style={{ width: '110px', minWidth: '110px', fontSize: '0.8rem', userSelect: 'none' }}
+                >
                   В черзі
                 </th>
-                <th className="text-end" style={{ width: '90px', minWidth: '90px' }}>
+                <th
+                  className="text-end pe-3"
+                  style={{ width: '90px', minWidth: '90px', fontSize: '0.8rem', userSelect: 'none' }}
+                >
                   Дії
                 </th>
               </tr>
@@ -258,26 +287,54 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
                       onClick={() => setSelectedUserId(user.id ?? null)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="text-center text-muted">{index + 1}</td>
-                      <td>
+                      <td
+                        className="text-center text-muted ps-2"
+                        style={{
+                          width: '44px',
+                          minWidth: '44px',
+                          maxWidth: '44px',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        {index + 1}
+                      </td>
+                      <td
+                        className="text-start ps-3 align-top"
+                        style={{
+                          width: '190px',
+                          minWidth: '190px',
+                        }}
+                      >
                         <small
                           className="text-muted text-uppercase"
-                          style={{ fontSize: '0.75rem' }}
+                          style={{
+                            fontSize: '0.7rem',
+                            lineHeight: 1.15,
+                            whiteSpace: 'normal',
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                            display: 'block',
+                          }}
                         >
-                          {user.rank}
+                          {formatRank(user.rank)}
                         </small>
                       </td>
-                      <td>
-                        <div className="fw-bold" style={{ letterSpacing: '0.02em' }}>
+                      <td className="align-top">
+                        <div
+                          className="fw-bold text-uppercase"
+                          style={{ fontSize: '0.85rem', letterSpacing: '0.02em' }}
+                        >
                           {surname}
                         </div>
                         {rest && (
-                          <div className="text-muted" style={{ fontSize: '0.82rem' }}>
+                          <div className="text-muted" style={{ fontSize: '0.78rem', opacity: 0.75 }}>
                             {rest}
                           </div>
                         )}
                       </td>
-                      <td>{formatBirthday(user.birthday)}</td>
+                      <td className="text-muted" style={{ fontSize: '0.78rem' }}>
+                        {formatBirthday(user.birthday)}
+                      </td>
                       <td className="text-center">
                         <div
                           className="d-inline-flex flex-column align-items-center justify-content-center gap-1"
