@@ -310,8 +310,11 @@ export const performSwapOptimization = (
           const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
           if (newObj < baseObj - FLOAT_EPSILON) {
-            // forceUseAllWhenFew guard: single swaps change weekly counts.
-            if (options.forceUseAllWhenFew) {
+            // Even weekly distribution guard: block single-replacement swaps that
+            // would give the candidate more duties than minCount + 1 across all
+            // week-eligible participants. This prevents indirect imbalance where
+            // a sequence of objective-improving swaps creates 2-0 gaps.
+            if (options.forceUseAllWhenFew || options.evenWeeklyDistribution) {
               const d = new Date(dateStr);
               const dow = d.getDay();
               const mondayOffset = dow === 0 ? -6 : 1 - dow;
@@ -327,12 +330,20 @@ export const performSwapOptimization = (
                   (s) => s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(uid)
                 ).length;
 
-              const assignedNewCount = countInWeek(assignedId);
               const candidateNewCount = countInWeek(candidate.id!);
 
-              if (assignedNewCount === 0 && candidateNewCount >= 2) {
-                tempSchedule[dateStr] = entry;
-                continue;
+              // Find min weekly count among week-eligible participants
+              const weekEligibleIds = userIds.filter((uid) => {
+                const u = participants.find((p) => p.id === uid);
+                return u && autoFilledDates.some((ad) => isHardEligible(u, ad));
+              });
+
+              if (weekEligibleIds.length > 0) {
+                const minWeekCount = Math.min(...weekEligibleIds.map((uid) => countInWeek(uid)));
+                if (candidateNewCount > minWeekCount + 1) {
+                  tempSchedule[dateStr] = entry;
+                  continue;
+                }
               }
             }
 

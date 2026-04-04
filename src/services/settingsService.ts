@@ -1,6 +1,7 @@
 // src/services/settingsService.ts
 
 import { db } from '../db/db';
+import { logAction } from './auditService';
 import type {
   AppStateEntry,
   DayWeights,
@@ -196,9 +197,13 @@ export const getTheme = async (): Promise<string> => {
 };
 
 export const saveTheme = async (theme: string): Promise<void> => {
+  const prev = localStorage.getItem(THEME_LS_KEY) || 'dark';
   // Write to localStorage first so index.html inline-script can read it immediately on next load
   localStorage.setItem(THEME_LS_KEY, theme);
-  return saveSetting('theme', theme);
+  await saveSetting('theme', theme);
+  if (prev !== theme) {
+    await logAction('THEME', `Тема: ${prev} → ${theme}`);
+  }
 };
 
 /**

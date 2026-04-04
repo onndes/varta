@@ -171,8 +171,10 @@ their assigned users. Accept if:
 
 **Phase 2 — Single-replacement swaps** For each auto-filled date, try replacing the assigned user
 with every other hard-eligible, rest-day-safe, incompatible-pair-safe, **DOW-repeat-safe**
-participant. Accept if new `Z` is strictly lower. Additional guard when `forceUseAllWhenFew`: block
-replacement if it would leave the original user at 0 and push the candidate to ≥ 2 duties this week.
+participant. Accept if new `Z` is strictly lower. Additional guard when `forceUseAllWhenFew` or
+`evenWeeklyDistribution`: block replacement if it would give the candidate more than `minWeekCount
+
+- 1` duties across all week-eligible participants. This prevents indirect multi-swap imbalance.
 
 **Phase 3 — Targeted same-DOW-consecutive resolution** Find users with back-to-back same DOW exactly
 7 days apart. For each such pair `(D1, D2)`, attempt to swap the repeat date `D2`'s user with the
@@ -377,6 +379,43 @@ filters were supposed to prevent.
 `evenWeeklyDistribution` is ON. This is safe because `filterEvenWeeklyDistribution` already prevents
 starvation via strict round-robin, making the exception redundant.
 
+### Regression 6: Zero-duty user permanently filtered by `sameWeekdayLastWeek` when `evenWeeklyDistribution=ON`
+
+**What happened:** Regression 5 correctly disabled the starvation exception when
+`evenWeeklyDistribution=ON`. However, when a zero-duty user's **only remaining available slot** in
+the week coincides with the same DOW they served last week, `filterBySameWeekdayLastWeek` removes
+them (no exception), `filterEvenWeeklyDistribution` sees no zero-duty users in the pool (already
+removed), and `filterByWeeklyCap` falls back because all remaining users already have 1 duty.
+Result: another user receives a 2nd duty while the zero-duty user gets 0 for the week.
+
+**Example:** 7 eligible users, 7 days. User A served Sunday last week. By Sunday of the current
+week, all 6 other users have 1 duty. User A is filtered by sameWeekday on Sunday; the pool has only
+users with 1+ duty; the weekly cap fallback fires; User B gets a 2nd duty.
+
+**Effect:** Violated `forceUseAllWhenFew` and `evenWeeklyDistribution` invariants. One user received
+2 duties while another received 0 in the same week.
+
+**Fix:** Added a "fairness recovery" step in `scheduler.ts` after all 5 filters and before the
+starvation fallback. When `forceUseAllWhenFew` or `evenWeeklyDistribution` is enabled, the pool has
+no zero-duty users, but zero-duty users exist in hardPool — add them back even if they failed soft
+filters. Same-DOW repeat is a soft preference; weekly fairness is a hard policy.
+
+### Regression 7: Phase 2 swap optimizer guard too narrow — `assignedNewCount === 0 && candidateNewCount >= 2`
+
+**What happened:** The Phase 2 (single-replacement) guard only blocked swaps where the **removed**
+user dropped to 0 AND the candidate went to ≥ 2. This missed indirect multi-swap sequences: e.g.,
+swap A→C (A drops to 1, C goes to 2) followed by swap B→A (B drops to 0, A goes to 2). Each
+individual swap passed the guard, but the net effect was a 2-0 imbalance.
+
+**Effect:** The swap optimizer could create weekly imbalance through a sequence of individually
+valid swaps, even when `forceUseAllWhenFew` was enabled. Combined with Regression 6, this amplified
+unfairness.
+
+**Fix:** Strengthened the Phase 2 guard to check max-min imbalance across all week-eligible
+participants: `candidateNewCount > minWeekCount + 1` → block. This prevents any swap that would give
+a user more than 1 duty above the minimum across the group, regardless of what happened to the
+removed user.
+
 ---
 
 ## 9. What Is Safe to Change vs Dangerous
@@ -407,6 +446,8 @@ Any change to the following will likely affect scheduler output:
 | `getCrossDowGuard` penalty formula                                                                                                    | Breakage of the absolute-law invariant; DOW imbalance becomes locally profitable                                                                                                                                            |
 | `filterBySameWeekdayLastWeek` starvation exception (`allowStarvationException` parameter)                                             | The exception must be ON when `evenWeeklyDistribution=OFF` (prevents user starvation). It must be OFF when `evenWeeklyDistribution=ON` (otherwise the two filters conflict and produce same-DOW repeats). See Regression 5. |
 | `filterByWeeklyCap` and `filterForceUseAllWhenFew` gate functions (must stay `ForWeek`)                                               | See Regression 3                                                                                                                                                                                                            |
+| Fairness recovery step in `scheduler.ts` (after filters, before starvation fallback)                                                  | Removing it re-introduces Regression 6 — zero-duty users permanently filtered by sameWeekdayLastWeek. See Regression 6.                                                                                                     |
+| Phase 2 swap guard in `swapOptimizer.ts` (`candidateNewCount > minWeekCount + 1`)                                                     | Weakening the guard re-introduces Regression 7 — indirect multi-swap imbalance. See Regression 7.                                                                                                                           |
 | `computeDaysActive` in `helpers.ts` (unavailability normalization)                                                                    | Changing how `daysActive` is computed directly affects `computeUserLoadRate` and all fairness comparisons                                                                                                                   |
 | `autoFillSchedule` function body                                                                                                      | Any change here must not alter the greedy pass outcome or swap result for any deterministic input                                                                                                                           |
 | Anything in `helpers.ts` imported by 3+ other files                                                                                   | High blast radius; type-check alone is insufficient to catch semantic regressions                                                                                                                                           |

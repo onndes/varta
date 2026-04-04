@@ -261,6 +261,34 @@ export const autoFillSchedule = async (
       }
       logPoolSizes.afterForceUseAll = pool.length;
 
+      // Fairness recovery: if soft filters (especially sameWeekdayLastWeek) removed
+      // all zero-duty users from the pool while zero-duty users exist in hardPool,
+      // add them back. This prevents the scenario where a user's only remaining
+      // available slot in the week coincides with the same DOW they served last week,
+      // causing them to be filtered out and another user to get a 2nd duty.
+      if (
+        (options.forceUseAllWhenFew || options.evenWeeklyDistribution) &&
+        totalEligibleCount !== undefined &&
+        totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT &&
+        pool.length > 0
+      ) {
+        const week = getWeekWindow(dateStr);
+        const poolHasZero = pool.some(
+          (u) => countUserAssignmentsInRange(u.id!, tempSchedule, week.from, week.to) === 0
+        );
+        if (!poolHasZero) {
+          const zeroDutyHard = hardPool.filter(
+            (u) =>
+              !selectedIds.includes(u.id!) &&
+              countUserAssignmentsInRange(u.id!, tempSchedule, week.from, week.to) === 0
+          );
+          if (zeroDutyHard.length > 0) {
+            pool = zeroDutyHard;
+            filterPipeline.push(trackFilterStep('fairnessRecovery', [...hardPool], pool));
+          }
+        }
+      }
+
       // Starvation fallback:
       // if soft filters emptied the pool, relax them and use any hard-eligible user.
       if (pool.length === 0) {

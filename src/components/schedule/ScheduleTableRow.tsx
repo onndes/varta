@@ -336,7 +336,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                   title={`Чергування в цей день: ${dowWeeksAgo.map((w) => `${w} тиж. тому`).join(', ')}`}
                 >
                   {dowHistoryMode === 'dots'
-                    ? Array.from({ length: dowHistoryWeeks }, (_, i) => (
+                    ? Array.from({ length: Math.min(dowHistoryWeeks, 6) }, (_, i) => (
                         <span
                           key={i}
                           style={{ opacity: dowWeeksAgo.includes(i + 1) ? 0.75 : 0.12 }}
