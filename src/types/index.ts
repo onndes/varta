@@ -254,6 +254,34 @@ export interface DecisionLog {
   dayWeight?: number;
   /** Whether the entry was changed by swap optimization after the greedy pass. */
   wasSwapOptimized?: boolean;
+  /** Optimizer history: tracks what the optimizers changed and why. */
+  optimizerHistory?: OptimizerHistoryEntry[];
+}
+
+/** Single optimizer change record — tracks one reassignment during optimization. */
+export interface OptimizerHistoryEntry {
+  /** Which optimizer made this change. */
+  phase:
+    | 'phase1-pair'
+    | 'phase2-replace'
+    | 'phase3-sameDow'
+    | 'tabu-pair'
+    | 'tabu-replace'
+    | 'lookahead';
+  /** Brief Ukrainian description of what happened. */
+  description: string;
+  /** User who was previously assigned to this date (before the swap). */
+  previousUserId?: number;
+  previousUserName?: string;
+  /** User who was assigned after the swap. */
+  newUserId?: number;
+  newUserName?: string;
+  /** Objective Z before the change. */
+  zBefore?: number;
+  /** Objective Z after the change. */
+  zAfter?: number;
+  /** Iteration number (for Tabu Search). */
+  iteration?: number;
 }
 
 export interface ScheduleEntry {
@@ -280,7 +308,17 @@ export interface AutoScheduleOptions {
   evenWeeklyDistribution: boolean; // Extend forceUseAllWhenFew to all rounds: nobody gets N+1 duties while anyone has N
   useFirstDutyDateAsActiveFrom: boolean; // Use first duty date (not date added to list) as fairness tracking start
   useExperimentalStatsView?: boolean; // Optional for backward compatibility with old tests/backups
+  // Lookahead: simulate top-K candidates forward to avoid greedy dead-ends
+  lookaheadDepth?: number; // 0=off, 1-14 days to simulate forward (default: 0)
+  lookaheadCandidates?: number; // how many top candidates to evaluate (default: 3)
+  // Tabu Search: Phase 4 post-optimization that can escape local optima
+  useTabuSearch?: boolean; // default: false
+  tabuTenure?: number; // how many iterations a move stays forbidden (default: 7)
+  tabuMaxIterations?: number; // max iterations for tabu search (default: 50)
 }
+
+/** Progress callback for long-running scheduler operations. */
+export type SchedulerProgressCallback = (phase: string, percent: number) => void;
 
 export interface AuditLogEntry {
   id?: number;

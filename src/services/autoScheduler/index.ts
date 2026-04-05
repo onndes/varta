@@ -2,7 +2,13 @@
 // Публічний API авто-розкладу: збереження, вільні бійці, перерахунок, оптимальне призначення
 
 import { db } from '../../db/db';
-import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../../types';
+import type {
+  User,
+  ScheduleEntry,
+  DayWeights,
+  AutoScheduleOptions,
+  SchedulerProgressCallback,
+} from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { repayOwedDay, isUserAvailable } from '../userService';
 import { toAssignedUserIds, isManualType, getLogicSchedule } from '../../utils/assignment';
@@ -122,7 +128,8 @@ export const recalculateScheduleFrom = async (
   dayWeights: DayWeights,
   dutiesPerDay = 1,
   options?: AutoScheduleOptions,
-  ignoreHistoryInLogic = false
+  ignoreHistoryInLogic = false,
+  onProgress?: SchedulerProgressCallback
 ): Promise<void> => {
   const todayStr = toLocalISO(new Date());
   const start = startDate < todayStr ? todayStr : startDate;
@@ -164,7 +171,8 @@ export const recalculateScheduleFrom = async (
     dayWeights,
     dutiesPerDay,
     options,
-    ignoreHistoryInLogic
+    ignoreHistoryInLogic,
+    onProgress
   );
   await saveAutoSchedule(updates, dayWeights);
 };

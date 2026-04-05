@@ -41,6 +41,7 @@ interface ScheduleControlsProps {
   /** True while silently prefetching next week — shows a subtle pulsing eye. */
   isPreviewPrefetching?: boolean;
   onPreviewToggle?: () => void;
+  schedulerProgress?: { phase: string; percent: number } | null;
 }
 
 /**
@@ -83,6 +84,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   isPreviewComputing = false,
   isPreviewPrefetching = false,
   onPreviewToggle,
+  schedulerProgress,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
@@ -284,7 +286,14 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           </>
         )}
 
-        <div className="flex-grow-1" />
+        <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+          {schedulerProgress && (
+            <span className="text-warning small fw-semibold" style={{ whiteSpace: 'nowrap' }}>
+              <i className="fas fa-cog fa-spin me-1"></i>
+              {schedulerProgress.phase} {schedulerProgress.percent}%
+            </span>
+          )}
+        </div>
 
         <button
           className="btn btn-sm btn-outline-danger"

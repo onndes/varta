@@ -40,7 +40,7 @@ export const ANOMALY_PHRASES = {
   },
   FALLBACK_TRIGGERED: {
     user: (filterName: string) =>
-      `Фільтр «${filterName}» відхилив усіх кандидатів, тому його результат було скасовано (fallback).`,
+      `Фільтр «${filterName}» не звузив список — усі кандидати пройшли далі.`,
     admin: (filterName: string, inputCount: number) =>
       `Filter "${filterName}" emptied pool (${inputCount}→0), fallback restored all`,
   },

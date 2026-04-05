@@ -112,6 +112,11 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   evenWeeklyDistribution: true,
   useFirstDutyDateAsActiveFrom: true,
   useExperimentalStatsView: false,
+  lookaheadDepth: 0,
+  lookaheadCandidates: 3,
+  useTabuSearch: false,
+  tabuTenure: 7,
+  tabuMaxIterations: 50,
 };
 
 /** Кількість тижнів назад для індикатора повторів DOW (за замовчуванням) */

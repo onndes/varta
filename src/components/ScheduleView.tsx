@@ -111,7 +111,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   });
 
   // ── Auto-scheduler & history ──────────────────────────────────────────────
-  const { fillGaps, recalculateFrom, generateWeekSchedule } = useAutoScheduler(
+  const {
+    fillGaps,
+    recalculateFrom,
+    generateWeekSchedule,
+    progress: schedulerProgress,
+  } = useAutoScheduler(
     users,
     schedule,
     dayWeights,
@@ -354,6 +359,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       previewSchedule={previewSchedule}
       onPreviewToggle={togglePreviewMode}
       dragDropHandlers={dragDropHandlers}
+      schedulerProgress={schedulerProgress}
     />
   );
 };

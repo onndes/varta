@@ -1,7 +1,14 @@
 // src/services/autoScheduler/swapOptimizer.ts
 // Swap optimizer, eligibility guards, and look-ahead starvation guard.
 
-import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../../types';
+import type {
+  User,
+  ScheduleEntry,
+  DayWeights,
+  AutoScheduleOptions,
+  SchedulerProgressCallback,
+  OptimizerHistoryEntry,
+} from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
@@ -184,15 +191,17 @@ export const wouldCreateSameDowRepeat = (
  *
  * Iterates until no improvement found or MAX_SWAP_ITERATIONS.
  */
-export const performSwapOptimization = (
+export const performSwapOptimization = async (
   dates: string[],
   users: User[],
   tempSchedule: Record<string, ScheduleEntry>,
   autoFilledDateSet: Set<string>,
   tempLoadOffset: Record<number, number>,
   options: AutoScheduleOptions,
-  dayWeights: DayWeights
-): void => {
+  dayWeights: DayWeights,
+  onProgress?: SchedulerProgressCallback,
+  optimizerLog?: Map<string, OptimizerHistoryEntry[]>
+): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
   const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
@@ -201,7 +210,23 @@ export const performSwapOptimization = (
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
   const maxIter = getAdaptiveMaxIterations(participants.length, autoFilledDates.length);
 
+  // Helper for optimizer history logging
+  const userName = (uid: number): string =>
+    participants.find((u) => u.id === uid)?.name || `#${uid}`;
+  const logSwap = (date: string, entry: OptimizerHistoryEntry): void => {
+    if (!optimizerLog) return;
+    const arr = optimizerLog.get(date) || [];
+    arr.push(entry);
+    optimizerLog.set(date, arr);
+  };
+
   for (let iter = 0; iter < maxIter; iter++) {
+    // Progress reporting + yield to UI thread periodically
+    if (onProgress && iter % 50 === 0) {
+      onProgress('Оптимізація (фази 1-3)', Math.round((iter / maxIter) * 100));
+      await new Promise<void>((r) => setTimeout(r, 0));
+    }
+
     let improved = false;
 
     // ── Phase 1: Pair-exchange swaps ──────────────────────────────────────
@@ -261,6 +286,26 @@ export const performSwapOptimization = (
         const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
         if (newObj < baseObj - FLOAT_EPSILON) {
+          logSwap(date1, {
+            phase: 'phase1-pair',
+            description: `Обмін: ${userName(user1)} ↔ ${userName(user2)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+            previousUserId: user1,
+            previousUserName: userName(user1),
+            newUserId: user2,
+            newUserName: userName(user2),
+            zBefore: baseObj,
+            zAfter: newObj,
+          });
+          logSwap(date2, {
+            phase: 'phase1-pair',
+            description: `Обмін: ${userName(user2)} ↔ ${userName(user1)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+            previousUserId: user2,
+            previousUserName: userName(user2),
+            newUserId: user1,
+            newUserName: userName(user1),
+            zBefore: baseObj,
+            zAfter: newObj,
+          });
           improved = true;
           break outerPair;
         } else {
@@ -347,6 +392,16 @@ export const performSwapOptimization = (
               }
             }
 
+            logSwap(dateStr, {
+              phase: 'phase2-replace',
+              description: `Заміна: ${userName(assignedId)} → ${userName(candidate.id!)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+              previousUserId: assignedId,
+              previousUserName: userName(assignedId),
+              newUserId: candidate.id!,
+              newUserName: userName(candidate.id!),
+              zBefore: baseObj,
+              zAfter: newObj,
+            });
             tempLoadOffset[assignedId] = (tempLoadOffset[assignedId] ?? 0) - 1;
             tempLoadOffset[candidate.id!] = (tempLoadOffset[candidate.id!] ?? 0) + 1;
             improved = true;
@@ -419,6 +474,26 @@ export const performSwapOptimization = (
             // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
             const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
             if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
+              logSwap(d2, {
+                phase: 'phase3-sameDow',
+                description: `Усунення повтору дня тижня: ${userName(uid)} ↔ ${userName(otherId)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                previousUserId: uid,
+                previousUserName: userName(uid),
+                newUserId: otherId,
+                newUserName: userName(otherId),
+                zBefore: baseObj,
+                zAfter: newObj,
+              });
+              logSwap(otherDate, {
+                phase: 'phase3-sameDow',
+                description: `Усунення повтору дня тижня: ${userName(otherId)} ↔ ${userName(uid)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                previousUserId: otherId,
+                previousUserName: userName(otherId),
+                newUserId: uid,
+                newUserName: userName(uid),
+                zBefore: baseObj,
+                zAfter: newObj,
+              });
               resolvedSameDow = true;
               break;
             } else {
@@ -438,4 +513,306 @@ export const performSwapOptimization = (
     // No improvement found in any phase → stable.
     break;
   }
+};
+
+// ─── Tabu Search (Phase 4) ──────────────────────────────────────────────────
+
+/** Encode a pair-swap move as a string key for the tabu map. */
+const swapKey = (d1: string, u1: number, d2: string, u2: number): string =>
+  d1 < d2 ? `${d1}:${u1}<>${d2}:${u2}` : `${d2}:${u2}<>${d1}:${u1}`;
+
+/** Encode a single-replacement move as a string key for the tabu map. */
+const replaceKey = (date: string, oldUid: number, newUid: number): string =>
+  `${date}:${oldUid}->${newUid}`;
+
+/**
+ * Tabu Search post-optimization.
+ *
+ * Unlike the hill-climbing swap optimizer (Phases 1-3), Tabu Search can
+ * accept worsening moves to escape local optima. A tabu list prevents
+ * cycling by forbidding recently reversed moves for `tenure` iterations.
+ *
+ * The global best solution seen across all iterations is restored at the end.
+ *
+ * Async with periodic yield to keep the UI responsive.
+ */
+export const performTabuSearch = async (
+  dates: string[],
+  users: User[],
+  tempSchedule: Record<string, ScheduleEntry>,
+  autoFilledDateSet: Set<string>,
+  options: AutoScheduleOptions,
+  dayWeights: DayWeights,
+  onProgress?: SchedulerProgressCallback,
+  optimizerLog?: Map<string, OptimizerHistoryEntry[]>
+): Promise<void> => {
+  const tenure = options.tabuTenure || 7;
+  const maxIter = options.tabuMaxIterations || 50;
+  const participants = users.filter(isAutoParticipant);
+  const userIds = participants.map((u) => u.id!);
+  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
+  const enforceWeeklyBalance = !!(options.forceUseAllWhenFew || options.evenWeeklyDistribution);
+
+  if (autoFilledDates.length < 2 || participants.length < 2) return;
+
+  // Helper for optimizer history logging
+  const uName = (uid: number): string => participants.find((u) => u.id === uid)?.name || `#${uid}`;
+  const logTabu = (date: string, entry: OptimizerHistoryEntry): void => {
+    if (!optimizerLog) return;
+    const arr = optimizerLog.get(date) || [];
+    arr.push(entry);
+    optimizerLog.set(date, arr);
+  };
+
+  // Weekly count helper for balance guard
+  const countInWeekOf = (uid: number, dateStr: string): number => {
+    const d = new Date(dateStr);
+    const dow = d.getDay();
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + mondayOffset);
+    const from = toLocalISO(monday);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const to = toLocalISO(sunday);
+    return Object.values(tempSchedule).filter(
+      (s) => s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(uid)
+    ).length;
+  };
+
+  // Check if a schedule state violates weekly balance for any affected week
+  const wouldViolateWeeklyBalance = (affectedDates: string[]): boolean => {
+    if (!enforceWeeklyBalance) return false;
+    // Check each unique week touched by the affected dates
+    const checkedWeeks = new Set<string>();
+    for (const dateStr of affectedDates) {
+      const d = new Date(dateStr);
+      const dow = d.getDay();
+      const mondayOffset = dow === 0 ? -6 : 1 - dow;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() + mondayOffset);
+      const weekKey = toLocalISO(monday);
+      if (checkedWeeks.has(weekKey)) continue;
+      checkedWeeks.add(weekKey);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const from = weekKey;
+      const to = toLocalISO(sunday);
+
+      // Count per user for this week among all participants
+      const weekCounts = userIds.map(
+        (uid) =>
+          Object.values(tempSchedule).filter(
+            (s) => s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(uid)
+          ).length
+      );
+      const weekMin = Math.min(...weekCounts);
+      const weekMax = Math.max(...weekCounts);
+      if (weekMax > weekMin + 1) return true;
+    }
+    return false;
+  };
+
+  // Tabu map: move key → iteration when it expires
+  const tabuMap = new Map<string, number>();
+
+  // Track the best solution seen
+  let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+  const bestAssignment = new Map<string, number | number[]>();
+  for (const d of autoFilledDates) {
+    const e = tempSchedule[d];
+    if (e) bestAssignment.set(d, e.userId as number | number[]);
+  }
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    // Progress reporting + yield to UI thread
+    if (onProgress && iter % 5 === 0) {
+      onProgress('Tabu Search', Math.round((iter / maxIter) * 100));
+      await new Promise<void>((r) => setTimeout(r, 0));
+    }
+
+    const currentZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+
+    // Evaluate all neighbor moves, pick the best non-tabu (or aspiration)
+    let bestMoveZ = Infinity;
+    let bestMove: (() => void) | null = null;
+    let bestMoveKey = '';
+    let bestMoveLog: {
+      dates: string[];
+      phase: 'tabu-pair' | 'tabu-replace';
+      prevIds: number[];
+      newIds: number[];
+    } | null = null;
+
+    // Phase A: pair-exchange neighbors
+    for (let i = 0; i < autoFilledDates.length - 1; i++) {
+      for (let j = i + 1; j < autoFilledDates.length; j++) {
+        const d1 = autoFilledDates[i];
+        const d2 = autoFilledDates[j];
+        const e1 = tempSchedule[d1];
+        const e2 = tempSchedule[d2];
+        if (!e1 || !e2) continue;
+
+        const ids1 = toAssignedUserIds(e1.userId);
+        const ids2 = toAssignedUserIds(e2.userId);
+        if (ids1.length !== 1 || ids2.length !== 1) continue;
+
+        const u1 = ids1[0];
+        const u2 = ids2[0];
+        if (u1 === u2) continue;
+
+        const u1obj = participants.find((u) => u.id === u1);
+        const u2obj = participants.find((u) => u.id === u2);
+        if (!u1obj || !u2obj) continue;
+        if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
+        if (
+          wouldViolateIncompatiblePairs(u1, d2, tempSchedule, users) ||
+          wouldViolateIncompatiblePairs(u2, d1, tempSchedule, users)
+        )
+          continue;
+
+        // Tentative swap to evaluate
+        tempSchedule[d1] = { ...e1, userId: u2 };
+        tempSchedule[d2] = { ...e2, userId: u1 };
+
+        const rv1 = minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule);
+        const rv2 = minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule);
+
+        if (!rv1 && !rv2 && !wouldViolateWeeklyBalance([d1, d2])) {
+          const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+          const key = swapKey(d1, u1, d2, u2);
+          const isTabu = (tabuMap.get(key) ?? -1) > iter;
+          // Aspiration: accept tabu move if it beats the global best
+          if (z < bestMoveZ && (!isTabu || z < bestZ - FLOAT_EPSILON)) {
+            bestMoveZ = z;
+            bestMoveKey = key;
+            bestMoveLog = {
+              dates: [d1, d2],
+              phase: 'tabu-pair',
+              prevIds: [u1, u2],
+              newIds: [u2, u1],
+            };
+            const sd1 = d1,
+              sd2 = d2,
+              se1 = e1,
+              se2 = e2,
+              su1 = u1,
+              su2 = u2;
+            bestMove = () => {
+              tempSchedule[sd1] = { ...se1, userId: su2 };
+              tempSchedule[sd2] = { ...se2, userId: su1 };
+            };
+          }
+        }
+
+        // Revert
+        tempSchedule[d1] = e1;
+        tempSchedule[d2] = e2;
+      }
+    }
+
+    // Phase B: single-replacement neighbors
+    for (const dateStr of autoFilledDates) {
+      const entry = tempSchedule[dateStr];
+      if (!entry) continue;
+      const assignedIds = toAssignedUserIds(entry.userId);
+      if (assignedIds.length !== 1) continue;
+      const assignedId = assignedIds[0];
+
+      for (const candidate of participants) {
+        if (
+          !candidate.id ||
+          candidate.id === assignedId ||
+          !isHardEligible(candidate, dateStr) ||
+          (minRest > 0 && wouldViolateRestDays(candidate.id, dateStr, minRest, tempSchedule)) ||
+          wouldViolateIncompatiblePairs(candidate.id, dateStr, tempSchedule, users)
+        )
+          continue;
+
+        const newEntry: ScheduleEntry = { ...entry, userId: candidate.id };
+        tempSchedule[dateStr] = newEntry;
+
+        if (wouldViolateWeeklyBalance([dateStr])) {
+          tempSchedule[dateStr] = entry;
+          continue;
+        }
+
+        const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+        const key = replaceKey(dateStr, assignedId, candidate.id);
+        const isTabu = (tabuMap.get(key) ?? -1) > iter;
+
+        if (z < bestMoveZ && (!isTabu || z < bestZ - FLOAT_EPSILON)) {
+          bestMoveZ = z;
+          bestMoveKey = key;
+          bestMoveLog = {
+            dates: [dateStr],
+            phase: 'tabu-replace',
+            prevIds: [assignedId],
+            newIds: [candidate.id],
+          };
+          const sd = dateStr,
+            se = entry,
+            cid = candidate.id;
+          bestMove = () => {
+            tempSchedule[sd] = { ...se, userId: cid };
+          };
+        }
+
+        tempSchedule[dateStr] = entry;
+      }
+    }
+
+    // No feasible move found → terminate
+    if (!bestMove) break;
+
+    // Apply the best move
+    bestMove();
+
+    // Log the move for decision log
+    if (bestMoveLog) {
+      for (let mi = 0; mi < bestMoveLog.dates.length; mi++) {
+        const d = bestMoveLog.dates[mi];
+        const desc =
+          bestMoveLog.phase === 'tabu-pair'
+            ? `Tabu обмін: ${uName(bestMoveLog.prevIds[mi])} ↔ ${uName(bestMoveLog.newIds[mi])}`
+            : `Tabu заміна: ${uName(bestMoveLog.prevIds[mi])} → ${uName(bestMoveLog.newIds[mi])}`;
+        logTabu(d, {
+          phase: bestMoveLog.phase,
+          description: `${desc} (Z: ${currentZ.toFixed(1)} → ${bestMoveZ.toFixed(1)}, іт. ${iter})`,
+          previousUserId: bestMoveLog.prevIds[mi],
+          previousUserName: uName(bestMoveLog.prevIds[mi]),
+          newUserId: bestMoveLog.newIds[mi],
+          newUserName: uName(bestMoveLog.newIds[mi]),
+          zBefore: currentZ,
+          zAfter: bestMoveZ,
+          iteration: iter,
+        });
+      }
+    }
+
+    // Add the REVERSE move to the tabu list
+    tabuMap.set(bestMoveKey, iter + tenure);
+
+    // Update global best
+    if (bestMoveZ < bestZ - FLOAT_EPSILON) {
+      bestZ = bestMoveZ;
+      bestAssignment.clear();
+      for (const d of autoFilledDates) {
+        const e = tempSchedule[d];
+        if (e) bestAssignment.set(d, e.userId as number | number[]);
+      }
+    }
+  }
+
+  // Restore the best solution found across all iterations
+  for (const [d, uid] of bestAssignment) {
+    const entry = tempSchedule[d];
+    if (entry) {
+      tempSchedule[d] = { ...entry, userId: uid };
+    }
+  }
+
+  onProgress?.('Tabu Search', 100);
 };

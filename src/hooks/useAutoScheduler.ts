@@ -1,7 +1,13 @@
 // src/hooks/useAutoScheduler.ts
 
-import { useState, useCallback } from 'react';
-import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../types';
+import { useState, useCallback, useRef } from 'react';
+import type {
+  User,
+  ScheduleEntry,
+  DayWeights,
+  AutoScheduleOptions,
+  SchedulerProgressCallback,
+} from '../types';
 import * as autoScheduler from '../services/autoScheduler';
 import * as scheduleService from '../services/scheduleService';
 import { toLocalISO } from '../utils/dateUtils';
@@ -21,6 +27,12 @@ export const useAutoScheduler = (
 ) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ phase: string; percent: number } | null>(null);
+
+  // Stable progress callback ref to avoid re-renders during scheduling
+  const progressCallback = useRef<SchedulerProgressCallback>((phase, percent) => {
+    setProgress({ phase, percent });
+  });
 
   // Auto fill gaps
   const fillGaps = useCallback(
@@ -28,6 +40,7 @@ export const useAutoScheduler = (
       try {
         setIsProcessing(true);
         setError(null);
+        setProgress(null);
 
         const todayStr = toLocalISO(new Date());
         const validDates = dates.filter((d) => d >= todayStr);
@@ -43,7 +56,8 @@ export const useAutoScheduler = (
           dayWeights,
           dutiesPerDay,
           autoScheduleOptions,
-          ignoreHistoryInLogic
+          ignoreHistoryInLogic,
+          progressCallback.current
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -54,6 +68,7 @@ export const useAutoScheduler = (
         throw err;
       } finally {
         setIsProcessing(false);
+        setProgress(null);
       }
     },
     [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
@@ -84,6 +99,7 @@ export const useAutoScheduler = (
       try {
         setIsProcessing(true);
         setError(null);
+        setProgress(null);
 
         const todayStr = toLocalISO(new Date());
         const start = startDate < todayStr ? todayStr : startDate;
@@ -95,7 +111,8 @@ export const useAutoScheduler = (
           dayWeights,
           dutiesPerDay,
           autoScheduleOptions,
-          ignoreHistoryInLogic
+          ignoreHistoryInLogic,
+          progressCallback.current
         );
 
         if (onComplete) onComplete();
@@ -104,6 +121,7 @@ export const useAutoScheduler = (
         throw err;
       } finally {
         setIsProcessing(false);
+        setProgress(null);
       }
     },
     [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
@@ -115,6 +133,7 @@ export const useAutoScheduler = (
       try {
         setIsProcessing(true);
         setError(null);
+        setProgress(null);
 
         const todayStr = toLocalISO(new Date());
         const validDates = weekDates.filter((d) => d >= todayStr);
@@ -144,7 +163,8 @@ export const useAutoScheduler = (
           dayWeights,
           dutiesPerDay,
           autoScheduleOptions,
-          ignoreHistoryInLogic
+          ignoreHistoryInLogic,
+          progressCallback.current
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -155,6 +175,7 @@ export const useAutoScheduler = (
         throw err;
       } finally {
         setIsProcessing(false);
+        setProgress(null);
       }
     },
     [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
@@ -193,6 +214,7 @@ export const useAutoScheduler = (
   return {
     isProcessing,
     error,
+    progress,
     fillGaps,
     fixConflicts,
     recalculateFrom,

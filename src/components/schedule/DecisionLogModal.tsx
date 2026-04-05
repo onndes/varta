@@ -8,6 +8,8 @@ import type {
   WeekContext,
   User,
   ScheduleEntry,
+  OptimizerHistoryEntry,
+  UserMetricsFull,
 } from '../../types';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../../services/userService';
@@ -23,13 +25,25 @@ type TabKey = 'explanation' | 'details' | 'weekContext';
 
 const AnomalyBadges: React.FC<{ flags: AnomalyFlag[] }> = ({ flags }) => {
   if (flags.length === 0) return null;
+  // Separate critical/info from soft warnings (fallbacks)
+  const important = flags.filter((f) => f.severity !== 'warning');
+  const notes = flags.filter((f) => f.severity === 'warning');
   return (
     <div className="dlm-anomalies mb-3">
-      {flags.map((f, i) => (
+      {important.map((f, i) => (
         <span key={i} className={`badge dlm-badge-${f.severity} me-2 mb-1`} title={f.adminText}>
-          {f.severity === 'critical' ? '🔴' : f.severity === 'warning' ? '⚠️' : 'ℹ️'} {f.humanText}
+          {f.severity === 'critical' ? '🔴' : 'ℹ️'} {f.humanText}
         </span>
       ))}
+      {notes.length > 0 && (
+        <div className="dlm-notes mt-1">
+          {notes.map((f, i) => (
+            <div key={`n${i}`} className="dlm-note-muted" title={f.adminText}>
+              <small className="text-muted">💡 {f.humanText}</small>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -399,6 +413,172 @@ const WeekHeatmap: React.FC<{
   );
 };
 
+// ─── Optimizer History ───────────────────────────────────────────────────────
+
+const PHASE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  'phase1-pair': { label: 'Обмін парою', icon: '🔄', color: 'primary' },
+  'phase2-replace': { label: 'Заміна', icon: '♻️', color: 'success' },
+  'phase3-sameDow': { label: 'Виправлення повтору', icon: '📅', color: 'warning' },
+  'tabu-pair': { label: 'Tabu обмін', icon: '🔍', color: 'info' },
+  'tabu-replace': { label: 'Tabu заміна', icon: '🔍', color: 'info' },
+  lookahead: { label: 'Lookahead', icon: '🔮', color: 'secondary' },
+};
+
+const OptimizerHistory: React.FC<{ history: OptimizerHistoryEntry[] }> = ({ history }) => {
+  if (history.length === 0) return null;
+  return (
+    <div className="dlm-optimizer-history">
+      <div className="dlm-optimizer-timeline">
+        {history.map((entry, i) => {
+          const ph = PHASE_LABELS[entry.phase] || {
+            label: entry.phase,
+            icon: '⚙️',
+            color: 'secondary',
+          };
+          return (
+            <div key={i} className="dlm-timeline-item">
+              <div className="dlm-timeline-marker">
+                <span className={`badge bg-${ph.color}`} style={{ fontSize: '0.68rem' }}>
+                  {ph.icon} {ph.label}
+                </span>
+                {entry.iteration != null && (
+                  <small className="text-muted ms-1">іт. {entry.iteration}</small>
+                )}
+              </div>
+              <div className="dlm-timeline-content">
+                <div style={{ fontSize: '0.8rem' }}>{entry.description}</div>
+                {entry.zBefore != null && entry.zAfter != null && (
+                  <small className="text-muted">
+                    Z: {entry.zBefore.toFixed(1)} → {entry.zAfter.toFixed(1)}{' '}
+                    <span className={entry.zAfter < entry.zBefore ? 'text-success' : 'text-danger'}>
+                      ({entry.zAfter < entry.zBefore ? '−' : '+'}
+                      {Math.abs(entry.zAfter - entry.zBefore).toFixed(1)})
+                    </span>
+                  </small>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ─── Scoring Cards (plain-language metric summary) ───────────────────────────
+
+const SCORING_ITEMS: {
+  key: keyof UserMetricsFull;
+  label: string;
+  icon: string;
+  format: (v: number, m: UserMetricsFull) => string;
+  explain: (v: number, m: UserMetricsFull) => string;
+}[] = [
+  {
+    key: 'dowCount',
+    label: 'Нарядів у цей день',
+    icon: '📅',
+    format: (v) => `${v}`,
+    explain: (v, m) =>
+      v === 0
+        ? 'Жодного наряду в цей день тижня — максимальний пріоритет'
+        : `${v} нарядів у цей день тижня (середнє: ${m.avgDowCount.toFixed(1)})`,
+  },
+  {
+    key: 'weeklyCount',
+    label: 'Нарядів цього тижня',
+    icon: '📆',
+    format: (v) => `${v}`,
+    explain: (v) =>
+      v === 0
+        ? 'Ще не чергував цього тижня — високий пріоритет'
+        : `Вже ${v} ${v === 1 ? 'наряд' : 'наряди'} цього тижня`,
+  },
+  {
+    key: 'sameDowPenalty',
+    label: 'Штраф повтору дня',
+    icon: '🔁',
+    format: (v) => (v === 0 ? '0' : `${v}`),
+    explain: (v) =>
+      v === 0
+        ? 'Немає повтору — цей день тижня не збігається з попередніми тижнями'
+        : v >= 100
+          ? 'Нещодавно чергував у цей самий день (100 балів штрафу)'
+          : `Штраф ${v} — чергував у цей день ~2 тижні тому`,
+  },
+  {
+    key: 'loadRate',
+    label: 'Частота нарядів',
+    icon: '⚖️',
+    format: (v) => v.toFixed(3),
+    explain: (v, m) => {
+      const ratio = m.avgLoadRate > 0 ? ((v / m.avgLoadRate - 1) * 100).toFixed(0) : '0';
+      const sign = Number(ratio) > 0 ? '+' : '';
+      return `${v.toFixed(3)} нарядів/день (${sign}${ratio}% від середнього ${m.avgLoadRate.toFixed(3)})`;
+    },
+  },
+  {
+    key: 'waitDays',
+    label: 'Днів без наряду',
+    icon: '⏳',
+    format: (v) => (v === -1 ? '∞' : `${v}`),
+    explain: (v) =>
+      v === -1
+        ? 'Ще жодного наряду — максимальна черга'
+        : `${v} днів з останнього наряду — чим більше, тим вищий пріоритет`,
+  },
+  {
+    key: 'debt',
+    label: 'Борг',
+    icon: '💰',
+    format: (v) => `${v}`,
+    explain: (v) =>
+      v > 0 ? `Боржник: ${v} нарядів переносяться з попередніх місяців` : 'Немає боргу',
+  },
+];
+
+const ScoringCards: React.FC<{
+  metrics: UserMetricsFull;
+  criteria?: ComparatorCriterion[];
+}> = ({ metrics, criteria }) => {
+  const winner = criteria?.find((c) => c.isDecisive);
+  return (
+    <div className="dlm-scoring">
+      <div className="dlm-scoring-grid">
+        {SCORING_ITEMS.map((item) => {
+          const val = metrics[item.key];
+          if (typeof val !== 'number') return null;
+          const isWinning = winner && item.key === winner.name;
+          return (
+            <div
+              key={item.key}
+              className={`dlm-scoring-card${isWinning ? ' dlm-scoring-decisive' : ''}`}
+              title={item.explain(val, metrics)}
+            >
+              <div className="dlm-scoring-icon">{item.icon}</div>
+              <div className="dlm-scoring-value">{item.format(val, metrics)}</div>
+              <div className="dlm-scoring-label">{item.label}</div>
+            </div>
+          );
+        })}
+      </div>
+      {winner && (
+        <div className="mt-2" style={{ fontSize: '0.78rem' }}>
+          <span className="text-muted">⭐ Вирішальний критерій:</span>{' '}
+          <strong>{winner.name}</strong>
+          <span className="text-muted"> — {winner.description}</span>
+        </div>
+      )}
+      <div className="mt-1" style={{ fontSize: '0.74rem' }}>
+        <span className="text-muted">
+          💡 Система порівнює кандидатів зверху вниз за пріоритетом. Як тільки знайдено різницю —
+          той кандидат перемагає.
+        </span>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Modal Component ────────────────────────────────────────────────────
 
 interface DecisionLogModalProps {
@@ -538,6 +718,32 @@ const TabExplanation: React.FC<{ log: DecisionLog }> = ({ log }) => (
       ))
     ) : (
       <div style={{ whiteSpace: 'pre-wrap' }}>{log.userText}</div>
+    )}
+
+    {/* Optimizer history — show what optimizers changed */}
+    {log.optimizerHistory && log.optimizerHistory.length > 0 && (
+      <div className="mt-3">
+        <div className="fw-bold mb-1" style={{ fontSize: '0.92rem' }}>
+          🔧 Оптимізація
+        </div>
+        <p className="text-muted mb-2" style={{ fontSize: '0.8rem' }}>
+          Після початкового розподілу система провела оптимізацію для покращення загального балансу.
+          {log.optimizerHistory.length === 1
+            ? ' Було зроблено 1 зміну:'
+            : ` Було зроблено ${log.optimizerHistory.length} ${log.optimizerHistory.length < 5 ? 'зміни' : 'змін'}:`}
+        </p>
+        <OptimizerHistory history={log.optimizerHistory} />
+      </div>
+    )}
+
+    {/* Scoring summary — key metrics in plain language */}
+    {log.assignedMetrics && (
+      <div className="mt-3">
+        <div className="fw-bold mb-1" style={{ fontSize: '0.92rem' }}>
+          📊 Бали обраного бійця
+        </div>
+        <ScoringCards metrics={log.assignedMetrics} criteria={log.comparatorCriteria} />
+      </div>
     )}
 
     {/* Debug JSON (collapsible) */}

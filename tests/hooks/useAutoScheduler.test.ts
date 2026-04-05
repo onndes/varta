@@ -74,7 +74,8 @@ describe('useAutoScheduler.generateWeekSchedule', () => {
       dayWeights,
       1,
       DEFAULT_AUTO_SCHEDULE_OPTIONS,
-      false
+      false,
+      expect.any(Function)
     );
     expect(autoScheduler.saveAutoSchedule).toHaveBeenCalledWith(
       [{ date: '2026-04-14', userId: 1, type: 'auto' }],

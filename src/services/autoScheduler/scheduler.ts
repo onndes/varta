@@ -10,6 +10,7 @@ import type {
   DecisionLog,
   CandidateSnapshot,
   FilterStepResult,
+  SchedulerProgressCallback,
 } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getLogicSchedule, isManualType, toAssignedUserIds } from '../../utils/assignment';
@@ -23,6 +24,7 @@ import {
   computeUserLoadRate,
   countUserAssignmentsInRange,
   getWeekWindow,
+  computeGlobalObjective,
 } from './helpers';
 import { countUserDaysOfWeek } from '../scheduleService';
 import {
@@ -39,6 +41,7 @@ import {
   isHardEligible,
   isLookAheadSafe,
   performSwapOptimization,
+  performTabuSearch,
 } from './swapOptimizer';
 import { buildDecisionLog } from './decisionLog';
 import { FILTER_PHRASES } from './decisionPhrases';
@@ -57,6 +60,96 @@ const trackFilterStep = (name: string, prePool: User[], postPool: User[]): Filte
     reason: FILTER_PHRASES[name] || name,
     wasFallback: false, // Will be refined below in the pipeline
   };
+};
+
+/**
+ * Lightweight forward simulation to score a candidate pick.
+ * Clones tempSchedule, places the candidate on dateStr, then runs a
+ * simplified greedy pass on the next `depth` unfilled dates.
+ * Returns the global objective Z of the resulting simulated schedule.
+ */
+const simulateForwardScore = (
+  candidate: User,
+  dateStr: string,
+  dates: string[],
+  users: User[],
+  tempSchedule: Record<string, ScheduleEntry>,
+  dayWeights: DayWeights,
+  options: AutoScheduleOptions,
+  depth: number,
+  fairnessUsers: User[],
+  fairnessScheduleBase: Record<string, ScheduleEntry>
+): number => {
+  const sim = { ...tempSchedule };
+  sim[dateStr] = { date: dateStr, userId: candidate.id!, type: 'auto' as const };
+  const userIds = fairnessUsers.map((u) => u.id!);
+  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+
+  // Simulate the next `depth` unfilled future dates
+  const futureDates = dates.filter((d) => d > dateStr).slice(0, depth);
+  for (const futDate of futureDates) {
+    const existing = sim[futDate];
+    if (existing && toAssignedUserIds(existing.userId).length > 0) continue;
+
+    // Hard-eligible pool for future date
+    const hardPool = users.filter(
+      (u) => u.id && isAutoParticipant(u) && isHardEligible(u, futDate)
+    );
+    if (hardPool.length === 0) continue;
+
+    // Basic filters: rest days + same-DOW-last-week + weekly fairness
+    let pool = hardPool;
+    if (minRest > 0) {
+      const filtered = filterByRestDays(pool, futDate, minRest, sim);
+      if (filtered.length > 0) pool = filtered;
+    }
+    const filtered2 = filterBySameWeekdayLastWeek(
+      pool,
+      futDate,
+      sim,
+      !options.evenWeeklyDistribution
+    );
+    if (filtered2.length > 0) pool = filtered2;
+
+    const totalEligible = countEligibleUsersForWeek(users, sim, futDate);
+
+    // Weekly fairness filters (same as main pipeline)
+    if (
+      options.forceUseAllWhenFew &&
+      totalEligible !== undefined &&
+      totalEligible <= MIN_USERS_FOR_WEEKLY_LIMIT
+    ) {
+      const filtered = filterForceUseAllWhenFew(pool, futDate, sim);
+      if (filtered.length > 0) pool = filtered;
+    }
+    if (
+      options.evenWeeklyDistribution &&
+      totalEligible !== undefined &&
+      totalEligible <= MIN_USERS_FOR_WEEKLY_LIMIT
+    ) {
+      const filtered = filterEvenWeeklyDistribution(pool, futDate, sim);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    const fairSim = getLogicSchedule(sim, false);
+    const compare = buildUserComparator(
+      futDate,
+      sim,
+      dayWeights,
+      options,
+      undefined,
+      fairSim,
+      totalEligible,
+      pool,
+      fairnessUsers
+    );
+    pool.sort(compare);
+    if (pool.length > 0 && pool[0].id) {
+      sim[futDate] = { date: futDate, userId: pool[0].id, type: 'auto' as const };
+    }
+  }
+
+  return computeGlobalObjective(userIds, sim, dayWeights, users);
 };
 
 /**
@@ -86,7 +179,8 @@ export const autoFillSchedule = async (
   dayWeights: DayWeights,
   dutiesPerDay = 1,
   options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
-  ignoreHistoryInLogic = false
+  ignoreHistoryInLogic = false,
+  onProgress?: SchedulerProgressCallback
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
   const tempSchedule = { ...schedule };
@@ -130,6 +224,7 @@ export const autoFillSchedule = async (
     const logAlternatives: CandidateSnapshot[] = [];
     let logFilterPipeline: FilterStepResult[] = [];
     let logAllAutoUsers: User[] = [];
+    let lookaheadOverride: import('../../types').OptimizerHistoryEntry | undefined;
 
     for (let slot = 0; slot < slotsToFill; slot++) {
       const allAutoUsers = users.filter(
@@ -313,10 +408,57 @@ export const autoFillSchedule = async (
       );
       pool.sort(compare);
 
-      // Look-ahead: prefer the highest-ranked candidate that does NOT
-      // starve a future date. Falls back to pool[0] if all would starve.
+      // Candidate selection: basic starvation guard + optional deep lookahead
       let selected = pool[0];
-      if (pool.length > 1) {
+      const lookaheadDepth = options.lookaheadDepth || 0;
+
+      if (lookaheadDepth > 0 && pool.length > 1) {
+        // Deep lookahead: evaluate top-K candidates by simulating forward
+        const K = Math.min(pool.length, options.lookaheadCandidates || 3);
+        const topCandidates = pool
+          .slice(0, K)
+          .filter((c) =>
+            isLookAheadSafe(c, dateStr, dates, users, tempSchedule, selectedIds, minRest)
+          );
+        // Fall back to full top-K if all fail starvation check
+        const candidates = topCandidates.length > 0 ? topCandidates : pool.slice(0, K);
+
+        let bestScore = Infinity;
+        const greedyPick = pool[0];
+        for (const candidate of candidates) {
+          const score = simulateForwardScore(
+            candidate,
+            dateStr,
+            dates,
+            users,
+            tempSchedule,
+            dayWeights,
+            options,
+            lookaheadDepth,
+            fairnessUsers,
+            fairnessSchedule
+          );
+          if (score < bestScore) {
+            bestScore = score;
+            selected = candidate;
+          }
+        }
+        // Log when lookahead overrides the greedy pick
+        if (selected.id !== greedyPick.id) {
+          lookaheadOverride = {
+            phase: 'lookahead',
+            description:
+              `Lookahead (глибина ${lookaheadDepth}) обрав ${selected.name} замість ${greedyPick.name} ` +
+              `(Z: ${bestScore.toFixed(1)})`,
+            previousUserId: greedyPick.id,
+            previousUserName: greedyPick.name,
+            newUserId: selected.id,
+            newUserName: selected.name,
+            zAfter: bestScore,
+          };
+        }
+      } else if (pool.length > 1) {
+        // Basic starvation guard: prefer highest-ranked that does NOT starve a future date
         for (const candidate of pool) {
           if (
             isLookAheadSafe(candidate, dateStr, dates, users, tempSchedule, selectedIds, minRest)
@@ -388,6 +530,11 @@ export const autoFillSchedule = async (
       dayWeights[dayIdx]
     );
 
+    // Attach lookahead override if it happened during candidate selection
+    if (lookaheadOverride) {
+      decisionLog.optimizerHistory = [lookaheadOverride];
+    }
+
     const nextEntry: ScheduleEntry = {
       date: dateStr,
       userId: selectedIds.length === 1 ? selectedIds[0] : selectedIds,
@@ -411,15 +558,37 @@ export const autoFillSchedule = async (
 
   // ─── Post-optimization: minimize global objective via multi-phase swaps ────
   if (autoFilledDateSet.size > 0) {
-    performSwapOptimization(
+    // Shared optimizer history log — populated by Phases 1-3 and Tabu Search,
+    // then attached to each affected entry's decisionLog for the info modal.
+    const optimizerLog = new Map<string, import('../../types').OptimizerHistoryEntry[]>();
+
+    onProgress?.('Оптимізація (фази 1-3)', 0);
+    await performSwapOptimization(
       dates,
       users,
       tempSchedule,
       autoFilledDateSet,
       tempLoadOffset,
       options,
-      dayWeights
+      dayWeights,
+      onProgress,
+      optimizerLog
     );
+
+    // Tabu Search: Phase 4 metaheuristic post-optimization
+    if (options.useTabuSearch) {
+      onProgress?.('Tabu Search', 0);
+      await performTabuSearch(
+        dates,
+        users,
+        tempSchedule,
+        autoFilledDateSet,
+        options,
+        dayWeights,
+        onProgress,
+        optimizerLog
+      );
+    }
 
     // Reconcile: collect final state for any date touched by swap optimizer.
     // Rebuild decision logs for entries whose assignment changed during swaps,
@@ -477,6 +646,11 @@ export const autoFillSchedule = async (
         );
         // Mark that this entry was changed by swap optimization
         existingUpdate.decisionLog.wasSwapOptimized = true;
+        // Attach optimizer history if available
+        const dateHistory = optimizerLog.get(dateStr);
+        if (dateHistory && dateHistory.length > 0) {
+          existingUpdate.decisionLog.optimizerHistory = dateHistory;
+        }
       }
     }
   }
