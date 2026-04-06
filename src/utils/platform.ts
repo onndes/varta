@@ -21,8 +21,15 @@ export const isFileProtocol = (): boolean =>
 /**
  * Check if the app is running in development mode (Vite dev server).
  */
-export const isDev = (): boolean =>
-  typeof import.meta !== 'undefined' && import.meta.env?.DEV === true;
+export const isDev = (): boolean => {
+  try {
+    // Type assertion needed because import.meta.env may not be fully typed in all contexts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV === true;
+  } catch {
+    return false;
+  }
+};
 
 interface SaveFileFilter {
   name: string;
@@ -50,7 +57,8 @@ const joinPath = (dir: string, filename: string): string => {
  * - Browser/file://: Vite-injected package version.
  */
 export const getAppVersion = async (): Promise<string> => {
-  const fallback = import.meta.env?.VITE_APP_VERSION || '0.0.0';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fallback = (import.meta as any).env?.VITE_APP_VERSION || '0.0.0';
   if (isTauri()) {
     try {
       const { getVersion } = await import('@tauri-apps/api/app');

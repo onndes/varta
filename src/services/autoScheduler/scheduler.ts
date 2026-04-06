@@ -435,8 +435,7 @@ export const autoFillSchedule = async (
             dayWeights,
             options,
             lookaheadDepth,
-            fairnessUsers,
-            fairnessSchedule
+            fairnessUsers
           );
           if (score < bestScore) {
             bestScore = score;
