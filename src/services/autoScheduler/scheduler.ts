@@ -78,8 +78,7 @@ const simulateForwardScore = (
   dayWeights: DayWeights,
   options: AutoScheduleOptions,
   depth: number,
-  fairnessUsers: User[],
-  fairnessScheduleBase: Record<string, ScheduleEntry>
+  fairnessUsers: User[]
 ): number => {
   const sim = { ...tempSchedule };
   sim[dateStr] = { date: dateStr, userId: candidate.id!, type: 'auto' as const };

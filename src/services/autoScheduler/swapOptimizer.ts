@@ -565,22 +565,6 @@ export const performTabuSearch = async (
     optimizerLog.set(date, arr);
   };
 
-  // Weekly count helper for balance guard
-  const countInWeekOf = (uid: number, dateStr: string): number => {
-    const d = new Date(dateStr);
-    const dow = d.getDay();
-    const mondayOffset = dow === 0 ? -6 : 1 - dow;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + mondayOffset);
-    const from = toLocalISO(monday);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    const to = toLocalISO(sunday);
-    return Object.values(tempSchedule).filter(
-      (s) => s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(uid)
-    ).length;
-  };
-
   // Check if a schedule state violates weekly balance for any affected week
   const wouldViolateWeeklyBalance = (affectedDates: string[]): boolean => {
     if (!enforceWeeklyBalance) return false;
