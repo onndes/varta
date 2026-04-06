@@ -612,6 +612,15 @@ Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 | `forceUseAllWhenFew`                   | With <=7 users, rotate through everyone                          |
 | `evenWeeklyDistribution`               | With <=7 users, nobody gets N+1 duties while another has N       |
 | `ignoreHistoryInLogic`                 | Exclude `history` / `import` entries from load calculations      |
+| `lookaheadDepth`                       | Simulate N days ahead per candidate (0 = off)                    |
+| `lookaheadCandidates`                  | How many top candidates to simulate in lookahead                 |
+| `useTabuSearch`                        | Enable Tabu Search meta-heuristic after swap phases              |
+| `tabuMaxIterations`                    | Tabu Search iteration limit                                      |
+| `tabuTenure`                           | How many iterations a reverse move stays forbidden               |
+| `useMultiRestart`                      | Enable Multi-Restart (Iterated Local Search) after Tabu          |
+| `multiRestartTimeoutMs`                | Time budget for Multi-Restart in fixed mode (ms)                 |
+| `multiRestartStrategy`                 | Perturbation strategy: `'pair-swap'` or `'lns'`                  |
+| `multiRestartTimeLimitMode`            | `'fixed'` (timed) or `'unlimited'` (until user presses Stop)     |
 
 ---
 

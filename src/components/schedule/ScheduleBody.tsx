@@ -90,6 +90,7 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   previewSchedule?: Record<string, ScheduleEntry>;
   onPreviewToggle?: () => void;
   schedulerProgress?: { phase: string; percent: number } | null;
+  onStopScheduler?: () => void;
 }
 
 /**
@@ -159,6 +160,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   previewSchedule,
   onPreviewToggle,
   schedulerProgress,
+  onStopScheduler,
   // Modal passthrough
   executeAssign,
   handleSwap,
@@ -238,6 +240,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           isPreviewPrefetching={isPreviewPrefetching}
           onPreviewToggle={onPreviewToggle}
           schedulerProgress={schedulerProgress}
+          onStopScheduler={onStopScheduler}
         />
       </div>
 

@@ -129,7 +129,8 @@ export const recalculateScheduleFrom = async (
   dutiesPerDay = 1,
   options?: AutoScheduleOptions,
   ignoreHistoryInLogic = false,
-  onProgress?: SchedulerProgressCallback
+  onProgress?: SchedulerProgressCallback,
+  abortSignal?: AbortSignal
 ): Promise<void> => {
   const todayStr = toLocalISO(new Date());
   const start = startDate < todayStr ? todayStr : startDate;
@@ -172,7 +173,8 @@ export const recalculateScheduleFrom = async (
     dutiesPerDay,
     options,
     ignoreHistoryInLogic,
-    onProgress
+    onProgress,
+    abortSignal
   );
   await saveAutoSchedule(updates, dayWeights);
 };

@@ -180,7 +180,8 @@ export const autoFillSchedule = async (
   dutiesPerDay = 1,
   options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   ignoreHistoryInLogic = false,
-  onProgress?: SchedulerProgressCallback
+  onProgress?: SchedulerProgressCallback,
+  abortSignal?: AbortSignal
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
   const tempSchedule = { ...schedule };
@@ -594,7 +595,8 @@ export const autoFillSchedule = async (
     // Runs after all other optimizers — uses their result as the starting point.
     if (options.useMultiRestart) {
       const timeoutMs = options.multiRestartTimeoutMs ?? 30_000;
-      onProgress?.('Multi-Restart', 0);
+      const strategyLabel = options.multiRestartStrategy === 'lns' ? 'LNS' : 'Multi-Restart';
+      onProgress?.(strategyLabel, 0);
       await performMultiRestartOptimization(
         dates,
         users,
@@ -603,7 +605,8 @@ export const autoFillSchedule = async (
         options,
         dayWeights,
         timeoutMs,
-        onProgress
+        onProgress,
+        abortSignal
       );
     }
 

@@ -29,14 +29,26 @@ export const useAutoScheduler = (
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ phase: string; percent: number } | null>(null);
 
+  // AbortController for stopping long-running optimization (Multi-Restart / LNS)
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Stable progress callback ref to avoid re-renders during scheduling
   const progressCallback = useRef<SchedulerProgressCallback>((phase, percent) => {
     setProgress({ phase, percent });
   });
 
+  // Stop the current scheduler run (aborts Multi-Restart/LNS loop)
+  const stopScheduler = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
+
   // Auto fill gaps
   const fillGaps = useCallback(
     async (dates: string[], onComplete?: () => void) => {
+      const ac = new AbortController();
+      abortControllerRef.current = ac;
       try {
         setIsProcessing(true);
         setError(null);
@@ -57,7 +69,8 @@ export const useAutoScheduler = (
           dutiesPerDay,
           autoScheduleOptions,
           ignoreHistoryInLogic,
-          progressCallback.current
+          progressCallback.current,
+          ac.signal
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -69,6 +82,7 @@ export const useAutoScheduler = (
       } finally {
         setIsProcessing(false);
         setProgress(null);
+        abortControllerRef.current = null;
       }
     },
     [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
@@ -96,6 +110,8 @@ export const useAutoScheduler = (
   // Recalculate schedule from a date
   const recalculateFrom = useCallback(
     async (startDate: string, onComplete?: () => void) => {
+      const ac = new AbortController();
+      abortControllerRef.current = ac;
       try {
         setIsProcessing(true);
         setError(null);
@@ -112,7 +128,8 @@ export const useAutoScheduler = (
           dutiesPerDay,
           autoScheduleOptions,
           ignoreHistoryInLogic,
-          progressCallback.current
+          progressCallback.current,
+          ac.signal
         );
 
         if (onComplete) onComplete();
@@ -122,6 +139,7 @@ export const useAutoScheduler = (
       } finally {
         setIsProcessing(false);
         setProgress(null);
+        abortControllerRef.current = null;
       }
     },
     [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
@@ -130,6 +148,8 @@ export const useAutoScheduler = (
   // Generate full week schedule
   const generateWeekSchedule = useCallback(
     async (weekDates: string[], onComplete?: () => void) => {
+      const ac = new AbortController();
+      abortControllerRef.current = ac;
       try {
         setIsProcessing(true);
         setError(null);
@@ -164,7 +184,8 @@ export const useAutoScheduler = (
           dutiesPerDay,
           autoScheduleOptions,
           ignoreHistoryInLogic,
-          progressCallback.current
+          progressCallback.current,
+          ac.signal
         );
 
         await autoScheduler.saveAutoSchedule(updates, dayWeights);
@@ -176,6 +197,7 @@ export const useAutoScheduler = (
       } finally {
         setIsProcessing(false);
         setProgress(null);
+        abortControllerRef.current = null;
       }
     },
     [users, schedule, dayWeights, dutiesPerDay, autoScheduleOptions, ignoreHistoryInLogic]
@@ -221,5 +243,6 @@ export const useAutoScheduler = (
     generateWeekSchedule,
     getFreeUsersForDate,
     getOptimalAssignment,
+    stopScheduler,
   };
 };

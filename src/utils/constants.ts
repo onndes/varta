@@ -119,6 +119,8 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   tabuMaxIterations: 100,
   useMultiRestart: true,
   multiRestartTimeoutMs: 30000,
+  multiRestartStrategy: 'pair-swap' as const,
+  multiRestartTimeLimitMode: 'fixed' as const,
 };
 
 /** Кількість тижнів назад для індикатора повторів DOW (за замовчуванням) */

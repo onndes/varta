@@ -474,36 +474,131 @@ const ExperimentalTabPanel: React.FC<ExperimentalTabPanelProps> = ({
 
         {autoOpts.useMultiRestart && (
           <div className="ms-4 mb-3 p-3 bg-body-tertiary rounded">
-            <label className="form-label fw-bold small">Час пошуку (секунд)</label>
-            <input
-              type="range"
-              className="form-range"
-              min={10}
-              max={120}
-              step={5}
-              value={Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)}
-              onChange={(e) =>
-                onAutoOptsChange({
-                  ...autoOpts,
-                  multiRestartTimeoutMs: parseInt(e.target.value) * 1000,
-                })
-              }
-            />
-            <div className="d-flex justify-content-between small text-muted">
-              <span>10с</span>
-              <span className="fw-bold text-primary">
-                {Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)} сек
-              </span>
-              <span>120с</span>
+            {/* Strategy selector */}
+            <div className="mb-3">
+              <label className="form-label fw-bold small">
+                Стратегія збурення
+                <InfoPopover title="Стратегія збурення">
+                  <p>
+                    <strong>Парний обмін (класичний)</strong> — випадково міняє 2–4 пари місцями.
+                    Швидкий, добре працює для невеликих груп.
+                  </p>
+                  <p className="mb-0">
+                    <strong>LNS (руйнування-відновлення)</strong> — видаляє блок із 3–7 днів і
+                    заповнює їх заново з нуля, дотримуючись усіх обмежень. Досліджує ширший простір
+                    рішень, ефективніший для груп 10+ осіб.
+                  </p>
+                </InfoPopover>
+              </label>
+              <div className="btn-group w-100" role="group">
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="multiRestartStrategy"
+                  id="strategyPairSwap"
+                  checked={(autoOpts.multiRestartStrategy ?? 'pair-swap') === 'pair-swap'}
+                  onChange={() =>
+                    onAutoOptsChange({ ...autoOpts, multiRestartStrategy: 'pair-swap' })
+                  }
+                />
+                <label className="btn btn-outline-primary btn-sm" htmlFor="strategyPairSwap">
+                  <i className="fas fa-exchange-alt me-1"></i>Парний обмін
+                </label>
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="multiRestartStrategy"
+                  id="strategyLns"
+                  checked={(autoOpts.multiRestartStrategy ?? 'pair-swap') === 'lns'}
+                  onChange={() => onAutoOptsChange({ ...autoOpts, multiRestartStrategy: 'lns' })}
+                />
+                <label className="btn btn-outline-primary btn-sm" htmlFor="strategyLns">
+                  <i className="fas fa-recycle me-1"></i>LNS
+                </label>
+              </div>
             </div>
+
+            {/* Time limit mode */}
+            <div className="mb-3">
+              <label className="form-label fw-bold small">Обмеження часу</label>
+              <div className="btn-group w-100" role="group">
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="multiRestartTimeLimitMode"
+                  id="timeLimitFixed"
+                  checked={(autoOpts.multiRestartTimeLimitMode ?? 'fixed') === 'fixed'}
+                  onChange={() =>
+                    onAutoOptsChange({ ...autoOpts, multiRestartTimeLimitMode: 'fixed' })
+                  }
+                />
+                <label className="btn btn-outline-primary btn-sm" htmlFor="timeLimitFixed">
+                  <i className="fas fa-hourglass-half me-1"></i>За часом
+                </label>
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="multiRestartTimeLimitMode"
+                  id="timeLimitUnlimited"
+                  checked={(autoOpts.multiRestartTimeLimitMode ?? 'fixed') === 'unlimited'}
+                  onChange={() =>
+                    onAutoOptsChange({ ...autoOpts, multiRestartTimeLimitMode: 'unlimited' })
+                  }
+                />
+                <label className="btn btn-outline-primary btn-sm" htmlFor="timeLimitUnlimited">
+                  <i className="fas fa-infinity me-1"></i>Безлімітний (до Стоп)
+                </label>
+              </div>
+            </div>
+
+            {/* Time slider — only in fixed mode */}
+            {(autoOpts.multiRestartTimeLimitMode ?? 'fixed') === 'fixed' && (
+              <>
+                <label className="form-label fw-bold small">Час пошуку (секунд)</label>
+                <input
+                  type="range"
+                  className="form-range"
+                  min={10}
+                  max={300}
+                  step={5}
+                  value={Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)}
+                  onChange={(e) =>
+                    onAutoOptsChange({
+                      ...autoOpts,
+                      multiRestartTimeoutMs: parseInt(e.target.value) * 1000,
+                    })
+                  }
+                />
+                <div className="d-flex justify-content-between small text-muted">
+                  <span>10с</span>
+                  <span className="fw-bold text-primary">
+                    {Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)} сек
+                  </span>
+                  <span>5 хв</span>
+                </div>
+              </>
+            )}
+
+            {(autoOpts.multiRestartTimeLimitMode ?? 'fixed') === 'unlimited' && (
+              <div className="text-muted small">
+                <i className="fas fa-info-circle me-1"></i>
+                Оптимізація працюватиме безперервно, поки ви не натиснете <strong>Стоп</strong> у
+                рядку прогресу.
+              </div>
+            )}
+
             <div className="text-muted small mt-2">
-              <i className="fas fa-info-circle me-1"></i>
-              За{' '}
-              <strong>
-                {Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)} секунд
-              </strong>{' '}
-              ~{Math.round(((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000) * 12)}–
-              {Math.round(((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000) * 20)} рестартів
+              {(autoOpts.multiRestartTimeLimitMode ?? 'fixed') === 'fixed' && (
+                <>
+                  <i className="fas fa-info-circle me-1"></i>
+                  За{' '}
+                  <strong>
+                    {Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)} секунд
+                  </strong>{' '}
+                  ~{Math.round(((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000) * 12)}–
+                  {Math.round(((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000) * 20)} рестартів
+                </>
+              )}
               {!autoOpts.useTabuSearch && (
                 <span className="text-info ms-2">
                   <i className="fas fa-lightbulb me-1"></i>

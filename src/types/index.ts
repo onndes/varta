@@ -320,6 +320,8 @@ export interface AutoScheduleOptions {
   // Multi-Restart (Iterated Local Search): random perturbation + local search within a time budget
   useMultiRestart?: boolean; // default: false
   multiRestartTimeoutMs?: number; // time budget in ms (default: 30000)
+  multiRestartStrategy?: 'pair-swap' | 'lns'; // perturbation strategy: pair-swap (classic) or LNS (destroy-repair)
+  multiRestartTimeLimitMode?: 'fixed' | 'unlimited'; // 'fixed' = use multiRestartTimeoutMs, 'unlimited' = run until aborted
 }
 
 /** Progress callback for long-running scheduler operations. */

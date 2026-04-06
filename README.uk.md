@@ -587,6 +587,15 @@ DayWeights = {
 | `forceUseAllWhenFew`                   | При ≤7 бійців — використовувати всіх циклічно                 |
 | `evenWeeklyDistribution`               | При ≤7 бійців — ніхто не отримує N+1 наряд, поки інший має N  |
 | `ignoreHistoryInLogic`                 | Виключати `history`/`import` записи з розрахунку навантаження |
+| `lookaheadDepth`                       | Симулювати N днів уперед для кожного кандидата (0 = вимк.)    |
+| `lookaheadCandidates`                  | Скільки топ-кандидатів симулювати у lookahead                 |
+| `useTabuSearch`                        | Увімкнути Tabu Search метаевристику після фаз свопу           |
+| `tabuMaxIterations`                    | Ліміт ітерацій Tabu Search                                    |
+| `tabuTenure`                           | Скільки ітерацій зворотній хід заборонений                    |
+| `useMultiRestart`                      | Увімкнути Multi-Restart (ILS) після Tabu Search               |
+| `multiRestartTimeoutMs`                | Бюджет часу для Multi-Restart у фіксованому режимі (мс)       |
+| `multiRestartStrategy`                 | Стратегія збурення: `'pair-swap'` або `'lns'`                 |
+| `multiRestartTimeLimitMode`            | `'fixed'` (за часом) або `'unlimited'` (до натискання Стоп)   |
 
 ---
 

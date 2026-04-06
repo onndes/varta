@@ -17,7 +17,20 @@ import {
   MS_PER_DAY,
   MIN_USERS_FOR_WEEKLY_LIMIT,
   computeGlobalObjective,
+  countEligibleUsersForWeek,
+  getWeekWindow,
+  countUserAssignmentsInRange,
 } from './helpers';
+import {
+  buildUserComparator,
+  filterByRestDays,
+  filterByIncompatiblePairs,
+  filterBySameWeekdayLastWeek,
+  filterByWeeklyCap,
+  filterForceUseAllWhenFew,
+  filterEvenWeeklyDistribution,
+} from './comparator';
+import { getLogicSchedule } from '../../utils/assignment';
 
 export const isAutoParticipant = (u: User): boolean =>
   Boolean(u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);
@@ -951,6 +964,183 @@ const syncMiniOptimize = (
 };
 
 /**
+ * LNS destroy: remove assignments from a random contiguous window of dates.
+ * Returns the destroyed dates so the repair step knows which to rebuild.
+ * Window size: 3–7 dates (scales with schedule size, minimum 3).
+ */
+const lnsDestroy = (
+  autoFilledDates: string[],
+  schedule: Record<string, ScheduleEntry>,
+  windowSize: number
+): string[] => {
+  if (autoFilledDates.length <= windowSize) {
+    // Destroy all dates
+    const destroyed: string[] = [];
+    for (const d of autoFilledDates) {
+      const e = schedule[d];
+      if (e) {
+        schedule[d] = { ...e, userId: null };
+        destroyed.push(d);
+      }
+    }
+    return destroyed;
+  }
+
+  // Pick random scattered dates (not contiguous) for better diversity.
+  // This ensures each restart explores a structurally different neighborhood.
+  const indices = autoFilledDates.map((_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const picked = indices.slice(0, windowSize).sort((a, b) => a - b);
+
+  const destroyed: string[] = [];
+  for (const idx of picked) {
+    const d = autoFilledDates[idx];
+    const e = schedule[d];
+    if (e) {
+      schedule[d] = { ...e, userId: null };
+      destroyed.push(d);
+    }
+  }
+  return destroyed;
+};
+
+/**
+ * LNS repair: reassign destroyed dates using the same greedy pipeline
+ * (filters + comparator) that the main scheduler uses.
+ * Respects ALL constraints: hard eligibility, rest days, incompatible pairs,
+ * same-DOW-last-week, weekly cap, forceUseAll, evenWeeklyDistribution.
+ */
+const lnsRepair = (
+  destroyedDates: string[],
+  allDates: string[],
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  dayWeights: DayWeights,
+  options: AutoScheduleOptions,
+  fairnessUsers: User[]
+): void => {
+  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+
+  for (const dateStr of destroyedDates) {
+    const allAutoUsers = users.filter((u) => u.id && isAutoParticipant(u));
+
+    const hardPool = allAutoUsers.filter((u) => isHardEligible(u, dateStr));
+    if (hardPool.length === 0) {
+      // No one available — leave unassigned
+      continue;
+    }
+
+    let pool = [...hardPool];
+
+    // Rest days filter
+    if (minRest > 0) {
+      const filtered = filterByRestDays(pool, dateStr, minRest, schedule);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    // Incompatible pairs filter
+    {
+      const filtered = filterByIncompatiblePairs(pool, users, dateStr, schedule);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    // Same weekday last week filter
+    {
+      const filtered = filterBySameWeekdayLastWeek(
+        pool,
+        dateStr,
+        schedule,
+        !options.evenWeeklyDistribution
+      );
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+
+    // Weekly cap filter
+    if (options.limitOneDutyPerWeekWhenSevenPlus) {
+      const filtered = filterByWeeklyCap(pool, users, dateStr, schedule, options);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    // forceUseAllWhenFew filter
+    if (
+      options.forceUseAllWhenFew &&
+      totalEligibleCount !== undefined &&
+      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
+    ) {
+      const filtered = filterForceUseAllWhenFew(pool, dateStr, schedule);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    // evenWeeklyDistribution filter
+    if (
+      options.evenWeeklyDistribution &&
+      totalEligibleCount !== undefined &&
+      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
+    ) {
+      const filtered = filterEvenWeeklyDistribution(pool, dateStr, schedule);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    // Fairness recovery (same as main scheduler)
+    if (
+      (options.forceUseAllWhenFew || options.evenWeeklyDistribution) &&
+      totalEligibleCount !== undefined &&
+      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT &&
+      pool.length > 0
+    ) {
+      const week = getWeekWindow(dateStr);
+      const poolHasZero = pool.some(
+        (u) => countUserAssignmentsInRange(u.id!, schedule, week.from, week.to) === 0
+      );
+      if (!poolHasZero) {
+        const zeroDutyHard = hardPool.filter(
+          (u) => countUserAssignmentsInRange(u.id!, schedule, week.from, week.to) === 0
+        );
+        if (zeroDutyHard.length > 0) {
+          pool = zeroDutyHard;
+        }
+      }
+    }
+
+    // Starvation fallback
+    if (pool.length === 0) {
+      pool = [...hardPool];
+    }
+
+    if (pool.length === 0) continue;
+
+    // Sort by the same comparator used in the greedy pass
+    const fairnessSchedule = getLogicSchedule(schedule, false);
+    const compare = buildUserComparator(
+      dateStr,
+      schedule,
+      dayWeights,
+      options,
+      undefined,
+      fairnessSchedule,
+      totalEligibleCount,
+      pool,
+      fairnessUsers
+    );
+    pool.sort(compare);
+
+    // Pick randomly from top-3 to add exploration diversity across restarts.
+    // Pure greedy (always pool[0]) is deterministic and produces the same
+    // assignment every time given the same surrounding context.
+    const topN = Math.min(3, pool.length);
+    const selected = pool[Math.floor(Math.random() * topN)];
+    if (selected?.id) {
+      schedule[dateStr] = { ...schedule[dateStr], userId: selected.id };
+    }
+  }
+};
+
+/**
  * Multi-Restart optimization (Iterated Local Search).
  *
  * Runs entirely within a caller-specified time budget. Strategy:
@@ -976,12 +1166,16 @@ export const performMultiRestartOptimization = async (
   options: AutoScheduleOptions,
   dayWeights: DayWeights,
   timeoutMs: number,
-  onProgress?: SchedulerProgressCallback
+  onProgress?: SchedulerProgressCallback,
+  abortSignal?: AbortSignal
 ): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
   const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d)).sort();
+  const strategy = options.multiRestartStrategy ?? 'pair-swap';
+  const isUnlimited = options.multiRestartTimeLimitMode === 'unlimited';
+  const fairnessUsers = users.filter(isAutoParticipant);
 
   if (autoFilledDates.length < 2 || participants.length < 2) return;
 
@@ -996,20 +1190,31 @@ export const performMultiRestartOptimization = async (
   // Perturbation degree: swap 2–4 random pairs (scales with schedule size)
   const perturbDegree = Math.max(2, Math.min(4, Math.floor(autoFilledDates.length / 3)));
 
-  const deadline = Date.now() + timeoutMs;
+  // LNS window size: destroy 30-50% of dates (min 3, max 14)
+  const lnsWindowSize = Math.max(3, Math.min(14, Math.floor(autoFilledDates.length * 0.4)));
+
+  const startTime = Date.now();
+  const deadline = isUnlimited ? Infinity : startTime + timeoutMs;
   let restart = 0;
   let improvements = 0;
+  const strategyLabel = strategy === 'lns' ? 'LNS' : 'Multi-Restart';
 
   while (Date.now() < deadline) {
+    // Check abort signal for unlimited mode (and fixed mode too)
+    if (abortSignal?.aborted) break;
+
     restart++;
 
     // Yield to UI thread every 5 restarts
     if (restart % 5 === 0) {
-      const elapsed = Date.now() - (deadline - timeoutMs);
-      const percent = Math.min(99, Math.round((elapsed / timeoutMs) * 100));
-      onProgress?.(`Multi-Restart (спроба ${restart}, покращень: ${improvements})`, percent);
+      const elapsed = Date.now() - startTime;
+      const percent = isUnlimited
+        ? -1 // Signal to UI that this is unlimited mode
+        : Math.min(99, Math.round((elapsed / timeoutMs) * 100));
+      onProgress?.(`${strategyLabel} (спроба ${restart}, покращень: ${improvements})`, percent);
       await new Promise<void>((r) => setTimeout(r, 0));
-      if (Date.now() >= deadline) break;
+      if (!isUnlimited && Date.now() >= deadline) break;
+      if (abortSignal?.aborted) break;
     }
 
     // Restore best as starting point for this restart
@@ -1018,57 +1223,60 @@ export const performMultiRestartOptimization = async (
       if (e) tempSchedule[d] = { ...e, userId: uid };
     }
 
-    // Perturbation: random pair swaps to kick out of local optimum
-    const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
-    let perturbCount = 0;
-    for (let i = 0; i + 1 < shuffled.length && perturbCount < perturbDegree; i += 2) {
-      const d1 = shuffled[i];
-      const d2 = shuffled[i + 1];
-      const e1 = tempSchedule[d1];
-      const e2 = tempSchedule[d2];
-      if (!e1 || !e2) continue;
-      const ids1 = toAssignedUserIds(e1.userId);
-      const ids2 = toAssignedUserIds(e2.userId);
-      // Support dutiesPerDay > 1: pick any one slot from each date to swap.
-      if (ids1.length === 0 || ids2.length === 0) continue;
-      // For perturbation simplicity, pick the first slot that results in a valid swap.
-      let swapped = false;
-      outer: for (let si = 0; si < ids1.length; si++) {
-        for (let sj = 0; sj < ids2.length; sj++) {
-          const u1 = ids1[si];
-          const u2 = ids2[sj];
-          if (u1 === u2) continue;
-          const newIds1 = [...ids1];
-          newIds1[si] = u2;
-          const newIds2 = [...ids2];
-          newIds2[sj] = u1;
-          if (new Set(newIds1).size < newIds1.length) continue;
-          if (new Set(newIds2).size < newIds2.length) continue;
-          const u1obj = participants.find((u) => u.id === u1);
-          const u2obj = participants.find((u) => u.id === u2);
-          if (!u1obj || !u2obj) continue;
-          if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
-          const nu1 = newIds1.length === 1 ? newIds1[0] : newIds1;
-          const nu2 = newIds2.length === 1 ? newIds2[0] : newIds2;
-          tempSchedule[d1] = { ...e1, userId: nu1 };
-          tempSchedule[d2] = { ...e2, userId: nu2 };
-          // Enforce rest-day constraints — perturbation must not create violations
-          if (
-            (minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule)) ||
-            (minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule))
-          ) {
-            tempSchedule[d1] = e1;
-            tempSchedule[d2] = e2;
-            continue;
+    if (strategy === 'lns') {
+      // LNS perturbation: destroy a window, then repair with greedy pipeline
+      const destroyed = lnsDestroy(autoFilledDates, tempSchedule, lnsWindowSize);
+      lnsRepair(destroyed, dates, users, tempSchedule, dayWeights, options, fairnessUsers);
+    } else {
+      // Classic perturbation: random pair swaps
+      const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
+      let perturbCount = 0;
+      for (let i = 0; i + 1 < shuffled.length && perturbCount < perturbDegree; i += 2) {
+        const d1 = shuffled[i];
+        const d2 = shuffled[i + 1];
+        const e1 = tempSchedule[d1];
+        const e2 = tempSchedule[d2];
+        if (!e1 || !e2) continue;
+        const ids1 = toAssignedUserIds(e1.userId);
+        const ids2 = toAssignedUserIds(e2.userId);
+        if (ids1.length === 0 || ids2.length === 0) continue;
+        let swapped = false;
+        outer: for (let si = 0; si < ids1.length; si++) {
+          for (let sj = 0; sj < ids2.length; sj++) {
+            const u1 = ids1[si];
+            const u2 = ids2[sj];
+            if (u1 === u2) continue;
+            const newIds1 = [...ids1];
+            newIds1[si] = u2;
+            const newIds2 = [...ids2];
+            newIds2[sj] = u1;
+            if (new Set(newIds1).size < newIds1.length) continue;
+            if (new Set(newIds2).size < newIds2.length) continue;
+            const u1obj = participants.find((u) => u.id === u1);
+            const u2obj = participants.find((u) => u.id === u2);
+            if (!u1obj || !u2obj) continue;
+            if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
+            const nu1 = newIds1.length === 1 ? newIds1[0] : newIds1;
+            const nu2 = newIds2.length === 1 ? newIds2[0] : newIds2;
+            tempSchedule[d1] = { ...e1, userId: nu1 };
+            tempSchedule[d2] = { ...e2, userId: nu2 };
+            if (
+              (minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule)) ||
+              (minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule))
+            ) {
+              tempSchedule[d1] = e1;
+              tempSchedule[d2] = e2;
+              continue;
+            }
+            swapped = true;
+            break outer;
           }
-          swapped = true;
-          break outer;
         }
+        if (swapped) perturbCount++;
       }
-      if (swapped) perturbCount++;
     }
 
-    // Local search from perturbed state (sync, no UI yields)
+    // Local search from perturbed/repaired state (sync, no UI yields)
     syncMiniOptimize(
       autoFilledDates,
       participants,
@@ -1116,5 +1324,5 @@ export const performMultiRestartOptimization = async (
     if (e) tempSchedule[d] = { ...e, userId: uid };
   }
 
-  onProgress?.(`Multi-Restart завершено (${restart} спроб, ${improvements} покращень)`, 100);
+  onProgress?.(`${strategyLabel} завершено (${restart} спроб, ${improvements} покращень)`, 100);
 };

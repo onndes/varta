@@ -75,7 +75,8 @@ describe('useAutoScheduler.generateWeekSchedule', () => {
       1,
       DEFAULT_AUTO_SCHEDULE_OPTIONS,
       false,
-      expect.any(Function)
+      expect.any(Function),
+      expect.any(AbortSignal)
     );
     expect(autoScheduler.saveAutoSchedule).toHaveBeenCalledWith(
       [{ date: '2026-04-14', userId: 1, type: 'auto' }],

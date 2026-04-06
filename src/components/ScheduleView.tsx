@@ -116,6 +116,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     recalculateFrom,
     generateWeekSchedule,
     progress: schedulerProgress,
+    stopScheduler,
   } = useAutoScheduler(
     users,
     schedule,
@@ -360,6 +361,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       onPreviewToggle={togglePreviewMode}
       dragDropHandlers={dragDropHandlers}
       schedulerProgress={schedulerProgress}
+      onStopScheduler={stopScheduler}
     />
   );
 };

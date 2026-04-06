@@ -42,6 +42,7 @@ interface ScheduleControlsProps {
   isPreviewPrefetching?: boolean;
   onPreviewToggle?: () => void;
   schedulerProgress?: { phase: string; percent: number } | null;
+  onStopScheduler?: () => void;
 }
 
 /**
@@ -85,6 +86,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   isPreviewPrefetching = false,
   onPreviewToggle,
   schedulerProgress,
+  onStopScheduler,
 }) => {
   const startDate = new Date(weekDates[0]);
   const endDate = new Date(weekDates[6]);
@@ -288,9 +290,22 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
 
         <div className="flex-grow-1 d-flex align-items-center justify-content-center">
           {schedulerProgress && (
-            <span className="text-warning small fw-semibold" style={{ whiteSpace: 'nowrap' }}>
+            <span
+              className="text-warning small fw-semibold d-inline-flex align-items-center"
+              style={{ whiteSpace: 'nowrap' }}
+            >
               <i className="fas fa-cog fa-spin me-1"></i>
-              {schedulerProgress.phase} {schedulerProgress.percent}%
+              {schedulerProgress.phase}
+              {schedulerProgress.percent >= 0 ? ` ${schedulerProgress.percent}%` : '…'}
+              {onStopScheduler && (
+                <button
+                  className="btn btn-sm btn-danger ms-2 py-0 px-2"
+                  onClick={onStopScheduler}
+                  title="Зупинити оптимізацію"
+                >
+                  <i className="fas fa-stop me-1"></i>Стоп
+                </button>
+              )}
             </span>
           )}
         </div>
