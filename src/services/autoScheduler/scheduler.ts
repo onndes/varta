@@ -42,6 +42,7 @@ import {
   isLookAheadSafe,
   performSwapOptimization,
   performTabuSearch,
+  performMultiRestartOptimization,
 } from './swapOptimizer';
 import { buildDecisionLog } from './decisionLog';
 import { FILTER_PHRASES } from './decisionPhrases';
@@ -587,6 +588,23 @@ export const autoFillSchedule = async (
         dayWeights,
         onProgress,
         optimizerLog
+      );
+    }
+
+    // Multi-Restart (Phase 5): Iterated Local Search within time budget.
+    // Runs after all other optimizers — uses their result as the starting point.
+    if (options.useMultiRestart) {
+      const timeoutMs = options.multiRestartTimeoutMs ?? 30_000;
+      onProgress?.('Multi-Restart', 0);
+      await performMultiRestartOptimization(
+        dates,
+        users,
+        tempSchedule,
+        autoFilledDateSet,
+        options,
+        dayWeights,
+        timeoutMs,
+        onProgress
       );
     }
 

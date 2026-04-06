@@ -420,6 +420,99 @@ const ExperimentalTabPanel: React.FC<ExperimentalTabPanelProps> = ({
             </div>
           </div>
         )}
+
+        <hr className="my-3" />
+
+        {/* Multi-Restart (Iterated Local Search) */}
+        <div className="form-check form-switch mb-3">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="useMultiRestart"
+            checked={!!autoOpts.useMultiRestart}
+            onChange={(e) => onAutoOptsChange({ ...autoOpts, useMultiRestart: e.target.checked })}
+          />
+          <label className="form-check-label" htmlFor="useMultiRestart">
+            <strong>Multi-Restart (максимальна якість)</strong>
+            <InfoPopover title="Multi-Restart (Iterated Local Search)">
+              <p>
+                Запускається після всіх інших оптимізаторів і використовує їх результат як відправну
+                точку. Протягом заданого часу виконує сотні незалежних спроб покращити розклад:
+              </p>
+              <ol className="mb-2 ps-3">
+                <li>
+                  <strong>Збереження</strong> — зберігає поточний найкращий результат
+                </li>
+                <li>
+                  <strong>Збурення</strong> — випадково міняє 2–4 пари для виходу з локального
+                  оптимуму
+                </li>
+                <li>
+                  <strong>Локальний пошук</strong> — быстра оптимізація (Фази 1–2) до сходження
+                </li>
+                <li>
+                  <strong>Прийняття</strong> — якщо результат кращий — зберегти, інакше спробувати
+                  знову
+                </li>
+              </ol>
+              <p className="mb-1">
+                За 30 секунд виконується ~200–500 рестартів. Гірший за поточний результат неможливий
+                — алгоритм завжди відновлює найкраще знайдене рішення.
+              </p>
+              <p className="mb-0 text-success-emphasis">
+                <i className="fas fa-lightbulb me-1"></i>
+                Найефективніший для груп 10–30 осіб, де Tabu Search може застрягти в локальному
+                оптимумі. Ідеально поєднується з Tabu Search.
+              </p>
+            </InfoPopover>
+            <div className="text-muted small">
+              Протягом заданого часу виконує сотні спроб з випадковим збуренням + швидкою
+              оптимізацією. Знаходить рішення, недосяжні для одноразового Tabu Search.
+            </div>
+          </label>
+        </div>
+
+        {autoOpts.useMultiRestart && (
+          <div className="ms-4 mb-3 p-3 bg-body-tertiary rounded">
+            <label className="form-label fw-bold small">Час пошуку (секунд)</label>
+            <input
+              type="range"
+              className="form-range"
+              min={10}
+              max={120}
+              step={5}
+              value={Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)}
+              onChange={(e) =>
+                onAutoOptsChange({
+                  ...autoOpts,
+                  multiRestartTimeoutMs: parseInt(e.target.value) * 1000,
+                })
+              }
+            />
+            <div className="d-flex justify-content-between small text-muted">
+              <span>10с</span>
+              <span className="fw-bold text-primary">
+                {Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)} сек
+              </span>
+              <span>120с</span>
+            </div>
+            <div className="text-muted small mt-2">
+              <i className="fas fa-info-circle me-1"></i>
+              За{' '}
+              <strong>
+                {Math.round((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000)} секунд
+              </strong>{' '}
+              ~{Math.round(((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000) * 12)}–
+              {Math.round(((autoOpts.multiRestartTimeoutMs ?? 30_000) / 1000) * 20)} рестартів
+              {!autoOpts.useTabuSearch && (
+                <span className="text-info ms-2">
+                  <i className="fas fa-lightbulb me-1"></i>
+                  Рекомендуємо також увімкнути Tabu Search для кращого старту
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   </>

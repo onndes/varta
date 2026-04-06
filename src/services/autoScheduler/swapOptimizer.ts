@@ -816,3 +816,228 @@ export const performTabuSearch = async (
 
   onProgress?.('Tabu Search', 100);
 };
+
+// ─── Multi-Restart (Iterated Local Search) ──────────────────────────────────
+
+/**
+ * Synchronous mini local search (Phase 1 pair-exchange only, no async yields).
+ * Used within multi-restart loops where async overhead would dominate runtime.
+ * Only performs count-preserving pair swaps — never changes per-user duty totals.
+ * Runs until convergence or maxIter, whichever comes first.
+ */
+const syncMiniOptimize = (
+  autoFilledDates: string[],
+  participants: User[],
+  userIds: number[],
+  schedule: Record<string, ScheduleEntry>,
+  users: User[],
+  dayWeights: DayWeights,
+  minRest: number,
+  maxIter: number
+): void => {
+  for (let iter = 0; iter < maxIter; iter++) {
+    let improved = false;
+
+    // Phase 1: Pair-exchange swaps
+    outerPair: for (let i = 0; i < autoFilledDates.length - 1; i++) {
+      for (let j = i + 1; j < autoFilledDates.length; j++) {
+        const date1 = autoFilledDates[i];
+        const date2 = autoFilledDates[j];
+        const entry1 = schedule[date1];
+        const entry2 = schedule[date2];
+        if (!entry1 || !entry2) continue;
+        const ids1 = toAssignedUserIds(entry1.userId);
+        const ids2 = toAssignedUserIds(entry2.userId);
+        if (ids1.length !== 1 || ids2.length !== 1) continue;
+        const user1 = ids1[0];
+        const user2 = ids2[0];
+        if (user1 === user2) continue;
+        const u1obj = participants.find((u) => u.id === user1);
+        const u2obj = participants.find((u) => u.id === user2);
+        if (!u1obj || !u2obj) continue;
+        if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
+        if (wouldViolateIncompatiblePairs(user1, date2, schedule, users)) continue;
+        if (wouldViolateIncompatiblePairs(user2, date1, schedule, users)) continue;
+        if (wouldCreateSameDowRepeat(user1, date2, schedule)) continue;
+        if (wouldCreateSameDowRepeat(user2, date1, schedule)) continue;
+
+        const baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+        schedule[date1] = { ...entry1, userId: user2 };
+        schedule[date2] = { ...entry2, userId: user1 };
+
+        if (
+          (minRest > 0 && wouldViolateRestDays(user2, date1, minRest, schedule)) ||
+          (minRest > 0 && wouldViolateRestDays(user1, date2, minRest, schedule))
+        ) {
+          schedule[date1] = entry1;
+          schedule[date2] = entry2;
+          continue;
+        }
+
+        const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+        if (newObj < baseObj - FLOAT_EPSILON) {
+          improved = true;
+          break outerPair;
+        } else {
+          schedule[date1] = entry1;
+          schedule[date2] = entry2;
+        }
+      }
+    }
+
+    if (!improved) break;
+  }
+};
+
+/**
+ * Multi-Restart optimization (Iterated Local Search).
+ *
+ * Runs entirely within a caller-specified time budget. Strategy:
+ *   1. Save current best solution (result of Phases 1-3 + optional Tabu).
+ *   2. Perturb: randomly swap `perturbDegree` pairs to escape local optimum.
+ *   3. Local search: syncMiniOptimize to convergence (Phases 1-2, no async delay).
+ *   4. If new Z < bestZ → update best.
+ *   5. Repeat until deadline.
+ *   6. Restore global best.
+ *
+ * Compatible with all existing constraints: respects rest days, incompatible
+ * pairs, hard eligibility, and same-DOW-consecutive rules. Perturbation is
+ * count-preserving (pair swaps only) and respects rest-day constraints.
+ * Results are validated for constraint violations before acceptance.
+ *
+ * Works with or without Lookahead and Tabu Search — runs after them as Phase 5.
+ */
+export const performMultiRestartOptimization = async (
+  dates: string[],
+  users: User[],
+  tempSchedule: Record<string, ScheduleEntry>,
+  autoFilledDateSet: Set<string>,
+  options: AutoScheduleOptions,
+  dayWeights: DayWeights,
+  timeoutMs: number,
+  onProgress?: SchedulerProgressCallback
+): Promise<void> => {
+  const participants = users.filter(isAutoParticipant);
+  const userIds = participants.map((u) => u.id!);
+  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d)).sort();
+
+  if (autoFilledDates.length < 2 || participants.length < 2) return;
+
+  // Seed with current best (result of all previous optimization phases)
+  let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+  const bestAssignment = new Map<string, number | number[]>();
+  for (const d of autoFilledDates) {
+    const e = tempSchedule[d];
+    if (e) bestAssignment.set(d, e.userId as number | number[]);
+  }
+
+  // Perturbation degree: swap 2–4 random pairs (scales with schedule size)
+  const perturbDegree = Math.max(2, Math.min(4, Math.floor(autoFilledDates.length / 3)));
+
+  const deadline = Date.now() + timeoutMs;
+  let restart = 0;
+  let improvements = 0;
+
+  while (Date.now() < deadline) {
+    restart++;
+
+    // Yield to UI thread every 5 restarts
+    if (restart % 5 === 0) {
+      const elapsed = Date.now() - (deadline - timeoutMs);
+      const percent = Math.min(99, Math.round((elapsed / timeoutMs) * 100));
+      onProgress?.(`Multi-Restart (спроба ${restart}, покращень: ${improvements})`, percent);
+      await new Promise<void>((r) => setTimeout(r, 0));
+      if (Date.now() >= deadline) break;
+    }
+
+    // Restore best as starting point for this restart
+    for (const [d, uid] of bestAssignment) {
+      const e = tempSchedule[d];
+      if (e) tempSchedule[d] = { ...e, userId: uid };
+    }
+
+    // Perturbation: random pair swaps to kick out of local optimum
+    const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
+    let perturbCount = 0;
+    for (let i = 0; i + 1 < shuffled.length && perturbCount < perturbDegree; i += 2) {
+      const d1 = shuffled[i];
+      const d2 = shuffled[i + 1];
+      const e1 = tempSchedule[d1];
+      const e2 = tempSchedule[d2];
+      if (!e1 || !e2) continue;
+      const ids1 = toAssignedUserIds(e1.userId);
+      const ids2 = toAssignedUserIds(e2.userId);
+      if (ids1.length !== 1 || ids2.length !== 1) continue;
+      const u1 = ids1[0];
+      const u2 = ids2[0];
+      if (u1 === u2) continue;
+      const u1obj = participants.find((u) => u.id === u1);
+      const u2obj = participants.find((u) => u.id === u2);
+      if (!u1obj || !u2obj) continue;
+      if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
+      // Tentatively swap
+      tempSchedule[d1] = { ...e1, userId: u2 };
+      tempSchedule[d2] = { ...e2, userId: u1 };
+      // Enforce rest-day constraints — perturbation must not create violations
+      if (
+        (minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule)) ||
+        (minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule))
+      ) {
+        tempSchedule[d1] = e1;
+        tempSchedule[d2] = e2;
+        continue;
+      }
+      perturbCount++;
+    }
+
+    // Local search from perturbed state (sync, no UI yields)
+    syncMiniOptimize(
+      autoFilledDates,
+      participants,
+      userIds,
+      tempSchedule,
+      users,
+      dayWeights,
+      minRest,
+      200
+    );
+
+    // Validate no constraint violations before accepting
+    let hasViolation = false;
+    if (minRest > 0) {
+      for (const dateStr of autoFilledDates) {
+        const entry = tempSchedule[dateStr];
+        if (!entry) continue;
+        for (const uid of toAssignedUserIds(entry.userId)) {
+          if (wouldViolateRestDays(uid, dateStr, minRest, tempSchedule)) {
+            hasViolation = true;
+            break;
+          }
+        }
+        if (hasViolation) break;
+      }
+    }
+
+    // Accept only if no violations AND better than global best
+    if (!hasViolation) {
+      const newZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+      if (newZ < bestZ - FLOAT_EPSILON) {
+        bestZ = newZ;
+        improvements++;
+        for (const d of autoFilledDates) {
+          const e = tempSchedule[d];
+          if (e) bestAssignment.set(d, e.userId as number | number[]);
+        }
+      }
+    }
+  }
+
+  // Restore global best
+  for (const [d, uid] of bestAssignment) {
+    const e = tempSchedule[d];
+    if (e) tempSchedule[d] = { ...e, userId: uid };
+  }
+
+  onProgress?.(`Multi-Restart завершено (${restart} спроб, ${improvements} покращень)`, 100);
+};

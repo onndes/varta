@@ -315,6 +315,9 @@ export interface AutoScheduleOptions {
   useTabuSearch?: boolean; // default: false
   tabuTenure?: number; // how many iterations a move stays forbidden (default: 7)
   tabuMaxIterations?: number; // max iterations for tabu search (default: 50)
+  // Multi-Restart (Iterated Local Search): random perturbation + local search within a time budget
+  useMultiRestart?: boolean; // default: false
+  multiRestartTimeoutMs?: number; // time budget in ms (default: 30000)
 }
 
 /** Progress callback for long-running scheduler operations. */
