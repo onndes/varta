@@ -494,6 +494,49 @@ documentation drift is a known source of confusion for both agents and human ope
 
 ---
 
+## 13. Build Verification — TypeScript Strict Check
+
+### Why `npx tsc --noEmit` is NOT sufficient
+
+The root `tsconfig.json` contains only `"files": []` and project references. Running
+`npx tsc --noEmit` against it compiles **zero files** — it is effectively a no-op and will **not**
+surface any errors.
+
+The production strict check lives in `tsconfig.app.json`, which enables:
+
+```json
+"noUnusedLocals": true,
+"noUnusedParameters": true,
+"strict": true
+```
+
+This is only exercised by `tsc -b`, which is what `npm run build` calls.
+
+### Canonical verification command
+
+```bash
+npm run build
+```
+
+This runs `tsc -b && vite build` and will catch:
+
+- Unused variables / parameters (TS6133) — the error that broke Tauri build in the past
+- All strict-mode type errors
+- Import/export mismatches
+
+### Common mistake pattern
+
+An agent adds or removes a parameter from a function but forgets to remove it from the call site or
+body. `tsc --noEmit` passes (compiles nothing), but `npm run build` / `tauri build` fails with
+TS6133. **Always verify with `npm run build`.**
+
+### Sequence after every code change
+
+1. `npm run build` — must exit with code 0, zero errors
+2. `npx vitest run` — all tests must pass
+
+---
+
 ## 12. Before You Change Anything — Checklist
 
 Run through every item below before writing a single line:
@@ -508,6 +551,7 @@ Run through every item below before writing a single line:
 - [ ] Does the change use `countEligibleUsersForWeek` where required (Section 6, Regression 3)?
 - [ ] Will this produce correct behavior on a **3-user group** (extreme low count) AND a **10-user
       group** (normal count)?
+- [ ] Did I run `npm run build` (NOT `npx tsc --noEmit`) and confirm zero errors? See Section 13.
 - [ ] Did I run `npx vitest run` and confirm no new test failures?
 - [ ] If I changed a weight or threshold, did I test on at least one real exported backup (`.json`)
       by comparing the before/after schedule for a full 4-week window?

@@ -1021,7 +1021,6 @@ const lnsDestroy = (
  */
 const lnsRepair = (
   destroyedDates: string[],
-  allDates: string[],
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
@@ -1241,7 +1240,7 @@ export const performMultiRestartOptimization = async (
     if (strategy === 'lns') {
       // LNS perturbation: destroy a window, then repair with greedy pipeline
       const destroyed = lnsDestroy(autoFilledDates, tempSchedule, lnsWindowSize);
-      lnsRepair(destroyed, dates, users, tempSchedule, dayWeights, options, fairnessUsers);
+      lnsRepair(destroyed, users, tempSchedule, dayWeights, options, fairnessUsers);
     } else {
       // Classic perturbation: random pair swaps
       const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
