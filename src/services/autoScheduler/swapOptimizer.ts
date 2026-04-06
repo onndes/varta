@@ -308,6 +308,7 @@ export const performSwapOptimization = async (
                 newUserName: userName(user2),
                 zBefore: baseObj,
                 zAfter: newObj,
+                rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
               });
               logSwap(date2, {
                 phase: 'phase1-pair',
@@ -318,6 +319,7 @@ export const performSwapOptimization = async (
                 newUserName: userName(user1),
                 zBefore: baseObj,
                 zAfter: newObj,
+                rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
               });
               improved = true;
               break outerPair;
@@ -416,6 +418,7 @@ export const performSwapOptimization = async (
               newUserName: userName(candidate.id!),
               zBefore: baseObj,
               zAfter: newObj,
+              rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
             });
             tempLoadOffset[assignedId] = (tempLoadOffset[assignedId] ?? 0) - 1;
             tempLoadOffset[candidate.id!] = (tempLoadOffset[candidate.id!] ?? 0) + 1;
@@ -515,6 +518,7 @@ export const performSwapOptimization = async (
                   newUserName: userName(otherId),
                   zBefore: baseObj,
                   zAfter: newObj,
+                  rejectionReason: `Усунено повтор дня тижня для ${userName(uid)}`,
                 });
                 logSwap(otherDate, {
                   phase: 'phase3-sameDow',
@@ -525,6 +529,7 @@ export const performSwapOptimization = async (
                   newUserName: userName(uid),
                   zBefore: baseObj,
                   zAfter: newObj,
+                  rejectionReason: `Переміщення для усунення повтору дня тижня ${userName(uid)}`,
                 });
                 resolvedSameDow = true;
                 break;
@@ -828,6 +833,10 @@ export const performTabuSearch = async (
           zBefore: currentZ,
           zAfter: bestMoveZ,
           iteration: iter,
+          rejectionReason:
+            bestMoveZ < currentZ
+              ? `Z покращилась з ${currentZ.toFixed(1)} до ${bestMoveZ.toFixed(1)} (−${(currentZ - bestMoveZ).toFixed(1)})`
+              : `Tabu хід для виходу з локального мінімуму (Z: ${currentZ.toFixed(1)} → ${bestMoveZ.toFixed(1)})`,
         });
       }
     }

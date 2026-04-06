@@ -447,6 +447,12 @@ const OptimizerHistory: React.FC<{ history: OptimizerHistoryEntry[] }> = ({ hist
               </div>
               <div className="dlm-timeline-content">
                 <div style={{ fontSize: '0.8rem' }}>{entry.description}</div>
+                {entry.rejectionReason && (
+                  <div className="dlm-rejection-reason">
+                    <span className="dlm-rejection-icon">💡</span>
+                    {entry.rejectionReason}
+                  </div>
+                )}
                 {entry.zBefore != null && entry.zAfter != null && (
                   <small className="text-muted">
                     Z: {entry.zBefore.toFixed(1)} → {entry.zAfter.toFixed(1)}{' '}

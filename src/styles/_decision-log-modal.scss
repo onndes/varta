@@ -371,6 +371,18 @@
   line-height: 1.4;
 }
 
+.dlm-rejection-reason {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color, #6c757d);
+  margin-top: 0.15rem;
+  font-style: italic;
+
+  .dlm-rejection-icon {
+    margin-right: 0.25rem;
+    font-style: normal;
+  }
+}
+
 // ─── Scoring Cards ───────────────────────────────────────────────────────────
 
 .dlm-scoring-grid {

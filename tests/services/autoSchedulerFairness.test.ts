@@ -84,6 +84,7 @@ describe('autoScheduler fairness', () => {
       forceUseAllWhenFew: true,
       evenWeeklyDistribution: true,
       considerLoad: true,
+      useMultiRestart: false,
     };
 
     const result = await autoFillSchedule(
@@ -145,6 +146,7 @@ describe('autoScheduler fairness', () => {
       forceUseAllWhenFew: true,
       evenWeeklyDistribution: true,
       considerLoad: true,
+      useMultiRestart: false,
     };
 
     const result = await autoFillSchedule(

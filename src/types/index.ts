@@ -282,6 +282,8 @@ export interface OptimizerHistoryEntry {
   zAfter?: number;
   /** Iteration number (for Tabu Search). */
   iteration?: number;
+  /** Human-readable explanation of why the previous assignment was replaced. */
+  rejectionReason?: string;
 }
 
 export interface ScheduleEntry {

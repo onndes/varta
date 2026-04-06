@@ -454,6 +454,7 @@ export const autoFillSchedule = async (
             newUserId: selected.id,
             newUserName: selected.name,
             zAfter: bestScore,
+            rejectionReason: `Lookahead виявив, що ${greedyPick.name} створює «пастку» на наступних ${lookaheadDepth} днях — ${selected.name} дає кращий майбутній Z`,
           };
         }
       } else if (pool.length > 1) {
