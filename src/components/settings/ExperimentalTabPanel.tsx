@@ -606,6 +606,11 @@ const ExperimentalTabPanel: React.FC<ExperimentalTabPanelProps> = ({
                 </span>
               )}
             </div>
+            <div className="text-muted small mt-1">
+              <i className="fas fa-calendar-days me-1"></i>
+              Оптимізує <strong>всі дати</strong>, згенеровані поточним запуском (1 тиждень при
+              «Згенерувати», або весь діапазон при каскадному перерахунку).
+            </div>
           </div>
         )}
       </div>

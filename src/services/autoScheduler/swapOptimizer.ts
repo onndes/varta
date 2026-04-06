@@ -889,7 +889,7 @@ export const performTabuSearch = async (
  */
 const syncMiniOptimize = (
   autoFilledDates: string[],
-  participants: User[],
+  participantMap: Map<number, User>,
   userIds: number[],
   schedule: Record<string, ScheduleEntry>,
   users: User[],
@@ -899,6 +899,12 @@ const syncMiniOptimize = (
 ): void => {
   for (let iter = 0; iter < maxIter; iter++) {
     let improved = false;
+
+    // Compute baseline once per iteration, NOT inside the inner loop.
+    // Old code called computeGlobalObjective twice per pair (once for base,
+    // once for new) = O(N²) objective calls per iteration. Now it's O(1)
+    // for the baseline + O(pairs_checked) for candidates.
+    let baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
 
     // Phase 1: Pair-exchange swaps
     outerPair: for (let i = 0; i < autoFilledDates.length - 1; i++) {
@@ -922,8 +928,8 @@ const syncMiniOptimize = (
             newIds2[sj] = user1;
             if (new Set(newIds1).size < newIds1.length) continue;
             if (new Set(newIds2).size < newIds2.length) continue;
-            const u1obj = participants.find((u) => u.id === user1);
-            const u2obj = participants.find((u) => u.id === user2);
+            const u1obj = participantMap.get(user1);
+            const u2obj = participantMap.get(user2);
             if (!u1obj || !u2obj) continue;
             if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
             if (wouldViolateIncompatiblePairs(user1, date2, schedule, users)) continue;
@@ -931,7 +937,6 @@ const syncMiniOptimize = (
             if (wouldCreateSameDowRepeat(user1, date2, schedule)) continue;
             if (wouldCreateSameDowRepeat(user2, date1, schedule)) continue;
 
-            const baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
             const newUserId1S = newIds1.length === 1 ? newIds1[0] : newIds1;
             const newUserId2S = newIds2.length === 1 ? newIds2[0] : newIds2;
             schedule[date1] = { ...entry1, userId: newUserId1S };
@@ -948,6 +953,7 @@ const syncMiniOptimize = (
 
             const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
             if (newObj < baseObj - FLOAT_EPSILON) {
+              baseObj = newObj;
               improved = true;
               break outerPair;
             } else {
@@ -1193,11 +1199,16 @@ export const performMultiRestartOptimization = async (
   // LNS window size: destroy 30-50% of dates (min 3, max 14)
   const lnsWindowSize = Math.max(3, Math.min(14, Math.floor(autoFilledDates.length * 0.4)));
 
+  const participantMap = new Map<number, User>(participants.map((u) => [u.id!, u]));
+
   const startTime = Date.now();
   const deadline = isUnlimited ? Infinity : startTime + timeoutMs;
   let restart = 0;
   let improvements = 0;
   const strategyLabel = strategy === 'lns' ? 'LNS' : 'Multi-Restart';
+  // Yield to UI thread at most once every 50ms so the browser stays
+  // responsive regardless of how fast restarts get.
+  let lastYield = startTime;
 
   while (Date.now() < deadline) {
     // Check abort signal for unlimited mode (and fixed mode too)
@@ -1205,14 +1216,18 @@ export const performMultiRestartOptimization = async (
 
     restart++;
 
-    // Yield to UI thread every 5 restarts
-    if (restart % 5 === 0) {
-      const elapsed = Date.now() - startTime;
+    // Yield only when 50ms have elapsed since the last yield.
+    // Fixed-count yielding (every N restarts) throttles throughput as the
+    // restart loop speeds up — time-based yielding avoids that ceiling.
+    const now = Date.now();
+    if (now - lastYield >= 50) {
+      const elapsed = now - startTime;
       const percent = isUnlimited
         ? -1 // Signal to UI that this is unlimited mode
         : Math.min(99, Math.round((elapsed / timeoutMs) * 100));
       onProgress?.(`${strategyLabel} (спроба ${restart}, покращень: ${improvements})`, percent);
       await new Promise<void>((r) => setTimeout(r, 0));
+      lastYield = Date.now();
       if (!isUnlimited && Date.now() >= deadline) break;
       if (abortSignal?.aborted) break;
     }
@@ -1279,7 +1294,7 @@ export const performMultiRestartOptimization = async (
     // Local search from perturbed/repaired state (sync, no UI yields)
     syncMiniOptimize(
       autoFilledDates,
-      participants,
+      participantMap,
       userIds,
       tempSchedule,
       users,
