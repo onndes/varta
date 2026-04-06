@@ -241,76 +241,91 @@ export const performSwapOptimization = async (
 
         const ids1 = toAssignedUserIds(entry1.userId);
         const ids2 = toAssignedUserIds(entry2.userId);
-        if (ids1.length !== 1 || ids2.length !== 1) continue;
 
-        const user1 = ids1[0];
-        const user2 = ids2[0];
-        if (user1 === user2) continue;
+        // Try swapping one slot from date1 with one slot from date2.
+        // Handles dutiesPerDay === 1 (common case) and dutiesPerDay > 1.
+        for (let si = 0; si < ids1.length; si++) {
+          for (let sj = 0; sj < ids2.length; sj++) {
+            const user1 = ids1[si];
+            const user2 = ids2[sj];
+            if (user1 === user2) continue;
 
-        const u1obj = participants.find((u) => u.id === user1);
-        const u2obj = participants.find((u) => u.id === user2);
-        if (!u1obj || !u2obj) continue;
-        if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
+            // Build resulting arrays; reject if a duplicate userId would appear.
+            const newIds1 = [...ids1];
+            newIds1[si] = user2;
+            const newIds2 = [...ids2];
+            newIds2[sj] = user1;
+            if (new Set(newIds1).size < newIds1.length) continue;
+            if (new Set(newIds2).size < newIds2.length) continue;
 
-        // Hard constraint: incompatible pairs on neighboring days
-        if (
-          wouldViolateIncompatiblePairs(user1, date2, tempSchedule, users) ||
-          wouldViolateIncompatiblePairs(user2, date1, tempSchedule, users)
-        )
-          continue;
+            const u1obj = participants.find((u) => u.id === user1);
+            const u2obj = participants.find((u) => u.id === user2);
+            if (!u1obj || !u2obj) continue;
+            if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
 
-        // Prevent introducing same-DOW-consecutive-week violations
-        if (
-          wouldCreateSameDowRepeat(user1, date2, tempSchedule) ||
-          wouldCreateSameDowRepeat(user2, date1, tempSchedule)
-        )
-          continue;
+            // Hard constraint: incompatible pairs on neighboring days
+            if (
+              wouldViolateIncompatiblePairs(user1, date2, tempSchedule, users) ||
+              wouldViolateIncompatiblePairs(user2, date1, tempSchedule, users)
+            )
+              continue;
 
-        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+            // Prevent introducing same-DOW-consecutive-week violations
+            if (
+              wouldCreateSameDowRepeat(user1, date2, tempSchedule) ||
+              wouldCreateSameDowRepeat(user2, date1, tempSchedule)
+            )
+              continue;
 
-        // Apply exchange tentatively.
-        tempSchedule[date1] = { ...entry1, userId: user2 };
-        tempSchedule[date2] = { ...entry2, userId: user1 };
+            const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
-        const u2ViolatesDate1 =
-          minRest > 0 && wouldViolateRestDays(user2, date1, minRest, tempSchedule);
-        const u1ViolatesDate2 =
-          minRest > 0 && wouldViolateRestDays(user1, date2, minRest, tempSchedule);
+            // Apply exchange tentatively.
+            const newUserId1 = newIds1.length === 1 ? newIds1[0] : newIds1;
+            const newUserId2 = newIds2.length === 1 ? newIds2[0] : newIds2;
+            tempSchedule[date1] = { ...entry1, userId: newUserId1 };
+            tempSchedule[date2] = { ...entry2, userId: newUserId2 };
 
-        if (u2ViolatesDate1 || u1ViolatesDate2) {
-          tempSchedule[date1] = entry1;
-          tempSchedule[date2] = entry2;
-          continue;
-        }
+            const u2ViolatesDate1 =
+              minRest > 0 && wouldViolateRestDays(user2, date1, minRest, tempSchedule);
+            const u1ViolatesDate2 =
+              minRest > 0 && wouldViolateRestDays(user1, date2, minRest, tempSchedule);
 
-        const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+            if (u2ViolatesDate1 || u1ViolatesDate2) {
+              tempSchedule[date1] = entry1;
+              tempSchedule[date2] = entry2;
+              continue;
+            }
 
-        if (newObj < baseObj - FLOAT_EPSILON) {
-          logSwap(date1, {
-            phase: 'phase1-pair',
-            description: `Обмін: ${userName(user1)} ↔ ${userName(user2)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
-            previousUserId: user1,
-            previousUserName: userName(user1),
-            newUserId: user2,
-            newUserName: userName(user2),
-            zBefore: baseObj,
-            zAfter: newObj,
-          });
-          logSwap(date2, {
-            phase: 'phase1-pair',
-            description: `Обмін: ${userName(user2)} ↔ ${userName(user1)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
-            previousUserId: user2,
-            previousUserName: userName(user2),
-            newUserId: user1,
-            newUserName: userName(user1),
-            zBefore: baseObj,
-            zAfter: newObj,
-          });
-          improved = true;
-          break outerPair;
-        } else {
-          tempSchedule[date1] = entry1;
-          tempSchedule[date2] = entry2;
+            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+
+            if (newObj < baseObj - FLOAT_EPSILON) {
+              logSwap(date1, {
+                phase: 'phase1-pair',
+                description: `Обмін: ${userName(user1)} ↔ ${userName(user2)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                previousUserId: user1,
+                previousUserName: userName(user1),
+                newUserId: user2,
+                newUserName: userName(user2),
+                zBefore: baseObj,
+                zAfter: newObj,
+              });
+              logSwap(date2, {
+                phase: 'phase1-pair',
+                description: `Обмін: ${userName(user2)} ↔ ${userName(user1)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                previousUserId: user2,
+                previousUserName: userName(user2),
+                newUserId: user1,
+                newUserName: userName(user1),
+                zBefore: baseObj,
+                zAfter: newObj,
+              });
+              improved = true;
+              break outerPair;
+            } else {
+              tempSchedule[date1] = entry1;
+              tempSchedule[date2] = entry2;
+            }
+          }
         }
       }
     }
@@ -431,75 +446,94 @@ export const performSwapOptimization = async (
           if (gap > 7) break;
           if (gap !== 7 || new Date(d1).getDay() !== new Date(d2).getDay()) continue;
 
-          // d2 is the repeat — try pair exchange
+          // d2 is the repeat — try pair exchange.
           const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
           const entry2 = tempSchedule[d2];
           if (!entry2) continue;
+
+          // Find which slot uid occupies in d2 (handles dutiesPerDay > 1).
+          const ids2P3 = toAssignedUserIds(entry2.userId);
+          const uidSlot = ids2P3.indexOf(uid);
+          if (uidSlot < 0) continue;
+          const uObj = participants.find((u) => u.id === uid);
+          if (!uObj) continue;
 
           for (const otherDate of autoFilledDates) {
             if (otherDate === d2) continue;
             const otherEntry = tempSchedule[otherDate];
             if (!otherEntry) continue;
             const otherIds = toAssignedUserIds(otherEntry.userId);
-            if (otherIds.length !== 1) continue;
-            const otherId = otherIds[0];
-            if (otherId === uid) continue;
 
-            const uObj = participants.find((u) => u.id === uid);
-            const oObj = participants.find((u) => u.id === otherId);
-            if (!uObj || !oObj) continue;
-            if (!isHardEligible(uObj, otherDate) || !isHardEligible(oObj, d2)) continue;
+            for (let sk = 0; sk < otherIds.length; sk++) {
+              const otherId = otherIds[sk];
+              if (otherId === uid) continue;
 
-            // Hard constraint: incompatible pairs
-            if (
-              wouldViolateIncompatiblePairs(uid, otherDate, tempSchedule, users) ||
-              wouldViolateIncompatiblePairs(otherId, d2, tempSchedule, users)
-            )
-              continue;
+              // Build resulting arrays; reject if duplicates would appear.
+              const newIds2P3 = [...ids2P3];
+              newIds2P3[uidSlot] = otherId;
+              const newOtherIds = [...otherIds];
+              newOtherIds[sk] = uid;
+              if (new Set(newIds2P3).size < newIds2P3.length) continue;
+              if (new Set(newOtherIds).size < newOtherIds.length) continue;
 
-            // Tentative swap
-            tempSchedule[d2] = { ...entry2, userId: otherId };
-            tempSchedule[otherDate] = { ...otherEntry, userId: uid };
+              const oObj = participants.find((u) => u.id === otherId);
+              if (!oObj) continue;
+              if (!isHardEligible(uObj, otherDate) || !isHardEligible(oObj, d2)) continue;
 
-            const v1 = minRest > 0 && wouldViolateRestDays(otherId, d2, minRest, tempSchedule);
-            const v2 = minRest > 0 && wouldViolateRestDays(uid, otherDate, minRest, tempSchedule);
+              // Hard constraint: incompatible pairs
+              if (
+                wouldViolateIncompatiblePairs(uid, otherDate, tempSchedule, users) ||
+                wouldViolateIncompatiblePairs(otherId, d2, tempSchedule, users)
+              )
+                continue;
 
-            if (v1 || v2) {
-              tempSchedule[d2] = entry2;
-              tempSchedule[otherDate] = otherEntry;
-              continue;
+              // Tentative swap
+              const newUserId2P3 = newIds2P3.length === 1 ? newIds2P3[0] : newIds2P3;
+              const newUserIdOther = newOtherIds.length === 1 ? newOtherIds[0] : newOtherIds;
+              tempSchedule[d2] = { ...entry2, userId: newUserId2P3 };
+              tempSchedule[otherDate] = { ...otherEntry, userId: newUserIdOther };
+
+              const v1 = minRest > 0 && wouldViolateRestDays(otherId, d2, minRest, tempSchedule);
+              const v2 = minRest > 0 && wouldViolateRestDays(uid, otherDate, minRest, tempSchedule);
+
+              if (v1 || v2) {
+                tempSchedule[d2] = entry2;
+                tempSchedule[otherDate] = otherEntry;
+                continue;
+              }
+
+              const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+              // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
+              const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
+              if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
+                logSwap(d2, {
+                  phase: 'phase3-sameDow',
+                  description: `Усунення повтору дня тижня: ${userName(uid)} ↔ ${userName(otherId)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                  previousUserId: uid,
+                  previousUserName: userName(uid),
+                  newUserId: otherId,
+                  newUserName: userName(otherId),
+                  zBefore: baseObj,
+                  zAfter: newObj,
+                });
+                logSwap(otherDate, {
+                  phase: 'phase3-sameDow',
+                  description: `Усунення повтору дня тижня: ${userName(otherId)} ↔ ${userName(uid)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                  previousUserId: otherId,
+                  previousUserName: userName(otherId),
+                  newUserId: uid,
+                  newUserName: userName(uid),
+                  zBefore: baseObj,
+                  zAfter: newObj,
+                });
+                resolvedSameDow = true;
+                break;
+              } else {
+                tempSchedule[d2] = entry2;
+                tempSchedule[otherDate] = otherEntry;
+              }
             }
-
-            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
-            // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
-            const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
-            if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
-              logSwap(d2, {
-                phase: 'phase3-sameDow',
-                description: `Усунення повтору дня тижня: ${userName(uid)} ↔ ${userName(otherId)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
-                previousUserId: uid,
-                previousUserName: userName(uid),
-                newUserId: otherId,
-                newUserName: userName(otherId),
-                zBefore: baseObj,
-                zAfter: newObj,
-              });
-              logSwap(otherDate, {
-                phase: 'phase3-sameDow',
-                description: `Усунення повтору дня тижня: ${userName(otherId)} ↔ ${userName(uid)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
-                previousUserId: otherId,
-                previousUserName: userName(otherId),
-                newUserId: uid,
-                newUserName: userName(uid),
-                zBefore: baseObj,
-                zAfter: newObj,
-              });
-              resolvedSameDow = true;
-              break;
-            } else {
-              tempSchedule[d2] = entry2;
-              tempSchedule[otherDate] = otherEntry;
-            }
+            if (resolvedSameDow) break;
           }
           if (resolvedSameDow) break;
         }
@@ -641,110 +675,132 @@ export const performTabuSearch = async (
 
         const ids1 = toAssignedUserIds(e1.userId);
         const ids2 = toAssignedUserIds(e2.userId);
-        if (ids1.length !== 1 || ids2.length !== 1) continue;
 
-        const u1 = ids1[0];
-        const u2 = ids2[0];
-        if (u1 === u2) continue;
+        // Iterate all (si, sj) slot combinations to support dutiesPerDay > 1.
+        for (let si = 0; si < ids1.length; si++) {
+          for (let sj = 0; sj < ids2.length; sj++) {
+            const u1 = ids1[si];
+            const u2 = ids2[sj];
+            if (u1 === u2) continue;
 
-        const u1obj = participants.find((u) => u.id === u1);
-        const u2obj = participants.find((u) => u.id === u2);
-        if (!u1obj || !u2obj) continue;
-        if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
-        if (
-          wouldViolateIncompatiblePairs(u1, d2, tempSchedule, users) ||
-          wouldViolateIncompatiblePairs(u2, d1, tempSchedule, users)
-        )
-          continue;
+            const newIds1 = [...ids1];
+            newIds1[si] = u2;
+            const newIds2 = [...ids2];
+            newIds2[sj] = u1;
+            if (new Set(newIds1).size < newIds1.length) continue;
+            if (new Set(newIds2).size < newIds2.length) continue;
 
-        // Tentative swap to evaluate
-        tempSchedule[d1] = { ...e1, userId: u2 };
-        tempSchedule[d2] = { ...e2, userId: u1 };
+            const u1obj = participants.find((u) => u.id === u1);
+            const u2obj = participants.find((u) => u.id === u2);
+            if (!u1obj || !u2obj) continue;
+            if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
+            if (
+              wouldViolateIncompatiblePairs(u1, d2, tempSchedule, users) ||
+              wouldViolateIncompatiblePairs(u2, d1, tempSchedule, users)
+            )
+              continue;
 
-        const rv1 = minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule);
-        const rv2 = minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule);
+            // Tentative swap to evaluate
+            const newUserId1T = newIds1.length === 1 ? newIds1[0] : newIds1;
+            const newUserId2T = newIds2.length === 1 ? newIds2[0] : newIds2;
+            tempSchedule[d1] = { ...e1, userId: newUserId1T };
+            tempSchedule[d2] = { ...e2, userId: newUserId2T };
 
-        if (!rv1 && !rv2 && !wouldViolateWeeklyBalance([d1, d2])) {
-          const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
-          const key = swapKey(d1, u1, d2, u2);
-          const isTabu = (tabuMap.get(key) ?? -1) > iter;
-          // Aspiration: accept tabu move if it beats the global best
-          if (z < bestMoveZ && (!isTabu || z < bestZ - FLOAT_EPSILON)) {
-            bestMoveZ = z;
-            bestMoveKey = key;
-            bestMoveLog = {
-              dates: [d1, d2],
-              phase: 'tabu-pair',
-              prevIds: [u1, u2],
-              newIds: [u2, u1],
-            };
-            const sd1 = d1,
-              sd2 = d2,
-              se1 = e1,
-              se2 = e2,
-              su1 = u1,
-              su2 = u2;
-            bestMove = () => {
-              tempSchedule[sd1] = { ...se1, userId: su2 };
-              tempSchedule[sd2] = { ...se2, userId: su1 };
-            };
+            const rv1 = minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule);
+            const rv2 = minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule);
+
+            if (!rv1 && !rv2 && !wouldViolateWeeklyBalance([d1, d2])) {
+              const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+              const key = swapKey(d1, u1, d2, u2);
+              const isTabu = (tabuMap.get(key) ?? -1) > iter;
+              // Aspiration: accept tabu move if it beats the global best
+              if (z < bestMoveZ && (!isTabu || z < bestZ - FLOAT_EPSILON)) {
+                bestMoveZ = z;
+                bestMoveKey = key;
+                bestMoveLog = {
+                  dates: [d1, d2],
+                  phase: 'tabu-pair',
+                  prevIds: [u1, u2],
+                  newIds: [u2, u1],
+                };
+                const sd1 = d1,
+                  sd2 = d2,
+                  se1 = e1,
+                  se2 = e2,
+                  snIds1 = newIds1,
+                  snIds2 = newIds2;
+                bestMove = () => {
+                  const nu1 = snIds1.length === 1 ? snIds1[0] : snIds1;
+                  const nu2 = snIds2.length === 1 ? snIds2[0] : snIds2;
+                  tempSchedule[sd1] = { ...se1, userId: nu1 };
+                  tempSchedule[sd2] = { ...se2, userId: nu2 };
+                };
+              }
+            }
+
+            // Revert
+            tempSchedule[d1] = e1;
+            tempSchedule[d2] = e2;
           }
         }
-
-        // Revert
-        tempSchedule[d1] = e1;
-        tempSchedule[d2] = e2;
       }
     }
 
-    // Phase B: single-replacement neighbors
+    // Phase B: single-replacement neighbors (supports dutiesPerDay > 1 via slotIdx)
     for (const dateStr of autoFilledDates) {
       const entry = tempSchedule[dateStr];
       if (!entry) continue;
       const assignedIds = toAssignedUserIds(entry.userId);
-      if (assignedIds.length !== 1) continue;
-      const assignedId = assignedIds[0];
 
-      for (const candidate of participants) {
-        if (
-          !candidate.id ||
-          candidate.id === assignedId ||
-          !isHardEligible(candidate, dateStr) ||
-          (minRest > 0 && wouldViolateRestDays(candidate.id, dateStr, minRest, tempSchedule)) ||
-          wouldViolateIncompatiblePairs(candidate.id, dateStr, tempSchedule, users)
-        )
-          continue;
+      for (let slotIdxT = 0; slotIdxT < assignedIds.length; slotIdxT++) {
+        const assignedId = assignedIds[slotIdxT];
 
-        const newEntry: ScheduleEntry = { ...entry, userId: candidate.id };
-        tempSchedule[dateStr] = newEntry;
+        for (const candidate of participants) {
+          if (
+            !candidate.id ||
+            candidate.id === assignedId ||
+            assignedIds.includes(candidate.id) ||
+            !isHardEligible(candidate, dateStr) ||
+            (minRest > 0 && wouldViolateRestDays(candidate.id, dateStr, minRest, tempSchedule)) ||
+            wouldViolateIncompatiblePairs(candidate.id, dateStr, tempSchedule, users)
+          )
+            continue;
 
-        if (wouldViolateWeeklyBalance([dateStr])) {
+          const newIds = [...assignedIds];
+          newIds[slotIdxT] = candidate.id;
+          const newUserId = newIds.length === 1 ? newIds[0] : newIds;
+          const newEntry: ScheduleEntry = { ...entry, userId: newUserId };
+          tempSchedule[dateStr] = newEntry;
+
+          if (wouldViolateWeeklyBalance([dateStr])) {
+            tempSchedule[dateStr] = entry;
+            continue;
+          }
+
+          const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+          const key = replaceKey(dateStr, assignedId, candidate.id);
+          const isTabu = (tabuMap.get(key) ?? -1) > iter;
+
+          if (z < bestMoveZ && (!isTabu || z < bestZ - FLOAT_EPSILON)) {
+            bestMoveZ = z;
+            bestMoveKey = key;
+            bestMoveLog = {
+              dates: [dateStr],
+              phase: 'tabu-replace',
+              prevIds: [assignedId],
+              newIds: [candidate.id],
+            };
+            const sd = dateStr,
+              se = entry,
+              snIds = newIds;
+            bestMove = () => {
+              const nu = snIds.length === 1 ? snIds[0] : snIds;
+              tempSchedule[sd] = { ...se, userId: nu };
+            };
+          }
+
           tempSchedule[dateStr] = entry;
-          continue;
         }
-
-        const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
-        const key = replaceKey(dateStr, assignedId, candidate.id);
-        const isTabu = (tabuMap.get(key) ?? -1) > iter;
-
-        if (z < bestMoveZ && (!isTabu || z < bestZ - FLOAT_EPSILON)) {
-          bestMoveZ = z;
-          bestMoveKey = key;
-          bestMoveLog = {
-            dates: [dateStr],
-            phase: 'tabu-replace',
-            prevIds: [assignedId],
-            newIds: [candidate.id],
-          };
-          const sd = dateStr,
-            se = entry,
-            cid = candidate.id;
-          bestMove = () => {
-            tempSchedule[sd] = { ...se, userId: cid };
-          };
-        }
-
-        tempSchedule[dateStr] = entry;
       }
     }
 
@@ -832,39 +888,51 @@ const syncMiniOptimize = (
         if (!entry1 || !entry2) continue;
         const ids1 = toAssignedUserIds(entry1.userId);
         const ids2 = toAssignedUserIds(entry2.userId);
-        if (ids1.length !== 1 || ids2.length !== 1) continue;
-        const user1 = ids1[0];
-        const user2 = ids2[0];
-        if (user1 === user2) continue;
-        const u1obj = participants.find((u) => u.id === user1);
-        const u2obj = participants.find((u) => u.id === user2);
-        if (!u1obj || !u2obj) continue;
-        if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
-        if (wouldViolateIncompatiblePairs(user1, date2, schedule, users)) continue;
-        if (wouldViolateIncompatiblePairs(user2, date1, schedule, users)) continue;
-        if (wouldCreateSameDowRepeat(user1, date2, schedule)) continue;
-        if (wouldCreateSameDowRepeat(user2, date1, schedule)) continue;
+        // Try swapping one slot from date1 with one slot from date2 (supports dutiesPerDay > 1).
+        for (let si = 0; si < ids1.length; si++) {
+          for (let sj = 0; sj < ids2.length; sj++) {
+            const user1 = ids1[si];
+            const user2 = ids2[sj];
+            if (user1 === user2) continue;
+            const newIds1 = [...ids1];
+            newIds1[si] = user2;
+            const newIds2 = [...ids2];
+            newIds2[sj] = user1;
+            if (new Set(newIds1).size < newIds1.length) continue;
+            if (new Set(newIds2).size < newIds2.length) continue;
+            const u1obj = participants.find((u) => u.id === user1);
+            const u2obj = participants.find((u) => u.id === user2);
+            if (!u1obj || !u2obj) continue;
+            if (!isHardEligible(u1obj, date2) || !isHardEligible(u2obj, date1)) continue;
+            if (wouldViolateIncompatiblePairs(user1, date2, schedule, users)) continue;
+            if (wouldViolateIncompatiblePairs(user2, date1, schedule, users)) continue;
+            if (wouldCreateSameDowRepeat(user1, date2, schedule)) continue;
+            if (wouldCreateSameDowRepeat(user2, date1, schedule)) continue;
 
-        const baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
-        schedule[date1] = { ...entry1, userId: user2 };
-        schedule[date2] = { ...entry2, userId: user1 };
+            const baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+            const newUserId1S = newIds1.length === 1 ? newIds1[0] : newIds1;
+            const newUserId2S = newIds2.length === 1 ? newIds2[0] : newIds2;
+            schedule[date1] = { ...entry1, userId: newUserId1S };
+            schedule[date2] = { ...entry2, userId: newUserId2S };
 
-        if (
-          (minRest > 0 && wouldViolateRestDays(user2, date1, minRest, schedule)) ||
-          (minRest > 0 && wouldViolateRestDays(user1, date2, minRest, schedule))
-        ) {
-          schedule[date1] = entry1;
-          schedule[date2] = entry2;
-          continue;
-        }
+            if (
+              (minRest > 0 && wouldViolateRestDays(user2, date1, minRest, schedule)) ||
+              (minRest > 0 && wouldViolateRestDays(user1, date2, minRest, schedule))
+            ) {
+              schedule[date1] = entry1;
+              schedule[date2] = entry2;
+              continue;
+            }
 
-        const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
-        if (newObj < baseObj - FLOAT_EPSILON) {
-          improved = true;
-          break outerPair;
-        } else {
-          schedule[date1] = entry1;
-          schedule[date2] = entry2;
+            const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+            if (newObj < baseObj - FLOAT_EPSILON) {
+              improved = true;
+              break outerPair;
+            } else {
+              schedule[date1] = entry1;
+              schedule[date2] = entry2;
+            }
+          }
         }
       }
     }
@@ -952,27 +1020,43 @@ export const performMultiRestartOptimization = async (
       if (!e1 || !e2) continue;
       const ids1 = toAssignedUserIds(e1.userId);
       const ids2 = toAssignedUserIds(e2.userId);
-      if (ids1.length !== 1 || ids2.length !== 1) continue;
-      const u1 = ids1[0];
-      const u2 = ids2[0];
-      if (u1 === u2) continue;
-      const u1obj = participants.find((u) => u.id === u1);
-      const u2obj = participants.find((u) => u.id === u2);
-      if (!u1obj || !u2obj) continue;
-      if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
-      // Tentatively swap
-      tempSchedule[d1] = { ...e1, userId: u2 };
-      tempSchedule[d2] = { ...e2, userId: u1 };
-      // Enforce rest-day constraints — perturbation must not create violations
-      if (
-        (minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule)) ||
-        (minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule))
-      ) {
-        tempSchedule[d1] = e1;
-        tempSchedule[d2] = e2;
-        continue;
+      // Support dutiesPerDay > 1: pick any one slot from each date to swap.
+      if (ids1.length === 0 || ids2.length === 0) continue;
+      // For perturbation simplicity, pick the first slot that results in a valid swap.
+      let swapped = false;
+      outer: for (let si = 0; si < ids1.length; si++) {
+        for (let sj = 0; sj < ids2.length; sj++) {
+          const u1 = ids1[si];
+          const u2 = ids2[sj];
+          if (u1 === u2) continue;
+          const newIds1 = [...ids1];
+          newIds1[si] = u2;
+          const newIds2 = [...ids2];
+          newIds2[sj] = u1;
+          if (new Set(newIds1).size < newIds1.length) continue;
+          if (new Set(newIds2).size < newIds2.length) continue;
+          const u1obj = participants.find((u) => u.id === u1);
+          const u2obj = participants.find((u) => u.id === u2);
+          if (!u1obj || !u2obj) continue;
+          if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
+          const nu1 = newIds1.length === 1 ? newIds1[0] : newIds1;
+          const nu2 = newIds2.length === 1 ? newIds2[0] : newIds2;
+          tempSchedule[d1] = { ...e1, userId: nu1 };
+          tempSchedule[d2] = { ...e2, userId: nu2 };
+          // Enforce rest-day constraints — perturbation must not create violations
+          if (
+            (minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule)) ||
+            (minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule))
+          ) {
+            tempSchedule[d1] = e1;
+            tempSchedule[d2] = e2;
+            continue;
+          }
+          swapped = true;
+          break outer;
+        }
       }
-      perturbCount++;
+      if (swapped) perturbCount++;
     }
 
     // Local search from perturbed state (sync, no UI yields)
