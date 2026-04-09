@@ -2,6 +2,22 @@ import React from 'react';
 import type { PrintMode } from '../../types';
 import { formatDate, toLocalISO } from '../../utils/dateUtils';
 
+const STOP_MIN_MULTI_RESTART_ATTEMPT = 251;
+
+export const canStopSchedulerAtProgress = (
+  schedulerProgress: { phase: string; percent: number } | null | undefined
+): boolean => {
+  if (!schedulerProgress) return false;
+
+  const isMultiRestartPhase = /^(Multi-Restart|LNS)\b/.test(schedulerProgress.phase);
+  if (!isMultiRestartPhase) return false;
+
+  const attemptMatch = schedulerProgress.phase.match(/\(спроба\s+(\d+)/i);
+  if (!attemptMatch) return false;
+
+  return Number(attemptMatch[1]) >= STOP_MIN_MULTI_RESTART_ATTEMPT;
+};
+
 interface ScheduleControlsProps {
   weekDates: string[];
   cascadeStartDate: string | null;
@@ -100,6 +116,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
     month: 'long',
     year: 'numeric',
   })}`;
+  const canStopScheduler = canStopSchedulerAtProgress(schedulerProgress);
 
   return (
     <div className="card schedule-controls-card border-0 shadow-sm p-2 mb-2 no-print">
@@ -297,11 +314,11 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
               <i className="fas fa-cog fa-spin me-1"></i>
               {schedulerProgress.phase}
               {schedulerProgress.percent >= 0 ? ` ${schedulerProgress.percent}%` : '…'}
-              {onStopScheduler && (
+              {onStopScheduler && canStopScheduler && (
                 <button
                   className="btn btn-sm btn-danger ms-2 py-0 px-2"
                   onClick={onStopScheduler}
-                  title="Зупинити оптимізацію"
+                  title={`Зупинити оптимізацію після ${STOP_MIN_MULTI_RESTART_ATTEMPT - 1}+ спроб`}
                 >
                   <i className="fas fa-stop me-1"></i>Стоп
                 </button>

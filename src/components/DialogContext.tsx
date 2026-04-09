@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { DialogContext } from './dialogTypes';
-import type { DatePickOptions } from './dialogTypes';
+import type { ChoiceDialogOptions, DatePickOptions } from './dialogTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,12 @@ type ConfirmState = {
   resolve: (ok: boolean) => void;
 };
 
+type ChoiceState = {
+  kind: 'choice';
+  opts: ChoiceDialogOptions;
+  resolve: (choice: 'confirm' | 'secondary' | 'cancel') => void;
+};
+
 type DatePickState = {
   kind: 'datepick';
   opts: DatePickOptions;
@@ -24,7 +30,7 @@ type DatePickState = {
   resolve: (date: string | null) => void;
 };
 
-type DialogState = AlertState | ConfirmState | DatePickState | null;
+type DialogState = AlertState | ConfirmState | ChoiceState | DatePickState | null;
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +72,14 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [enqueue]
   );
 
+  const showChoice = useCallback(
+    (opts: ChoiceDialogOptions): Promise<'confirm' | 'secondary' | 'cancel'> =>
+      new Promise((resolve) => {
+        enqueue({ kind: 'choice', opts, resolve });
+      }),
+    [enqueue]
+  );
+
   const showDatePick = useCallback(
     (opts: DatePickOptions): Promise<string | null> =>
       new Promise((resolve) => {
@@ -99,8 +113,15 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const handleChoice = (choice: 'confirm' | 'secondary' | 'cancel') => {
+    if (dialog?.kind === 'choice') {
+      dialog.resolve(choice);
+      showNext();
+    }
+  };
+
   return (
-    <DialogContext.Provider value={{ showAlert, showConfirm, showDatePick }}>
+    <DialogContext.Provider value={{ showAlert, showConfirm, showChoice, showDatePick }}>
       {children}
 
       {/* ── Alert Modal ─────────────────────────────────────── */}
@@ -155,6 +176,45 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 </button>
                 <button className="btn btn-primary" onClick={handleConfirmOk} autoFocus>
                   Підтвердити
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dialog?.kind === 'choice' && (
+        <div
+          className="modal fade show d-block"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}
+          tabIndex={-1}
+        >
+          <div
+            className="modal-dialog modal-dialog-centered"
+            style={{ maxWidth: 'min(620px, calc(100vw - 2rem))' }}
+          >
+            <div className="modal-content shadow border-0">
+              <div className="modal-body d-flex gap-3 align-items-start p-4">
+                <i className="fas fa-question-circle text-warning mt-1 fs-5 flex-shrink-0"></i>
+                <div style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                  {dialog.opts.message}
+                </div>
+              </div>
+              <div className="modal-footer border-0 pt-0 gap-2">
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => handleChoice('cancel')}
+                >
+                  {dialog.opts.cancelLabel || 'Скасувати'}
+                </button>
+                <button
+                  className="btn btn-warning"
+                  onClick={() => handleChoice('secondary')}
+                >
+                  {dialog.opts.secondaryLabel}
+                </button>
+                <button className="btn btn-primary" onClick={() => handleChoice('confirm')} autoFocus>
+                  {dialog.opts.confirmLabel}
                 </button>
               </div>
             </div>

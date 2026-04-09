@@ -9,9 +9,17 @@ export interface DatePickOptions {
   minDate: string;
 }
 
+export interface ChoiceDialogOptions {
+  message: string;
+  confirmLabel: string;
+  secondaryLabel: string;
+  cancelLabel?: string;
+}
+
 export interface DialogContextValue {
   showAlert: (message: string) => Promise<void>;
   showConfirm: (message: string) => Promise<boolean>;
+  showChoice: (opts: ChoiceDialogOptions) => Promise<'confirm' | 'secondary' | 'cancel'>;
   /** Shows a date-picker dialog. Resolves with the picked YYYY-MM-DD string, or null if cancelled. */
   showDatePick: (opts: DatePickOptions) => Promise<string | null>;
 }

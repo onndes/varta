@@ -291,6 +291,10 @@ export interface ScheduleEntry {
   userId: number | number[] | null; // Can be single ID or array for multiple duties per day
   type: 'manual' | 'auto' | 'critical' | 'replace' | 'swap' | 'history' | 'import' | 'force';
   isLocked?: boolean;
+  /** Legacy whole-entry override flag. Prefer `availabilityOverrideUserIds` for new writes. */
+  isAvailabilityOverride?: boolean;
+  /** User IDs whose availability conflict was explicitly accepted by the operator. */
+  availabilityOverrideUserIds?: number[];
   /** Auto-generated decision log (Info Button «i»). Not persisted to DB. */
   decisionLog?: DecisionLog;
 }

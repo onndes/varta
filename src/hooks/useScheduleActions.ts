@@ -4,7 +4,11 @@ import { useCallback } from 'react';
 import { useDialog } from '../components/useDialog';
 import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../types';
 import { formatDate, toLocalISO } from '../utils/dateUtils';
-import { getAllSchedule, removeAssignmentWithDebt } from '../services/scheduleService';
+import {
+  getAllSchedule,
+  removeAssignmentWithDebt,
+  acknowledgeScheduleConflicts,
+} from '../services/scheduleService';
 import * as autoSchedulerService from '../services/autoScheduler';
 import { getAssignedCount } from '../utils/assignment';
 
@@ -65,7 +69,7 @@ export const useScheduleActions = ({
   undoHistory,
   redoHistory,
 }: UseScheduleActionsArgs) => {
-  const { showAlert, showConfirm, showDatePick } = useDialog();
+  const { showAlert, showConfirm, showChoice, showDatePick } = useDialog();
 
   const hasEnoughActiveUsers = useCallback(async (): Promise<boolean> => {
     const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
@@ -101,15 +105,35 @@ export const useScheduleActions = ({
   ]);
 
   const runFixConflicts = useCallback(async () => {
-    if (!(await hasEnoughActiveUsers())) return;
     if (scheduleIssues.conflicts.length === 0) return;
 
     const isCritical = scheduleIssues.criticalConflicts.length > 0;
-    const message = isCritical
-      ? `Замінити ${scheduleIssues.criticalConflicts.length} блокованих працівників?`
-      : `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?`;
-
-    if (!(await showConfirm(message))) return;
+    if (isCritical) {
+      if (!(await hasEnoughActiveUsers())) return;
+      const message = `Замінити ${scheduleIssues.criticalConflicts.length} блокованих працівників?`;
+      if (!(await showConfirm(message))) return;
+    } else {
+      const choice = await showChoice({
+        message:
+          `Видалити ${scheduleIssues.conflicts.length} конфліктних записів і заповнити?\n\n` +
+          'Або можна залишити їх як свідоме виключення.',
+        confirmLabel: 'Виправити',
+        secondaryLabel: 'Залишити так',
+        cancelLabel: 'Скасувати',
+      });
+      if (choice === 'cancel') return;
+      if (choice === 'secondary') {
+        pushHistory(schedule, 'Підтвердження конфліктів');
+        await acknowledgeScheduleConflicts(scheduleIssues.conflictByDate);
+        await logAction(
+          'ACK_CONFLICT',
+          `Підтверджено ${scheduleIssues.conflicts.length} конфліктних записів як виняток`
+        );
+        await refreshData();
+        return;
+      }
+      if (!(await hasEnoughActiveUsers())) return;
+    }
 
     pushHistory(schedule, 'Виправлення конфліктів');
 
@@ -150,6 +174,7 @@ export const useScheduleActions = ({
     logAction,
     refreshData,
     showConfirm,
+    showChoice,
   ]);
 
   const runFullAutoSchedule = useCallback(async () => {

@@ -4,7 +4,12 @@ import { db } from '../db/db';
 import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as userService from './userService';
 import * as settingsService from './settingsService';
-import { toAssignedUserIds, isAssignedInEntry } from '../utils/assignment';
+import {
+  toAssignedUserIds,
+  isAssignedInEntry,
+  isAvailabilityOverrideEntry,
+  getAvailabilityOverrideUserIds,
+} from '../utils/assignment';
 
 /**
  * Service for managing schedule
@@ -83,9 +88,15 @@ export const removeAssignmentWithDebt = async (
     if (remaining.length === 0) {
       await db.schedule.delete(date);
     } else {
+      const remainingOverrideIds = getAvailabilityOverrideUserIds(entry).filter((id) =>
+        remaining.includes(id)
+      );
       await db.schedule.put({
         ...entry,
         userId: remaining.length === 1 ? remaining[0] : remaining,
+        isAvailabilityOverride: undefined,
+        availabilityOverrideUserIds:
+          remainingOverrideIds.length > 0 ? remainingOverrideIds : undefined,
       });
     }
   });
@@ -103,6 +114,34 @@ export const bulkDeleteSchedule = async (dates: string[]): Promise<void> => {
  */
 export const bulkSaveSchedule = async (entries: ScheduleEntry[]): Promise<void> => {
   await db.schedule.bulkPut(entries);
+};
+
+export const acknowledgeScheduleConflicts = async (
+  conflictByDate: Record<string, number[]>
+): Promise<void> => {
+  await db.transaction('rw', db.schedule, async () => {
+    for (const [date, conflictIds] of Object.entries(conflictByDate)) {
+      if (conflictIds.length === 0) continue;
+      const entry = await db.schedule.get(date);
+      if (!entry?.userId) continue;
+
+      const assignedIds = toAssignedUserIds(entry.userId);
+      const nextOverrideIds = Array.from(
+        new Set([
+          ...getAvailabilityOverrideUserIds(entry),
+          ...conflictIds.filter((id) => assignedIds.includes(id)),
+        ])
+      ).sort((a, b) => a - b);
+
+      if (nextOverrideIds.length === 0) continue;
+
+      await db.schedule.put({
+        ...entry,
+        isAvailabilityOverride: undefined,
+        availabilityOverrideUserIds: nextOverrideIds,
+      });
+    }
+  });
 };
 
 /**
@@ -204,6 +243,7 @@ export const findScheduleConflicts = (
 
     const userIds = toAssignedUserIds(entry.userId);
     const hasConflict = userIds.some((userId) => {
+      if (isAvailabilityOverrideEntry(entry, userId)) return false;
       const user = users.find((u) => u.id === userId);
       if (!user) {
         // Deleted user — not a conflict, just historical record

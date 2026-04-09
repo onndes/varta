@@ -21,6 +21,30 @@ export const getAssignedCount = (entry: ScheduleEntry | null | undefined): numbe
   return toAssignedUserIds(entry.userId).length;
 };
 
+export const getAvailabilityOverrideUserIds = (
+  entry: ScheduleEntry | null | undefined
+): number[] => {
+  if (!entry) return [];
+  const assignedIds = toAssignedUserIds(entry.userId);
+  if (entry.isAvailabilityOverride) return assignedIds;
+  if (!entry.availabilityOverrideUserIds?.length) return [];
+  return entry.availabilityOverrideUserIds.filter((id) => assignedIds.includes(id));
+};
+
+export const isAvailabilityOverrideEntry = (
+  entry: ScheduleEntry | null | undefined,
+  userId?: number
+): boolean => {
+  if (!entry) return false;
+  if (entry.type === 'force') return userId === undefined ? true : true;
+  const overrideIds = getAvailabilityOverrideUserIds(entry);
+  if (userId === undefined) {
+    const assignedIds = toAssignedUserIds(entry.userId);
+    return assignedIds.length > 0 && overrideIds.length === assignedIds.length;
+  }
+  return overrideIds.includes(userId);
+};
+
 /** Чи є тип запису «ручним» (manual, replace, swap, history, import, force — не авто) */
 export const isManualType = (entry: ScheduleEntry | null | undefined): boolean => {
   if (!entry) return false;

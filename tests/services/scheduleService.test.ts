@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { db } from '@/db/db';
 import {
   applyKarmaForTransfer,
+  acknowledgeScheduleConflicts,
   findScheduleConflicts,
   findScheduleGaps,
   getAllSchedule,
@@ -259,6 +260,85 @@ describe('scheduleService', () => {
           isActive: true,
           debt: 0,
           owedDays: {},
+        },
+      ];
+
+      const conflicts = findScheduleConflicts(schedule, users);
+      expect(conflicts).toEqual(['2026-03-10']);
+    });
+
+    it('не повинен вважати конфліктом конкретного бійця після ручного підтвердження винятку', async () => {
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-10': {
+          date: '2026-03-10',
+          userId: [1, 2],
+          type: 'history',
+        },
+      };
+
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+          blockedDays: [2],
+        },
+      ];
+
+      await db.schedule.put(schedule['2026-03-10']);
+      await acknowledgeScheduleConflicts({ '2026-03-10': [2] });
+      const saved = await db.schedule.get('2026-03-10');
+      expect(saved?.availabilityOverrideUserIds).toEqual([2]);
+
+      const freshSchedule = await getAllSchedule();
+      const conflicts = findScheduleConflicts(freshSchedule, users);
+      expect(conflicts).toEqual([]);
+    });
+
+    it('повинен зберігати конфлікт, якщо підтверджено не всіх недоступних бійців', () => {
+      const schedule: Record<string, ScheduleEntry> = {
+        '2026-03-10': {
+          date: '2026-03-10',
+          userId: [1, 2],
+          type: 'history',
+          availabilityOverrideUserIds: [2],
+        },
+      };
+
+      const users: User[] = [
+        {
+          id: 1,
+          name: 'A',
+          rank: 'Солдат',
+          status: 'SICK',
+          statusFrom: '2026-03-01',
+          statusTo: '2026-03-20',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+        },
+        {
+          id: 2,
+          name: 'B',
+          rank: 'Солдат',
+          status: 'ACTIVE',
+          isActive: true,
+          debt: 0,
+          owedDays: {},
+          blockedDays: [2],
         },
       ];
 

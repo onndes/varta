@@ -6,7 +6,7 @@ import { removeAssignmentWithDebt, bulkDeleteSchedule } from '../services/schedu
 import { getKarmaOnManualChanges } from '../services/settingsService';
 import * as userService from '../services/userService';
 import * as auditService from '../services/auditService';
-import { toAssignedUserIds } from '../utils/assignment';
+import { toAssignedUserIds, getAvailabilityOverrideUserIds } from '../utils/assignment';
 
 interface UseAssignAndRemoveProps {
   users: User[];
@@ -65,6 +65,10 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
       nextIds.push(userId);
 
       const isReplace = typeof replaceUserId === 'number';
+      const assignedUser = users.find((u) => u.id === userId);
+      const preservedOverrideIds = getAvailabilityOverrideUserIds(existing).filter((id) =>
+        nextIds.includes(id)
+      );
       const entryType = options?.historyMode
         ? 'history'
         : options?.isForced
@@ -81,10 +85,11 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
         userId: nextIds.length === 1 ? nextIds[0] : nextIds,
         type: entryType,
         isLocked: false,
+        availabilityOverrideUserIds: preservedOverrideIds.length > 0 ? preservedOverrideIds : undefined,
       };
       await saveScheduleEntry(entry);
 
-      const user = users.find((u) => u.id === userId);
+      const user = assignedUser;
       if (user && isManual) {
         if (await getKarmaOnManualChanges()) {
           const dayIdx = new Date(date).getDay();

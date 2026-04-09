@@ -197,7 +197,7 @@ Main screen. Includes:
 | ------------------------ | ----------------------------------------------- |
 | `← / → / Today`          | Week navigation                                 |
 | `Fill gaps`              | Auto-fill empty days                            |
-| `Fix conflicts`          | Fix days with unavailable assignees             |
+| `Fix conflicts`          | Fix unavailable assignees or explicitly keep them as exceptions |
 | `Generate week`          | Full regeneration of the current week           |
 | `Clear week`             | Delete all assignments for the current week     |
 | `Optimization (cascade)` | Recalculate forward starting from a change date |
