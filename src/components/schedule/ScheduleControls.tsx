@@ -1,22 +1,10 @@
 import React from 'react';
 import type { PrintMode } from '../../types';
 import { formatDate, toLocalISO } from '../../utils/dateUtils';
-
-const STOP_MIN_MULTI_RESTART_ATTEMPT = 251;
-
-export const canStopSchedulerAtProgress = (
-  schedulerProgress: { phase: string; percent: number } | null | undefined
-): boolean => {
-  if (!schedulerProgress) return false;
-
-  const isMultiRestartPhase = /^(Multi-Restart|LNS)\b/.test(schedulerProgress.phase);
-  if (!isMultiRestartPhase) return false;
-
-  const attemptMatch = schedulerProgress.phase.match(/\(спроба\s+(\d+)/i);
-  if (!attemptMatch) return false;
-
-  return Number(attemptMatch[1]) >= STOP_MIN_MULTI_RESTART_ATTEMPT;
-};
+import {
+  canStopSchedulerAtProgress,
+  getStopSchedulerTitle,
+} from './scheduleControlsUtils';
 
 interface ScheduleControlsProps {
   weekDates: string[];
@@ -318,7 +306,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
                 <button
                   className="btn btn-sm btn-danger ms-2 py-0 px-2"
                   onClick={onStopScheduler}
-                  title={`Зупинити оптимізацію після ${STOP_MIN_MULTI_RESTART_ATTEMPT - 1}+ спроб`}
+                  title={getStopSchedulerTitle()}
                 >
                   <i className="fas fa-stop me-1"></i>Стоп
                 </button>

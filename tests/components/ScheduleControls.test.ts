@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canStopSchedulerAtProgress } from '@/components/schedule/ScheduleControls';
+import { canStopSchedulerAtProgress } from '@/components/schedule/scheduleControlsUtils';
 
 describe('canStopSchedulerAtProgress', () => {
   it('returns false before Multi-Restart/LNS phase', () => {
