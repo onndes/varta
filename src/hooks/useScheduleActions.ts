@@ -196,6 +196,10 @@ export const useScheduleActions = ({
     }
     pushHistory(schedule, 'Генерація тижня');
     await generateWeekSchedule(validTargets);
+    // A freshly generated week is already the most up-to-date schedule.
+    // Any pending cascade trigger is now obsolete — clear it so the
+    // "Optimize" button does not appear immediately after generation.
+    await clearCascadeTrigger();
     await logAction(
       'AUTO_SCHEDULE',
       `Перегенеровано тиждень ${validTargets[0]} - ${validTargets[validTargets.length - 1]}`
@@ -208,6 +212,7 @@ export const useScheduleActions = ({
     schedule,
     pushHistory,
     generateWeekSchedule,
+    clearCascadeTrigger,
     logAction,
     refreshData,
     showAlert,
