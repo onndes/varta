@@ -606,7 +606,8 @@ export const autoFillSchedule = async (
         dayWeights,
         timeoutMs,
         onProgress,
-        abortSignal
+        abortSignal,
+        slotsPerDay
       );
     }
 

@@ -1025,122 +1025,135 @@ const lnsRepair = (
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   options: AutoScheduleOptions,
-  fairnessUsers: User[]
+  fairnessUsers: User[],
+  slotsPerDay: number
 ): void => {
   const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
 
   for (const dateStr of destroyedDates) {
-    const allAutoUsers = users.filter((u) => u.id && isAutoParticipant(u));
+    // Track users already picked for earlier slots on this date.
+    const selectedIds: number[] = [];
 
-    const hardPool = allAutoUsers.filter((u) => isHardEligible(u, dateStr));
-    if (hardPool.length === 0) {
-      // No one available — leave unassigned
-      continue;
-    }
-
-    let pool = [...hardPool];
-
-    // Rest days filter
-    if (minRest > 0) {
-      const filtered = filterByRestDays(pool, dateStr, minRest, schedule);
-      if (filtered.length > 0) pool = filtered;
-    }
-
-    // Incompatible pairs filter
-    {
-      const filtered = filterByIncompatiblePairs(pool, users, dateStr, schedule);
-      if (filtered.length > 0) pool = filtered;
-    }
-
-    // Same weekday last week filter
-    {
-      const filtered = filterBySameWeekdayLastWeek(
-        pool,
-        dateStr,
-        schedule,
-        !options.evenWeeklyDistribution
+    for (let slot = 0; slot < slotsPerDay; slot++) {
+      // Exclude users already picked for this date's earlier slots.
+      const allAutoUsers = users.filter(
+        (u) => u.id && isAutoParticipant(u) && !selectedIds.includes(u.id)
       );
-      if (filtered.length > 0) pool = filtered;
-    }
 
-    const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+      const hardPool = allAutoUsers.filter((u) => isHardEligible(u, dateStr));
+      if (hardPool.length === 0) break;
 
-    // Weekly cap filter
-    if (options.limitOneDutyPerWeekWhenSevenPlus) {
-      const filtered = filterByWeeklyCap(pool, users, dateStr, schedule, options);
-      if (filtered.length > 0) pool = filtered;
-    }
+      let pool = [...hardPool];
 
-    // forceUseAllWhenFew filter
-    if (
-      options.forceUseAllWhenFew &&
-      totalEligibleCount !== undefined &&
-      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
-    ) {
-      const filtered = filterForceUseAllWhenFew(pool, dateStr, schedule);
-      if (filtered.length > 0) pool = filtered;
-    }
+      // Rest days filter
+      if (minRest > 0) {
+        const filtered = filterByRestDays(pool, dateStr, minRest, schedule);
+        if (filtered.length > 0) pool = filtered;
+      }
 
-    // evenWeeklyDistribution filter
-    if (
-      options.evenWeeklyDistribution &&
-      totalEligibleCount !== undefined &&
-      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
-    ) {
-      const filtered = filterEvenWeeklyDistribution(pool, dateStr, schedule);
-      if (filtered.length > 0) pool = filtered;
-    }
+      // Incompatible pairs filter
+      {
+        const filtered = filterByIncompatiblePairs(pool, users, dateStr, schedule);
+        if (filtered.length > 0) pool = filtered;
+      }
 
-    // Fairness recovery (same as main scheduler)
-    if (
-      (options.forceUseAllWhenFew || options.evenWeeklyDistribution) &&
-      totalEligibleCount !== undefined &&
-      totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT &&
-      pool.length > 0
-    ) {
-      const week = getWeekWindow(dateStr);
-      const poolHasZero = pool.some(
-        (u) => countUserAssignmentsInRange(u.id!, schedule, week.from, week.to) === 0
-      );
-      if (!poolHasZero) {
-        const zeroDutyHard = hardPool.filter(
+      // Same weekday last week filter
+      {
+        const filtered = filterBySameWeekdayLastWeek(
+          pool,
+          dateStr,
+          schedule,
+          !options.evenWeeklyDistribution
+        );
+        if (filtered.length > 0) pool = filtered;
+      }
+
+      const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+
+      // Weekly cap filter
+      if (options.limitOneDutyPerWeekWhenSevenPlus) {
+        const filtered = filterByWeeklyCap(pool, users, dateStr, schedule, options);
+        if (filtered.length > 0) pool = filtered;
+      }
+
+      // forceUseAllWhenFew filter
+      if (
+        options.forceUseAllWhenFew &&
+        totalEligibleCount !== undefined &&
+        totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
+      ) {
+        const filtered = filterForceUseAllWhenFew(pool, dateStr, schedule);
+        if (filtered.length > 0) pool = filtered;
+      }
+
+      // evenWeeklyDistribution filter
+      if (
+        options.evenWeeklyDistribution &&
+        totalEligibleCount !== undefined &&
+        totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT
+      ) {
+        const filtered = filterEvenWeeklyDistribution(pool, dateStr, schedule);
+        if (filtered.length > 0) pool = filtered;
+      }
+
+      // Fairness recovery (same as main scheduler)
+      if (
+        (options.forceUseAllWhenFew || options.evenWeeklyDistribution) &&
+        totalEligibleCount !== undefined &&
+        totalEligibleCount <= MIN_USERS_FOR_WEEKLY_LIMIT &&
+        pool.length > 0
+      ) {
+        const week = getWeekWindow(dateStr);
+        const poolHasZero = pool.some(
           (u) => countUserAssignmentsInRange(u.id!, schedule, week.from, week.to) === 0
         );
-        if (zeroDutyHard.length > 0) {
-          pool = zeroDutyHard;
+        if (!poolHasZero) {
+          const zeroDutyHard = hardPool.filter(
+            (u) => countUserAssignmentsInRange(u.id!, schedule, week.from, week.to) === 0
+          );
+          if (zeroDutyHard.length > 0) {
+            pool = zeroDutyHard;
+          }
         }
+      }
+
+      // Starvation fallback
+      if (pool.length === 0) {
+        pool = [...hardPool];
+      }
+
+      if (pool.length === 0) break;
+
+      // Sort by the same comparator used in the greedy pass
+      const fairnessSchedule = getLogicSchedule(schedule, false);
+      const compare = buildUserComparator(
+        dateStr,
+        schedule,
+        dayWeights,
+        options,
+        undefined,
+        fairnessSchedule,
+        totalEligibleCount,
+        pool,
+        fairnessUsers
+      );
+      pool.sort(compare);
+
+      // Pick randomly from top-3 to add exploration diversity across restarts.
+      // Pure greedy (always pool[0]) is deterministic and produces the same
+      // assignment every time given the same surrounding context.
+      const topN = Math.min(3, pool.length);
+      const picked = pool[Math.floor(Math.random() * topN)];
+      if (picked?.id) {
+        selectedIds.push(picked.id);
       }
     }
 
-    // Starvation fallback
-    if (pool.length === 0) {
-      pool = [...hardPool];
-    }
-
-    if (pool.length === 0) continue;
-
-    // Sort by the same comparator used in the greedy pass
-    const fairnessSchedule = getLogicSchedule(schedule, false);
-    const compare = buildUserComparator(
-      dateStr,
-      schedule,
-      dayWeights,
-      options,
-      undefined,
-      fairnessSchedule,
-      totalEligibleCount,
-      pool,
-      fairnessUsers
-    );
-    pool.sort(compare);
-
-    // Pick randomly from top-3 to add exploration diversity across restarts.
-    // Pure greedy (always pool[0]) is deterministic and produces the same
-    // assignment every time given the same surrounding context.
-    const topN = Math.min(3, pool.length);
-    const selected = pool[Math.floor(Math.random() * topN)];
-    if (selected?.id) {
-      schedule[dateStr] = { ...schedule[dateStr], userId: selected.id };
+    if (selectedIds.length > 0) {
+      schedule[dateStr] = {
+        ...schedule[dateStr],
+        userId: selectedIds.length === 1 ? selectedIds[0] : selectedIds,
+      };
     }
   }
 };
@@ -1172,7 +1185,8 @@ export const performMultiRestartOptimization = async (
   dayWeights: DayWeights,
   timeoutMs: number,
   onProgress?: SchedulerProgressCallback,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  slotsPerDay = 1
 ): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
@@ -1240,7 +1254,7 @@ export const performMultiRestartOptimization = async (
     if (strategy === 'lns') {
       // LNS perturbation: destroy a window, then repair with greedy pipeline
       const destroyed = lnsDestroy(autoFilledDates, tempSchedule, lnsWindowSize);
-      lnsRepair(destroyed, users, tempSchedule, dayWeights, options, fairnessUsers);
+      lnsRepair(destroyed, users, tempSchedule, dayWeights, options, fairnessUsers, slotsPerDay);
     } else {
       // Classic perturbation: random pair swaps
       const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
