@@ -32,16 +32,36 @@ jobs:
       - name: Build Tauri app (Windows)
         run: npm run tauri:build
 
+      - name: Compute artifact metadata
+        id: meta
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $buildDate = Get-Date -Format 'yyyy-MM-dd'
+          $baseName = "varta-v$version-$buildDate"
+          "base_name=$baseName" >> $env:GITHUB_OUTPUT
+
+      - name: Rename NSIS installer (.exe)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if ($null -eq $exe) {
+            Write-Host 'No NSIS installer found; skipping rename.'
+            exit 0
+          }
+          $renamed = Join-Path $exe.DirectoryName "${{ steps.meta.outputs.base_name }}.exe"
+          Move-Item -Path $exe.FullName -Destination $renamed -Force
+
       - name: Upload NSIS installer (.exe)
         uses: actions/upload-artifact@v6
         with:
-          name: varta-windows-nsis
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          name: ${{ steps.meta.outputs.base_name }}
+          path: src-tauri/target/release/bundle/nsis/${{ steps.meta.outputs.base_name }}.exe
           if-no-files-found: ignore
 
       - name: Upload MSI installer (.msi)
         uses: actions/upload-artifact@v6
         with:
-          name: varta-windows-msi
+          name: ${{ steps.meta.outputs.base_name }}-msi
           path: src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: ignore
