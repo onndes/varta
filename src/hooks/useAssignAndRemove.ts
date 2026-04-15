@@ -48,6 +48,7 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
             const dayIdx = new Date(date).getDay();
             const weight = dayWeights[dayIdx] || 1.0;
             await userService.updateUserDebt(replaceUserId, -weight);
+            await userService.updateOwedDays(replaceUserId, dayIdx, 1);
             await auditService.logAction(
               'REMOVE',
               `${prevUser.name} замінено на ${date} (Карма -${weight})`
@@ -85,7 +86,8 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
         userId: nextIds.length === 1 ? nextIds[0] : nextIds,
         type: entryType,
         isLocked: false,
-        availabilityOverrideUserIds: preservedOverrideIds.length > 0 ? preservedOverrideIds : undefined,
+        availabilityOverrideUserIds:
+          preservedOverrideIds.length > 0 ? preservedOverrideIds : undefined,
       };
       await saveScheduleEntry(entry);
 
