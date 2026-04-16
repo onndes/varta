@@ -615,6 +615,91 @@ const ExperimentalTabPanel: React.FC<ExperimentalTabPanelProps> = ({
         )}
       </div>
     </div>
+
+    {/* Scheduler Visualization */}
+    <div className="card shadow-sm border-0 mb-4">
+      <div className="card-header py-3">
+        <h5 className="mb-0 fw-bold">
+          <i className="fas fa-eye me-2"></i>Візуалізація алгоритму
+        </h5>
+      </div>
+      <div className="card-body">
+        <div className="form-check form-switch mb-3">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="enableSchedulerVisualization"
+            checked={!!autoOpts.enableSchedulerVisualization}
+            onChange={(e) =>
+              onAutoOptsChange({ ...autoOpts, enableSchedulerVisualization: e.target.checked })
+            }
+          />
+          <label className="form-check-label" htmlFor="enableSchedulerVisualization">
+            <strong>Анімація роботи алгоритму</strong>
+            <div className="text-muted small">
+              Під час генерації підсвічує комірки таблиці: жовтим — дату, що обробляється, синім —
+              кандидатів, зеленим — вибраного. Під час оптимізації — синім позначає прийняті обміни.
+              <br />
+              <span className="text-warning-emphasis">
+                <i className="fas fa-triangle-exclamation me-1"></i>
+                Сповільнює генерацію. Використовуйте для демонстрації або аналізу.
+              </span>
+            </div>
+          </label>
+        </div>
+
+        {autoOpts.enableSchedulerVisualization && (
+          <div className="ms-4 mt-2">
+            <label className="form-label fw-bold small">
+              Швидкість анімації ({Math.min(autoOpts.schedulerVisSpeed ?? 0, 50)} мс)
+            </label>
+            <input
+              type="range"
+              className="form-range"
+              min={0}
+              max={50}
+              step={5}
+              value={Math.min(autoOpts.schedulerVisSpeed ?? 0, 50)}
+              onChange={(e) =>
+                onAutoOptsChange({
+                  ...autoOpts,
+                  schedulerVisSpeed: parseInt(e.target.value),
+                })
+              }
+            />
+            <div className="d-flex justify-content-between small text-muted">
+              <span>0 мс (миттєво)</span>
+              <span>50 мс (повільно)</span>
+            </div>
+
+            <div className="form-check form-switch mt-3">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="schedulerVisShowAttempts"
+                checked={!!autoOpts.schedulerVisShowAttempts}
+                onChange={(e) =>
+                  onAutoOptsChange({ ...autoOpts, schedulerVisShowAttempts: e.target.checked })
+                }
+              />
+              <label className="form-check-label" htmlFor="schedulerVisShowAttempts">
+                <strong>Показувати всі спроби</strong>
+                <div className="text-muted small">
+                  Підсвічує <span className="text-danger">червоним</span> кожну комбінацію, яку
+                  алгоритм перевіряє під час оптимізації (Фази 1-3, Tabu Search). Синім — прийняті
+                  обміни. Дозволяє побачити, що алгоритм справді перебирає всі дні та людей.
+                  <br />
+                  <span className="text-warning-emphasis">
+                    <i className="fas fa-triangle-exclamation me-1"></i>
+                    Значно сповільнює оптимізацію. Тільки для аналізу.
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   </>
 );
 

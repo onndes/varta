@@ -326,10 +326,38 @@ export interface AutoScheduleOptions {
   multiRestartTimeoutMs?: number; // time budget in ms (default: 30000)
   multiRestartStrategy?: 'pair-swap' | 'lns'; // perturbation strategy: pair-swap (classic) or LNS (destroy-repair)
   multiRestartTimeLimitMode?: 'fixed' | 'unlimited'; // 'fixed' = use multiRestartTimeoutMs, 'unlimited' = run until aborted
+  // Scheduler visualization: live cell highlighting during generation
+  enableSchedulerVisualization?: boolean; // default: false
+  schedulerVisSpeed?: number; // delay between visual events in ms (default: 40)
+  schedulerVisShowAttempts?: boolean; // show all attempted swaps, not just accepted (default: false)
 }
 
 /** Progress callback for long-running scheduler operations. */
 export type SchedulerProgressCallback = (phase: string, percent: number) => void;
+
+/** Visualization event emitted during scheduler execution. */
+export interface SchedulerVisEvent {
+  type:
+    | 'greedy-date' // Starting to fill a date
+    | 'greedy-candidate' // Top candidates after sorting
+    | 'greedy-select' // Candidate selected (winner)
+    | 'lookahead-try' // Evaluating a lookahead candidate
+    | 'lookahead-best' // Lookahead found a better candidate
+    | 'swap-try' // Swap being evaluated (attempted but may be rejected)
+    | 'swap-accept' // Swap accepted (Z improved)
+    | 'restart-try' // Multi-restart attempting a perturbation
+    | 'restart-improve' // Multi-restart found improvement
+    | 'restart-best' // Current best assignment (persistent highlight)
+    | 'phase-start' // A major phase begins
+    | 'phase-end' // A major phase ends
+    | 'clear'; // Clear all highlights
+  dates?: string[];
+  userIds?: number[];
+  phase?: string;
+}
+
+/** Callback for real-time scheduler visualization. */
+export type SchedulerVisCallback = (event: SchedulerVisEvent) => Promise<void>;
 
 export interface AuditLogEntry {
   id?: number;

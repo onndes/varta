@@ -7,6 +7,7 @@ import type {
   DayWeights,
   AutoScheduleOptions,
   SchedulerProgressCallback,
+  SchedulerVisCallback,
   OptimizerHistoryEntry,
 } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
@@ -213,7 +214,8 @@ export const performSwapOptimization = async (
   options: AutoScheduleOptions,
   dayWeights: DayWeights,
   onProgress?: SchedulerProgressCallback,
-  optimizerLog?: Map<string, OptimizerHistoryEntry[]>
+  optimizerLog?: Map<string, OptimizerHistoryEntry[]>,
+  onVis?: SchedulerVisCallback
 ): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
@@ -232,6 +234,29 @@ export const performSwapOptimization = async (
     arr.push(entry);
     optimizerLog.set(date, arr);
   };
+
+  // Visualization: emit initial state so the UI can highlight current assignments
+  if (onVis) {
+    const initDates: string[] = [];
+    const initUids: number[] = [];
+    for (const d of autoFilledDates) {
+      const e = tempSchedule[d];
+      if (e) {
+        const ids = toAssignedUserIds(e.userId);
+        if (ids.length > 0) {
+          initDates.push(d);
+          initUids.push(ids[0]);
+        }
+      }
+    }
+    if (initDates.length > 0) {
+      await onVis({ type: 'restart-best', dates: initDates, userIds: initUids });
+    }
+  }
+
+  // Throttled vis for showing every attempted swap (60fps max)
+  const showAttempts13 = !!(onVis && options.schedulerVisShowAttempts);
+  let lastVisTick13 = 0;
 
   for (let iter = 0; iter < maxIter; iter++) {
     // Progress reporting + yield to UI thread periodically
@@ -298,6 +323,15 @@ export const performSwapOptimization = async (
             tempSchedule[date1] = { ...entry1, userId: newUserId1 };
             tempSchedule[date2] = { ...entry2, userId: newUserId2 };
 
+            // Visualization: show this pair being evaluated (throttled)
+            if (showAttempts13) {
+              const now = Date.now();
+              if (now - lastVisTick13 >= 16) {
+                lastVisTick13 = now;
+                await onVis!({ type: 'swap-try', dates: [date1, date2], userIds: [user2, user1] });
+              }
+            }
+
             const u2ViolatesDate1 =
               minRest > 0 && wouldViolateRestDays(user2, date1, minRest, tempSchedule);
             const u1ViolatesDate2 =
@@ -312,6 +346,14 @@ export const performSwapOptimization = async (
             const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
             if (newObj < baseObj - FLOAT_EPSILON) {
+              // Visualization: show accepted pair swap
+              if (onVis)
+                await onVis({
+                  type: 'swap-accept',
+                  dates: [date1, date2],
+                  userIds: [user2, user1],
+                });
+
               logSwap(date1, {
                 phase: 'phase1-pair',
                 description: `Обмін: ${userName(user1)} ↔ ${userName(user2)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
@@ -382,6 +424,15 @@ export const performSwapOptimization = async (
 
           tempSchedule[dateStr] = swappedEntry;
 
+          // Visualization: show this replacement being evaluated (throttled)
+          if (showAttempts13) {
+            const now = Date.now();
+            if (now - lastVisTick13 >= 16) {
+              lastVisTick13 = now;
+              await onVis!({ type: 'swap-try', dates: [dateStr], userIds: [candidate.id!] });
+            }
+          }
+
           const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
 
           if (newObj < baseObj - FLOAT_EPSILON) {
@@ -433,6 +484,11 @@ export const performSwapOptimization = async (
               zAfter: newObj,
               rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
             });
+
+            // Visualization: show accepted single replacement
+            if (onVis)
+              await onVis({ type: 'swap-accept', dates: [dateStr], userIds: [candidate.id!] });
+
             tempLoadOffset[assignedId] = (tempLoadOffset[assignedId] ?? 0) - 1;
             tempLoadOffset[candidate.id!] = (tempLoadOffset[candidate.id!] ?? 0) + 1;
             improved = true;
@@ -509,6 +565,19 @@ export const performSwapOptimization = async (
               tempSchedule[d2] = { ...entry2, userId: newUserId2P3 };
               tempSchedule[otherDate] = { ...otherEntry, userId: newUserIdOther };
 
+              // Visualization: show this Phase 3 pair being evaluated (throttled)
+              if (showAttempts13) {
+                const now = Date.now();
+                if (now - lastVisTick13 >= 16) {
+                  lastVisTick13 = now;
+                  await onVis!({
+                    type: 'swap-try',
+                    dates: [d2, otherDate],
+                    userIds: [otherId, uid],
+                  });
+                }
+              }
+
               const v1 = minRest > 0 && wouldViolateRestDays(otherId, d2, minRest, tempSchedule);
               const v2 = minRest > 0 && wouldViolateRestDays(uid, otherDate, minRest, tempSchedule);
 
@@ -522,6 +591,14 @@ export const performSwapOptimization = async (
               // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
               const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
               if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
+                // Visualization: show accepted Phase 3 swap
+                if (onVis)
+                  await onVis({
+                    type: 'swap-accept',
+                    dates: [d2, otherDate],
+                    userIds: [otherId, uid],
+                  });
+
                 logSwap(d2, {
                   phase: 'phase3-sameDow',
                   description: `Усунення повтору дня тижня: ${userName(uid)} ↔ ${userName(otherId)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
@@ -596,7 +673,8 @@ export const performTabuSearch = async (
   options: AutoScheduleOptions,
   dayWeights: DayWeights,
   onProgress?: SchedulerProgressCallback,
-  optimizerLog?: Map<string, OptimizerHistoryEntry[]>
+  optimizerLog?: Map<string, OptimizerHistoryEntry[]>,
+  onVis?: SchedulerVisCallback
 ): Promise<void> => {
   const tenure = options.tabuTenure || 7;
   const maxIter = options.tabuMaxIterations || 50;
@@ -662,6 +740,23 @@ export const performTabuSearch = async (
     if (e) bestAssignment.set(d, e.userId as number | number[]);
   }
 
+  // Visualization: emit initial best so the UI can highlight it
+  if (onVis) {
+    const bestDates: string[] = [];
+    const bestUids: number[] = [];
+    for (const [d, uid] of bestAssignment) {
+      bestDates.push(d);
+      bestUids.push(typeof uid === 'number' ? uid : (uid[0] ?? 0));
+    }
+    if (bestDates.length > 0) {
+      await onVis({ type: 'restart-best', dates: bestDates, userIds: bestUids });
+    }
+  }
+
+  // Throttled vis for showing every attempted swap (60fps max)
+  const showAttempts = !!(onVis && options.schedulerVisShowAttempts);
+  let lastVisTick = 0;
+
   for (let iter = 0; iter < maxIter; iter++) {
     // Progress reporting + yield to UI thread
     if (onProgress && iter % 5 === 0) {
@@ -723,6 +818,15 @@ export const performTabuSearch = async (
             const newUserId2T = newIds2.length === 1 ? newIds2[0] : newIds2;
             tempSchedule[d1] = { ...e1, userId: newUserId1T };
             tempSchedule[d2] = { ...e2, userId: newUserId2T };
+
+            // Visualization: show this pair being evaluated (throttled)
+            if (showAttempts) {
+              const now = Date.now();
+              if (now - lastVisTick >= 16) {
+                lastVisTick = now;
+                await onVis!({ type: 'swap-try', dates: [d1, d2], userIds: [u2, u1] });
+              }
+            }
 
             const rv1 = minRest > 0 && wouldViolateRestDays(u2, d1, minRest, tempSchedule);
             const rv2 = minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule);
@@ -790,6 +894,15 @@ export const performTabuSearch = async (
           const newEntry: ScheduleEntry = { ...entry, userId: newUserId };
           tempSchedule[dateStr] = newEntry;
 
+          // Visualization: show this replacement being evaluated (throttled)
+          if (showAttempts) {
+            const now = Date.now();
+            if (now - lastVisTick >= 16) {
+              lastVisTick = now;
+              await onVis!({ type: 'swap-try', dates: [dateStr], userIds: [candidate.id] });
+            }
+          }
+
           if (wouldViolateWeeklyBalance([dateStr])) {
             tempSchedule[dateStr] = entry;
             continue;
@@ -828,6 +941,11 @@ export const performTabuSearch = async (
     // Apply the best move
     bestMove();
 
+    // Visualization: show accepted tabu move
+    if (onVis && bestMoveLog) {
+      await onVis({ type: 'swap-accept', dates: bestMoveLog.dates, userIds: bestMoveLog.newIds });
+    }
+
     // Log the move for decision log
     if (bestMoveLog) {
       for (let mi = 0; mi < bestMoveLog.dates.length; mi++) {
@@ -864,6 +982,18 @@ export const performTabuSearch = async (
       for (const d of autoFilledDates) {
         const e = tempSchedule[d];
         if (e) bestAssignment.set(d, e.userId as number | number[]);
+      }
+      // Visualization: update persistent best highlight
+      if (onVis) {
+        const bestDates: string[] = [];
+        const bestUids: number[] = [];
+        for (const [d, uid] of bestAssignment) {
+          bestDates.push(d);
+          bestUids.push(typeof uid === 'number' ? uid : (uid[0] ?? 0));
+        }
+        if (bestDates.length > 0) {
+          await onVis({ type: 'restart-best', dates: bestDates, userIds: bestUids });
+        }
       }
     }
   }
@@ -1186,7 +1316,8 @@ export const performMultiRestartOptimization = async (
   timeoutMs: number,
   onProgress?: SchedulerProgressCallback,
   abortSignal?: AbortSignal,
-  slotsPerDay = 1
+  slotsPerDay = 1,
+  onVis?: SchedulerVisCallback
 ): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
@@ -1214,6 +1345,19 @@ export const performMultiRestartOptimization = async (
 
   const participantMap = new Map<number, User>(participants.map((u) => [u.id!, u]));
 
+  // Visualization: emit the initial best assignment so the UI can highlight it
+  if (onVis) {
+    const bestDates: string[] = [];
+    const bestUserIds: number[] = [];
+    for (const [d, uid] of bestAssignment) {
+      bestDates.push(d);
+      bestUserIds.push(typeof uid === 'number' ? uid : (uid[0] ?? 0));
+    }
+    if (bestDates.length > 0) {
+      await onVis({ type: 'restart-best', dates: bestDates, userIds: bestUserIds });
+    }
+  }
+
   const startTime = Date.now();
   const deadline = isUnlimited ? Infinity : startTime + timeoutMs;
   let restart = 0;
@@ -1223,9 +1367,31 @@ export const performMultiRestartOptimization = async (
   // responsive regardless of how fast restarts get.
   let lastYield = startTime;
 
-  while (Date.now() < deadline) {
+  // Minimum 250 restarts regardless of time budget
+  const MIN_RESTARTS = 250;
+
+  // Stagnation detection: track unique solutions seen. If too many consecutive
+  // restarts produce solutions we have already seen, assume the search space
+  // is exhausted and stop early.
+  const seenSolutions = new Set<string>();
+  let duplicatesInRow = 0;
+  const MAX_DUPLICATES_IN_ROW = 80;
+
+  const solutionFingerprint = (): string => {
+    const parts: string[] = [];
+    for (const d of autoFilledDates) {
+      const e = tempSchedule[d];
+      if (e) parts.push(`${d}:${toAssignedUserIds(e.userId).join(',')}`);
+    }
+    return parts.join('|');
+  };
+
+  while (restart < MIN_RESTARTS || Date.now() < deadline) {
     // Check abort signal for unlimited mode (and fixed mode too)
     if (abortSignal?.aborted) break;
+
+    // Early stop: search space exhausted (cycling through same solutions)
+    if (restart >= MIN_RESTARTS && duplicatesInRow >= MAX_DUPLICATES_IN_ROW) break;
 
     restart++;
 
@@ -1316,6 +1482,35 @@ export const performMultiRestartOptimization = async (
       200
     );
 
+    // Stagnation detection: check if this solution was already seen
+    const fp = solutionFingerprint();
+    if (seenSolutions.has(fp)) {
+      duplicatesInRow++;
+    } else {
+      seenSolutions.add(fp);
+      duplicatesInRow = 0;
+    }
+
+    // Visualization: show current restart attempt — what changed from best
+    if (onVis) {
+      const tryDates: string[] = [];
+      const tryUserIds: number[] = [];
+      for (const d of autoFilledDates) {
+        const e = tempSchedule[d];
+        if (!e) continue;
+        const curIds = toAssignedUserIds(e.userId);
+        const bestUid = bestAssignment.get(d);
+        const bestIds = bestUid !== undefined ? toAssignedUserIds(bestUid) : [];
+        if (JSON.stringify(curIds) !== JSON.stringify(bestIds)) {
+          tryDates.push(d);
+          tryUserIds.push(curIds[0] ?? 0);
+        }
+      }
+      if (tryDates.length > 0) {
+        await onVis({ type: 'restart-try', dates: tryDates, userIds: tryUserIds });
+      }
+    }
+
     // Validate no constraint violations before accepting
     let hasViolation = false;
     if (minRest > 0) {
@@ -1338,9 +1533,40 @@ export const performMultiRestartOptimization = async (
       if (newZ < bestZ - FLOAT_EPSILON) {
         bestZ = newZ;
         improvements++;
+        // Visualization: show all changed assignments from this improvement
+        if (onVis) {
+          const changedDates: string[] = [];
+          const changedUserIds: number[] = [];
+          for (const d of autoFilledDates) {
+            const e = tempSchedule[d];
+            if (!e) continue;
+            const newIds = toAssignedUserIds(e.userId);
+            const oldUid = bestAssignment.get(d);
+            const oldIds = oldUid !== undefined ? toAssignedUserIds(oldUid) : [];
+            if (JSON.stringify(newIds) !== JSON.stringify(oldIds)) {
+              changedDates.push(d);
+              changedUserIds.push(newIds[0] ?? 0);
+            }
+          }
+          if (changedDates.length > 0) {
+            await onVis({ type: 'restart-improve', dates: changedDates, userIds: changedUserIds });
+          }
+        }
         for (const d of autoFilledDates) {
           const e = tempSchedule[d];
           if (e) bestAssignment.set(d, e.userId as number | number[]);
+        }
+        // Visualization: update persistent best highlight
+        if (onVis) {
+          const bestDates: string[] = [];
+          const bestUids: number[] = [];
+          for (const [d, uid] of bestAssignment) {
+            bestDates.push(d);
+            bestUids.push(typeof uid === 'number' ? uid : (uid[0] ?? 0));
+          }
+          if (bestDates.length > 0) {
+            await onVis({ type: 'restart-best', dates: bestDates, userIds: bestUids });
+          }
         }
       }
     }
@@ -1352,5 +1578,8 @@ export const performMultiRestartOptimization = async (
     if (e) tempSchedule[d] = { ...e, userId: uid };
   }
 
-  onProgress?.(`${strategyLabel} завершено (${restart} спроб, ${improvements} покращень)`, 100);
+  onProgress?.(
+    `${strategyLabel} завершено (${restart} спроб, ${improvements} покращень${duplicatesInRow >= MAX_DUPLICATES_IN_ROW ? ', пошук вичерпано' : ''})`,
+    100
+  );
 };

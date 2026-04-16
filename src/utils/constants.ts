@@ -121,6 +121,8 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   multiRestartTimeoutMs: 30000,
   multiRestartStrategy: 'pair-swap' as const,
   multiRestartTimeLimitMode: 'fixed' as const,
+  enableSchedulerVisualization: false,
+  schedulerVisSpeed: 0,
 };
 
 /** Кількість тижнів назад для індикатора повторів DOW (за замовчуванням) */

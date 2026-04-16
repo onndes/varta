@@ -11,6 +11,7 @@ import type {
   CandidateSnapshot,
   FilterStepResult,
   SchedulerProgressCallback,
+  SchedulerVisCallback,
 } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { getLogicSchedule, isManualType, toAssignedUserIds } from '../../utils/assignment';
@@ -181,7 +182,8 @@ export const autoFillSchedule = async (
   options: AutoScheduleOptions = DEFAULT_AUTO_SCHEDULE_OPTIONS,
   ignoreHistoryInLogic = false,
   onProgress?: SchedulerProgressCallback,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  onVis?: SchedulerVisCallback
 ): Promise<ScheduleEntry[]> => {
   const updates: ScheduleEntry[] = [];
   const tempSchedule = { ...schedule };
@@ -198,6 +200,9 @@ export const autoFillSchedule = async (
 
   for (const dateStr of dates) {
     if (dateStr < todayStr) continue;
+
+    // Visualization: highlight date being processed
+    if (onVis) await onVis({ type: 'greedy-date', dates: [dateStr] });
 
     const existingEntry = tempSchedule[dateStr];
     const existingIds = toAssignedUserIds(existingEntry?.userId);
@@ -409,6 +414,12 @@ export const autoFillSchedule = async (
       );
       pool.sort(compare);
 
+      // Visualization: show top candidates after sorting
+      if (onVis && pool.length > 0) {
+        const topIds = pool.slice(0, Math.min(pool.length, 3)).map((u) => u.id!);
+        await onVis({ type: 'greedy-candidate', dates: [dateStr], userIds: topIds });
+      }
+
       // Candidate selection: basic starvation guard + optional deep lookahead
       let selected = pool[0];
       const lookaheadDepth = options.lookaheadDepth || 0;
@@ -427,6 +438,10 @@ export const autoFillSchedule = async (
         let bestScore = Infinity;
         const greedyPick = pool[0];
         for (const candidate of candidates) {
+          // Visualization: show which candidate lookahead is evaluating
+          if (onVis)
+            await onVis({ type: 'lookahead-try', dates: [dateStr], userIds: [candidate.id!] });
+
           const score = simulateForwardScore(
             candidate,
             dateStr,
@@ -441,6 +456,9 @@ export const autoFillSchedule = async (
           if (score < bestScore) {
             bestScore = score;
             selected = candidate;
+            // Visualization: lookahead found a new best
+            if (onVis)
+              await onVis({ type: 'lookahead-best', dates: [dateStr], userIds: [candidate.id!] });
           }
         }
         // Log when lookahead overrides the greedy pick
@@ -471,6 +489,9 @@ export const autoFillSchedule = async (
       }
       if (!selected?.id) break;
       selectedIds.push(selected.id);
+
+      // Visualization: highlight the selected user
+      if (onVis) await onVis({ type: 'greedy-select', dates: [dateStr], userIds: [selected.id] });
 
       // Build alternative snapshots for non-selected candidates
       const dayIdx = new Date(dateStr).getDay();
@@ -564,6 +585,7 @@ export const autoFillSchedule = async (
     const optimizerLog = new Map<string, import('../../types').OptimizerHistoryEntry[]>();
 
     onProgress?.('Оптимізація (фази 1-3)', 0);
+    if (onVis) await onVis({ type: 'phase-start', phase: 'swap-optimization' });
     await performSwapOptimization(
       dates,
       users,
@@ -573,12 +595,15 @@ export const autoFillSchedule = async (
       options,
       dayWeights,
       onProgress,
-      optimizerLog
+      optimizerLog,
+      onVis
     );
+    if (onVis) await onVis({ type: 'phase-end', phase: 'swap-optimization' });
 
     // Tabu Search: Phase 4 metaheuristic post-optimization
     if (options.useTabuSearch) {
       onProgress?.('Tabu Search', 0);
+      if (onVis) await onVis({ type: 'phase-start', phase: 'tabu-search' });
       await performTabuSearch(
         dates,
         users,
@@ -587,8 +612,10 @@ export const autoFillSchedule = async (
         options,
         dayWeights,
         onProgress,
-        optimizerLog
+        optimizerLog,
+        onVis
       );
+      if (onVis) await onVis({ type: 'phase-end', phase: 'tabu-search' });
     }
 
     // Multi-Restart (Phase 5): Iterated Local Search within time budget.
@@ -597,6 +624,7 @@ export const autoFillSchedule = async (
       const timeoutMs = options.multiRestartTimeoutMs ?? 30_000;
       const strategyLabel = options.multiRestartStrategy === 'lns' ? 'LNS' : 'Multi-Restart';
       onProgress?.(strategyLabel, 0);
+      if (onVis) await onVis({ type: 'phase-start', phase: 'multi-restart' });
       await performMultiRestartOptimization(
         dates,
         users,
@@ -607,8 +635,10 @@ export const autoFillSchedule = async (
         timeoutMs,
         onProgress,
         abortSignal,
-        slotsPerDay
+        slotsPerDay,
+        onVis
       );
+      if (onVis) await onVis({ type: 'phase-end', phase: 'multi-restart' });
     }
 
     // Reconcile: collect final state for any date touched by swap optimizer.

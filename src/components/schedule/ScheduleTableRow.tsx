@@ -11,10 +11,7 @@ import { getStatusPeriodAtDate } from '../../utils/userStatus';
 import { toLocalISO } from '../../utils/dateUtils';
 import { buildStaticLog } from './scheduleTableUtils';
 import DecisionLogModal from './DecisionLogModal';
-import {
-  DEFAULT_HELPER_DECORATIONS,
-  type HelperDecorations,
-} from './helperDecorations';
+import { DEFAULT_HELPER_DECORATIONS, type HelperDecorations } from './helperDecorations';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -291,6 +288,8 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           return (
             <td
               key={date}
+              data-date={date}
+              data-user-id={user.id}
               className={cellClass + (canDrag ? ' can-drag' : '')}
               title={dropHoverTitle}
               draggable={canDrag}
