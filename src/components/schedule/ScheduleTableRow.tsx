@@ -6,10 +6,15 @@ import { formatRank, formatNameForPrint } from '../../utils/helpers';
 import { STATUSES } from '../../utils/constants';
 import { getUserAvailabilityStatus } from '../../services/userService';
 import { isAssignedInEntry } from '../../utils/assignment';
+import { countUserDaysOfWeek } from '../../services/scheduleService';
 import { getStatusPeriodAtDate } from '../../utils/userStatus';
 import { toLocalISO } from '../../utils/dateUtils';
 import { buildStaticLog } from './scheduleTableUtils';
 import DecisionLogModal from './DecisionLogModal';
+import {
+  DEFAULT_HELPER_DECORATIONS,
+  type HelperDecorations,
+} from './helperDecorations';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -91,6 +96,7 @@ interface ScheduleTableRowProps {
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
   onQuickAssignClick: (date: string, user: User) => void;
   forceAssignMode?: boolean;
+  helperDecorations?: HelperDecorations;
   dragDropHandlers?: DragDropHandlers;
   /** Preview-mode entries (never saved to DB). Keyed by date. */
   previewSchedule?: Record<string, ScheduleEntry>;
@@ -113,12 +119,16 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   onCellClick,
   onQuickAssignClick,
   forceAssignMode = false,
+  helperDecorations = DEFAULT_HELPER_DECORATIONS,
   dragDropHandlers,
   previewSchedule,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
   const [activeLogDate, setActiveLogDate] = useState<string>('');
   const [activeLogEntry, setActiveLogEntry] = useState<ScheduleEntry | null>(null);
+  const dowAssignmentCounts = user.id
+    ? countUserDaysOfWeek(user.id, schedule)
+    : { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
   // Split name: surname (CAPS) + first/middle (dimmer)
   const nameParts = user.name.trim().split(/\s+/);
@@ -198,7 +208,9 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
           const hadSundayDutyPreviousDay =
             prevDate.getDay() === 0 && isAssignedInEntry(schedule[toLocalISO(prevDate)], user.id!);
           const isPast = new Date(date) < new Date(todayStr);
+          const dayOfWeek = new Date(date).getDay();
           const dowWeeksAgo = getDowWeeksAgo(date, user.id!, schedule, dowHistoryWeeks);
+          const totalDutiesForDow = dowAssignmentCounts[dayOfWeek] || 0;
 
           let cellClass = 'compact-cell';
           let screenContent: React.ReactNode = '';
@@ -233,9 +245,10 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                   : ' assigned' + (entry.isLocked ? ' locked' : '');
             }
 
-            const icon = getEntryIcon(entry);
-
-            const log = entry.decisionLog || buildStaticLog(entry);
+            const icon = helperDecorations.assignmentIcons ? getEntryIcon(entry) : '';
+            const log = helperDecorations.decisionInfo
+              ? entry.decisionLog || buildStaticLog(entry)
+              : null;
             screenContent = (
               <>
                 НАРЯД
@@ -330,7 +343,16 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                   А
                 </span>
               )}
-              {dowWeeksAgo.length > 0 && (
+              {helperDecorations.dowDutyCounts && (
+                <span
+                  className={`dow-duty-count-badge no-print${totalDutiesForDow === 0 ? ' is-zero' : ''}`}
+                  title={`Усього нарядів у цей день тижня: ${totalDutiesForDow}`}
+                  aria-hidden="true"
+                >
+                  {totalDutiesForDow}
+                </span>
+              )}
+              {helperDecorations.dowHistory && dowWeeksAgo.length > 0 && (
                 <span
                   className="dow-repeat-dots no-print"
                   title={`Чергування в цей день: ${dowWeeksAgo.map((w) => `${w} тиж. тому`).join(', ')}`}

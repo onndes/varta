@@ -1,10 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PrintMode } from '../../types';
 import { formatDate, toLocalISO } from '../../utils/dateUtils';
-import {
-  canStopSchedulerAtProgress,
-  getStopSchedulerTitle,
-} from './scheduleControlsUtils';
+import { canStopSchedulerAtProgress, getStopSchedulerTitle } from './scheduleControlsUtils';
+import type { HelperDecorationKey, HelperDecorations } from './helperDecorations';
 
 interface ScheduleControlsProps {
   weekDates: string[];
@@ -29,6 +27,8 @@ interface ScheduleControlsProps {
   onToggleHistoryMode: () => void;
   forceAssignMode: boolean;
   onToggleForceAssignMode: () => void;
+  helperDecorations: HelperDecorations;
+  onToggleHelperDecoration: (key: HelperDecorationKey) => void;
   onToggleRowFilter: (filter: 'available' | 'assigned') => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -76,6 +76,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onToggleHistoryMode,
   forceAssignMode,
   onToggleForceAssignMode,
+  helperDecorations,
+  onToggleHelperDecoration,
   onToggleRowFilter,
   canUndo,
   canRedo,
@@ -96,6 +98,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   const endDate = new Date(weekDates[6]);
   const todayStr = toLocalISO(new Date());
   const isFutureWeek = weekDates[0] > todayStr;
+  const [helpersMenuOpen, setHelpersMenuOpen] = useState(false);
+  const helpersMenuRef = useRef<HTMLDivElement>(null);
   const weekRangeLabel = `${startDate.toLocaleDateString('uk-UA', {
     day: 'numeric',
     month: 'long',
@@ -105,6 +109,47 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
     year: 'numeric',
   })}`;
   const canStopScheduler = canStopSchedulerAtProgress(schedulerProgress);
+  const enabledHelpersCount = useMemo(
+    () => Object.values(helperDecorations).filter(Boolean).length,
+    [helperDecorations]
+  );
+  const helperItems: Array<{
+    key: HelperDecorationKey;
+    label: string;
+    description: string;
+  }> = [
+    {
+      key: 'dowDutyCounts',
+      label: 'Верхній лічильник',
+      description: 'Сумарні наряди за цей день тижня',
+    },
+    {
+      key: 'dowHistory',
+      label: 'Історія знизу',
+      description: 'Цифри або точки минулих тижнів у комірці',
+    },
+    {
+      key: 'assignmentIcons',
+      label: 'Іконки типу',
+      description: 'Ручне, авто, заміна, імпорт та інші позначки',
+    },
+    {
+      key: 'decisionInfo',
+      label: 'Кнопка i',
+      description: 'Відкрити пояснення призначення',
+    },
+  ];
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (helpersMenuRef.current && !helpersMenuRef.current.contains(event.target as Node)) {
+        setHelpersMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   return (
     <div className="card schedule-controls-card border-0 shadow-sm p-2 mb-2 no-print">
@@ -206,6 +251,42 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
                 <span className="preview-prefetch-dot" aria-hidden="true" />
               )}
             </button>
+            <div ref={helpersMenuRef} className="position-relative">
+              <button
+                className={`btn btn-sm ${enabledHelpersCount > 0 && enabledHelpersCount < 4 ? 'btn-outline-info' : 'btn-outline-secondary'}`}
+                onClick={() => setHelpersMenuOpen((open) => !open)}
+                title="Керування службовими підказками в комірках"
+                aria-expanded={helpersMenuOpen}
+              >
+                <i className="fas fa-layer-group me-1"></i>
+                {`Підказки ${enabledHelpersCount}/4`}
+              </button>
+              {helpersMenuOpen && (
+                <div className="dropdown-menu show p-2" style={{ minWidth: '19rem', zIndex: 1055 }}>
+                  <div className="small text-muted fw-semibold px-1 pb-2">
+                    Що показувати в комірках
+                  </div>
+                  {helperItems.map((item) => (
+                    <label
+                      key={item.key}
+                      className="dropdown-item d-flex align-items-start gap-2 py-2 px-2 rounded"
+                      style={{ cursor: 'pointer', whiteSpace: 'normal' }}
+                    >
+                      <input
+                        type="checkbox"
+                        className="form-check-input mt-1 flex-shrink-0"
+                        checked={helperDecorations[item.key]}
+                        onChange={() => onToggleHelperDecoration(item.key)}
+                      />
+                      <span className="d-flex flex-column gap-1">
+                        <span className="fw-medium text-body">{item.label}</span>
+                        <span className="small text-body-secondary">{item.description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               className="btn btn-sm btn-outline-secondary"
               onClick={onImportSchedule}

@@ -14,6 +14,7 @@ import {
 } from '../../utils/helpers';
 import { CompactScheduleView } from './CompactScheduleView';
 import { ScheduleTableHeader } from './ScheduleTableHeader';
+import type { HelperDecorations } from './helperDecorations';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ interface ScheduleTableProps {
   deletedUserNames?: Record<number, DeletedUserInfo>;
   onUserClick?: (user: User) => void;
   forceAssignMode?: boolean;
+  helperDecorations?: HelperDecorations;
   dowHistoryWeeks?: number;
   dowHistoryMode?: 'numbers' | 'dots';
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
@@ -113,6 +115,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   deletedUserNames = {},
   onUserClick,
   forceAssignMode = false,
+  helperDecorations,
   dowHistoryWeeks = 4,
   dowHistoryMode = 'numbers',
   onCellClick,
@@ -226,6 +229,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   dowHistoryWeeks={dowHistoryWeeks}
                   dowHistoryMode={dowHistoryMode}
                   forceAssignMode={forceAssignMode}
+                  helperDecorations={helperDecorations}
                   onUserClick={onUserClick}
                   onCellClick={onCellClick}
                   onQuickAssignClick={onQuickAssignClick}

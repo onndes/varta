@@ -107,14 +107,14 @@ const InterfaceTabPanel: React.FC<InterfaceTabPanelProps> = ({
                 value={histWeeks}
                 onChange={(e) => onHistWeeksChange(parseInt(e.target.value, 10))}
               >
-                {Array.from({ length: 21 }, (_, i) => i).map((v) => (
+                {Array.from({ length: 41 }, (_, i) => i).map((v) => (
                   <option key={v} value={v}>
                     {v === 0 ? 'Вимкнено' : `${v}`}
                   </option>
                 ))}
               </select>
               <div className="form-text">
-                0 — індикатор прихований. Від 1 до 20 — скільки попередніх тижнів перевіряти.
+                0 — індикатор прихований. Від 1 до 40 — скільки попередніх тижнів перевіряти.
               </div>
             </div>
             <div className="col-md-4">

@@ -23,6 +23,10 @@ import { useScheduleKeyboard } from '../hooks/useScheduleKeyboard';
 import { useScheduleDragDrop } from '../hooks/useScheduleDragDrop';
 import { useSchedulePreview } from '../hooks/useSchedulePreview';
 import ScheduleBody from './schedule/ScheduleBody';
+import {
+  DEFAULT_HELPER_DECORATIONS,
+  type HelperDecorationKey,
+} from './schedule/helperDecorations';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -90,6 +94,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const [showImportModal, setShowImportModal] = useState(false);
   const [historyMode, setHistoryMode] = useState(false);
   const [forceAssignMode, setForceAssignMode] = useState(false);
+  const [helperDecorations, setHelperDecorations] = useState(DEFAULT_HELPER_DECORATIONS);
   // ── User edit flow ───────────────────────────────────────────────────────
   const {
     editingUser,
@@ -298,6 +303,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       setHistoryMode={setHistoryMode}
       forceAssignMode={forceAssignMode}
       onToggleForceAssignMode={() => setForceAssignMode((v) => !v)}
+      helperDecorations={helperDecorations}
+      onToggleHelperDecoration={(key: HelperDecorationKey) =>
+        setHelperDecorations((prev) => ({ ...prev, [key]: !prev[key] }))
+      }
       showImportModal={showImportModal}
       setShowImportModal={setShowImportModal}
       canUndo={canUndo}

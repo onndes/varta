@@ -16,6 +16,7 @@ import PrintDutyTable from './PrintDutyTable';
 import PrintWeekCalendarTable from './PrintWeekCalendarTable';
 import PrintStatusList from './PrintStatusList';
 import ScheduleModals from './ScheduleModals';
+import type { HelperDecorationKey, HelperDecorations } from './helperDecorations';
 
 // ─── Local cell type, matching the shape used in useAssignmentModal ──────────
 
@@ -58,6 +59,8 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   setHistoryMode: React.Dispatch<React.SetStateAction<boolean>>;
   forceAssignMode: boolean;
   onToggleForceAssignMode: () => void;
+  helperDecorations: HelperDecorations;
+  onToggleHelperDecoration: (key: HelperDecorationKey) => void;
   canUndo: boolean;
   canRedo: boolean;
   undoLabel: string;
@@ -111,6 +114,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   setHistoryMode,
   forceAssignMode,
   onToggleForceAssignMode,
+  helperDecorations,
+  onToggleHelperDecoration,
   showImportModal,
   setShowImportModal,
   cascadeStartDate,
@@ -224,6 +229,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           onToggleHistoryMode={() => setHistoryMode((v) => !v)}
           forceAssignMode={forceAssignMode}
           onToggleForceAssignMode={onToggleForceAssignMode}
+          helperDecorations={helperDecorations}
+          onToggleHelperDecoration={onToggleHelperDecoration}
           onToggleRowFilter={(filter) => setRowFilter((prev) => (prev === filter ? 'all' : filter))}
           canUndo={canUndo}
           canRedo={canRedo}
@@ -259,6 +266,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
           forceAssignMode={forceAssignMode}
+          helperDecorations={helperDecorations}
           onUserClick={handleStartEdit}
           dowHistoryWeeks={dowHistoryWeeks}
           dowHistoryMode={dowHistoryMode}
