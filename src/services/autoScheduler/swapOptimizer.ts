@@ -639,6 +639,172 @@ export const performSwapOptimization = async (
 
     if (resolvedSameDow) continue;
 
+    // ── Phase 4: 3-way cyclic swaps ──────────────────────────────────────
+    // Tries triples of auto-filled dates and rotates their assigned users
+    // cyclically: A→B→C→A and A→C→B→A. Breaks plateaus unreachable by
+    // 2-way swaps alone.
+    let foundCyclic = false;
+    if (autoFilledDates.length >= 3) {
+      const baseObj4 = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+      outerCyclic: for (let ci = 0; ci < autoFilledDates.length - 2; ci++) {
+        for (let cj = ci + 1; cj < autoFilledDates.length - 1; cj++) {
+          for (let ck = cj + 1; ck < autoFilledDates.length; ck++) {
+            const d1 = autoFilledDates[ci];
+            const d2 = autoFilledDates[cj];
+            const d3 = autoFilledDates[ck];
+            const e1 = tempSchedule[d1];
+            const e2 = tempSchedule[d2];
+            const e3 = tempSchedule[d3];
+            if (!e1 || !e2 || !e3) continue;
+
+            const ids1 = toAssignedUserIds(e1.userId);
+            const ids2 = toAssignedUserIds(e2.userId);
+            const ids3 = toAssignedUserIds(e3.userId);
+
+            // Try all slot combinations for dutiesPerDay > 1
+            for (let si = 0; si < ids1.length; si++) {
+              for (let sj = 0; sj < ids2.length; sj++) {
+                for (let sk = 0; sk < ids3.length; sk++) {
+                  const u1 = ids1[si];
+                  const u2 = ids2[sj];
+                  const u3 = ids3[sk];
+                  if (u1 === u2 || u1 === u3 || u2 === u3) continue;
+
+                  // Two rotations: A→B→C→A (rot 0) and A→C→B→A (rot 1)
+                  for (let rot = 0; rot < 2; rot++) {
+                    const newU1 = rot === 0 ? u3 : u2;
+                    const newU2 = rot === 0 ? u1 : u3;
+                    const newU3 = rot === 0 ? u2 : u1;
+
+                    const u1obj = participants.find((u) => u.id === newU1);
+                    const u2obj = participants.find((u) => u.id === newU2);
+                    const u3obj = participants.find((u) => u.id === newU3);
+                    if (!u1obj || !u2obj || !u3obj) continue;
+                    if (
+                      !isHardEligible(u1obj, d1) ||
+                      !isHardEligible(u2obj, d2) ||
+                      !isHardEligible(u3obj, d3)
+                    )
+                      continue;
+
+                    // Build new ID arrays, check for within-date duplicates
+                    const newIds1 = [...ids1];
+                    newIds1[si] = newU1;
+                    const newIds2 = [...ids2];
+                    newIds2[sj] = newU2;
+                    const newIds3 = [...ids3];
+                    newIds3[sk] = newU3;
+                    if (new Set(newIds1).size < newIds1.length) continue;
+                    if (new Set(newIds2).size < newIds2.length) continue;
+                    if (new Set(newIds3).size < newIds3.length) continue;
+
+                    // Apply tentatively (all 3 at once for correct adjacency checks)
+                    const nu1 = newIds1.length === 1 ? newIds1[0] : newIds1;
+                    const nu2 = newIds2.length === 1 ? newIds2[0] : newIds2;
+                    const nu3 = newIds3.length === 1 ? newIds3[0] : newIds3;
+                    tempSchedule[d1] = { ...e1, userId: nu1 };
+                    tempSchedule[d2] = { ...e2, userId: nu2 };
+                    tempSchedule[d3] = { ...e3, userId: nu3 };
+
+                    // Visualization: show 3-way attempt (throttled)
+                    if (showAttempts13) {
+                      const now = Date.now();
+                      if (now - lastVisTick13 >= 16) {
+                        lastVisTick13 = now;
+                        await onVis!({
+                          type: 'swap-try',
+                          dates: [d1, d2, d3],
+                          userIds: [newU1, newU2, newU3],
+                        });
+                      }
+                    }
+
+                    // Check ALL hard constraints after applying rotation
+                    const violated =
+                      wouldViolateIncompatiblePairs(newU1, d1, tempSchedule, users) ||
+                      wouldViolateIncompatiblePairs(newU2, d2, tempSchedule, users) ||
+                      wouldViolateIncompatiblePairs(newU3, d3, tempSchedule, users) ||
+                      (minRest > 0 &&
+                        (wouldViolateRestDays(newU1, d1, minRest, tempSchedule) ||
+                          wouldViolateRestDays(newU2, d2, minRest, tempSchedule) ||
+                          wouldViolateRestDays(newU3, d3, minRest, tempSchedule))) ||
+                      wouldCreateSameDowRepeat(newU1, d1, tempSchedule) ||
+                      wouldCreateSameDowRepeat(newU2, d2, tempSchedule) ||
+                      wouldCreateSameDowRepeat(newU3, d3, tempSchedule);
+
+                    if (violated) {
+                      tempSchedule[d1] = e1;
+                      tempSchedule[d2] = e2;
+                      tempSchedule[d3] = e3;
+                      continue;
+                    }
+
+                    const newObj4 = computeGlobalObjective(
+                      userIds,
+                      tempSchedule,
+                      dayWeights,
+                      users
+                    );
+                    if (newObj4 < baseObj4 - FLOAT_EPSILON) {
+                      // Visualization: show accepted 3-way swap
+                      if (onVis)
+                        await onVis({
+                          type: 'swap-accept',
+                          dates: [d1, d2, d3],
+                          userIds: [newU1, newU2, newU3],
+                        });
+
+                      logSwap(d1, {
+                        phase: 'phase4-cyclic',
+                        description: `Циклічний обмін 3-х: ${userName(u1)} → ${userName(newU1)} (Z: ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)})`,
+                        previousUserId: u1,
+                        previousUserName: userName(u1),
+                        newUserId: newU1,
+                        newUserName: userName(newU1),
+                        zBefore: baseObj4,
+                        zAfter: newObj4,
+                        rejectionReason: `3-way цикл: Z ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)}`,
+                      });
+                      logSwap(d2, {
+                        phase: 'phase4-cyclic',
+                        description: `Циклічний обмін 3-х: ${userName(u2)} → ${userName(newU2)} (Z: ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)})`,
+                        previousUserId: u2,
+                        previousUserName: userName(u2),
+                        newUserId: newU2,
+                        newUserName: userName(newU2),
+                        zBefore: baseObj4,
+                        zAfter: newObj4,
+                        rejectionReason: `3-way цикл: Z ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)}`,
+                      });
+                      logSwap(d3, {
+                        phase: 'phase4-cyclic',
+                        description: `Циклічний обмін 3-х: ${userName(u3)} → ${userName(newU3)} (Z: ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)})`,
+                        previousUserId: u3,
+                        previousUserName: userName(u3),
+                        newUserId: newU3,
+                        newUserName: userName(newU3),
+                        zBefore: baseObj4,
+                        zAfter: newObj4,
+                        rejectionReason: `3-way цикл: Z ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)}`,
+                      });
+                      foundCyclic = true;
+                      break outerCyclic;
+                    } else {
+                      tempSchedule[d1] = e1;
+                      tempSchedule[d2] = e2;
+                      tempSchedule[d3] = e3;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (foundCyclic) continue;
+
     // No improvement found in any phase → stable.
     break;
   }
@@ -731,6 +897,10 @@ export const performTabuSearch = async (
 
   // Tabu map: move key → iteration when it expires
   const tabuMap = new Map<string, number>();
+
+  // Diversification: track stagnation to escape deep basins
+  let itersSinceImprovement = 0;
+  const diversifyInterval = Math.max(5, Math.floor(maxIter / 5));
 
   // Track the best solution seen
   let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
@@ -995,6 +1165,70 @@ export const performTabuSearch = async (
           await onVis({ type: 'restart-best', dates: bestDates, userIds: bestUids });
         }
       }
+      itersSinceImprovement = 0;
+    } else {
+      itersSinceImprovement++;
+    }
+
+    // Diversification: when stagnating, randomly perturb to escape the basin
+    if (itersSinceImprovement >= diversifyInterval && autoFilledDates.length >= 4) {
+      const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
+      let perturbCount = 0;
+      for (let pi = 0; pi + 1 < shuffled.length && perturbCount < 3; pi += 2) {
+        const pd1 = shuffled[pi];
+        const pd2 = shuffled[pi + 1];
+        const pe1 = tempSchedule[pd1];
+        const pe2 = tempSchedule[pd2];
+        if (!pe1 || !pe2) continue;
+        const pids1 = toAssignedUserIds(pe1.userId);
+        const pids2 = toAssignedUserIds(pe2.userId);
+        if (pids1.length === 0 || pids2.length === 0) continue;
+        const psi = Math.floor(Math.random() * pids1.length);
+        const psj = Math.floor(Math.random() * pids2.length);
+        if (pids1[psi] === pids2[psj]) continue;
+        const pu1obj = participants.find((u) => u.id === pids1[psi]);
+        const pu2obj = participants.find((u) => u.id === pids2[psj]);
+        if (!pu1obj || !pu2obj) continue;
+        if (!isHardEligible(pu1obj, pd2) || !isHardEligible(pu2obj, pd1)) continue;
+        const pNewIds1 = [...pids1];
+        pNewIds1[psi] = pids2[psj];
+        const pNewIds2 = [...pids2];
+        pNewIds2[psj] = pids1[psi];
+        if (new Set(pNewIds1).size < pNewIds1.length) continue;
+        if (new Set(pNewIds2).size < pNewIds2.length) continue;
+        tempSchedule[pd1] = {
+          ...pe1,
+          userId: pNewIds1.length === 1 ? pNewIds1[0] : pNewIds1,
+        };
+        tempSchedule[pd2] = {
+          ...pe2,
+          userId: pNewIds2.length === 1 ? pNewIds2[0] : pNewIds2,
+        };
+        // Skip if rest-day violation
+        if (
+          (minRest > 0 && wouldViolateRestDays(pids2[psj], pd1, minRest, tempSchedule)) ||
+          (minRest > 0 && wouldViolateRestDays(pids1[psi], pd2, minRest, tempSchedule))
+        ) {
+          tempSchedule[pd1] = pe1;
+          tempSchedule[pd2] = pe2;
+          continue;
+        }
+        perturbCount++;
+      }
+      // Log diversification event
+      if (perturbCount > 0 && optimizerLog) {
+        const firstDate = autoFilledDates[0];
+        const arr = optimizerLog.get(firstDate) || [];
+        arr.push({
+          phase: 'tabu-diversify',
+          description: `Tabu диверсифікація: ${perturbCount} випадкових обмінів (іт. ${iter})`,
+          iteration: iter,
+          rejectionReason: `Стагнація ${itersSinceImprovement} ітерацій без покращення`,
+        });
+        optimizerLog.set(firstDate, arr);
+      }
+      itersSinceImprovement = 0;
+      tabuMap.clear();
     }
   }
 
@@ -1012,9 +1246,10 @@ export const performTabuSearch = async (
 // ─── Multi-Restart (Iterated Local Search) ──────────────────────────────────
 
 /**
- * Synchronous mini local search (Phase 1 pair-exchange only, no async yields).
+ * Synchronous mini local search (Phases 1-2, no async yields).
  * Used within multi-restart loops where async overhead would dominate runtime.
- * Only performs count-preserving pair swaps — never changes per-user duty totals.
+ * Phase 1: count-preserving pair swaps.
+ * Phase 2: single-replacement swaps (with weekly balance guard).
  * Runs until convergence or maxIter, whichever comes first.
  */
 const syncMiniOptimize = (
@@ -1025,15 +1260,15 @@ const syncMiniOptimize = (
   users: User[],
   dayWeights: DayWeights,
   minRest: number,
-  maxIter: number
+  maxIter: number,
+  options?: AutoScheduleOptions
 ): void => {
+  const enforceWeeklyBalance = !!(options?.forceUseAllWhenFew || options?.evenWeeklyDistribution);
+
   for (let iter = 0; iter < maxIter; iter++) {
     let improved = false;
 
     // Compute baseline once per iteration, NOT inside the inner loop.
-    // Old code called computeGlobalObjective twice per pair (once for base,
-    // once for new) = O(N²) objective calls per iteration. Now it's O(1)
-    // for the baseline + O(pairs_checked) for candidates.
     let baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
 
     // Phase 1: Pair-exchange swaps
@@ -1093,6 +1328,79 @@ const syncMiniOptimize = (
           }
         }
       }
+    }
+
+    if (improved) continue;
+
+    // Phase 2: Single-replacement swaps
+    baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+    for (const dateStr of autoFilledDates) {
+      const entry = schedule[dateStr];
+      if (!entry) continue;
+      const assignedIds = toAssignedUserIds(entry.userId);
+
+      for (let slotIdx = 0; slotIdx < assignedIds.length; slotIdx++) {
+        const assignedId = assignedIds[slotIdx];
+
+        for (const [uid, uObj] of participantMap) {
+          if (uid === assignedId || assignedIds.includes(uid)) continue;
+          if (!isHardEligible(uObj, dateStr)) continue;
+          if (minRest > 0 && wouldViolateRestDays(uid, dateStr, minRest, schedule)) continue;
+          if (wouldViolateIncompatiblePairs(uid, dateStr, schedule, users)) continue;
+          if (wouldCreateSameDowRepeat(uid, dateStr, schedule)) continue;
+
+          const newIds = [...assignedIds];
+          newIds[slotIdx] = uid;
+          schedule[dateStr] = {
+            ...entry,
+            userId: newIds.length === 1 ? newIds[0] : newIds,
+          };
+
+          // Weekly balance guard: prevent giving a user more duties than minCount + 1
+          if (enforceWeeklyBalance) {
+            const d = new Date(dateStr);
+            const dow = d.getDay();
+            const mondayOffset = dow === 0 ? -6 : 1 - dow;
+            const monday = new Date(d);
+            monday.setDate(d.getDate() + mondayOffset);
+            const from = toLocalISO(monday);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            const to = toLocalISO(sunday);
+
+            const countInWeek = (checkUid: number): number =>
+              Object.values(schedule).filter(
+                (s) =>
+                  s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(checkUid)
+              ).length;
+
+            const candidateNewCount = countInWeek(uid);
+            const weekEligibleIds = userIds.filter((u) => {
+              const uCheck = participantMap.get(u);
+              return uCheck && autoFilledDates.some((ad) => isHardEligible(uCheck, ad));
+            });
+
+            if (weekEligibleIds.length > 0) {
+              const minWeekCount = Math.min(...weekEligibleIds.map((u) => countInWeek(u)));
+              if (candidateNewCount > minWeekCount + 1) {
+                schedule[dateStr] = entry;
+                continue;
+              }
+            }
+          }
+
+          const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+          if (newObj < baseObj - FLOAT_EPSILON) {
+            baseObj = newObj;
+            improved = true;
+            break;
+          } else {
+            schedule[dateStr] = entry;
+          }
+        }
+        if (improved) break;
+      }
+      if (improved) break;
     }
 
     if (!improved) break;
@@ -1479,7 +1787,8 @@ export const performMultiRestartOptimization = async (
       users,
       dayWeights,
       minRest,
-      200
+      200,
+      options
     );
 
     // Stagnation detection: check if this solution was already seen

@@ -30,7 +30,7 @@
 9. [Candidate filters](#9-candidate-filters)
 10. [10-priority comparator](#10-10-priority-comparator)
 11. [Global objective function Z](#11-global-objective-function-z)
-12. [Three-phase swap optimization](#12-three-phase-swap-optimization)
+12. [Multi-phase swap optimization](#12-multi-phase-swap-optimization)
 13. [Vacations, trips, and statuses](#13-vacations-trips-and-statuses)
 14. [Karma system (debt / owedDays)](#14-karma-system-debt--oweddays)
 15. [Load Rate and Anti-Catch-Up](#15-load-rate-and-anti-catch-up)
@@ -82,7 +82,7 @@ src/
 │   │   ├── scheduler.ts       - greedy pass + optimization entry point
 │   │   ├── comparator.ts      - 10-priority comparator + filters
 │   │   ├── helpers.ts         - Load Rate, active days, SSE, objective Z
-│   │   ├── swapOptimizer.ts   - three-phase swap optimization
+│   │   ├── swapOptimizer.ts   - multi-phase swap optimization
 │   │   ├── decisionLog.ts     - "i" button decision text builder
 │   │   └── index.ts           - public scheduler API
 │   ├── scheduleService.ts  - IndexedDB schedule CRUD
@@ -193,16 +193,16 @@ Main screen. Includes:
   past, blue = current, bold border = selected week.
 - **ScheduleControls** - control panel:
 
-| Button                   | Action                                          |
-| ------------------------ | ----------------------------------------------- |
-| `← / → / Today`          | Week navigation                                 |
-| `Fill gaps`              | Auto-fill empty days                            |
+| Button                   | Action                                                          |
+| ------------------------ | --------------------------------------------------------------- |
+| `← / → / Today`          | Week navigation                                                 |
+| `Fill gaps`              | Auto-fill empty days                                            |
 | `Fix conflicts`          | Fix unavailable assignees or explicitly keep them as exceptions |
-| `Generate week`          | Full regeneration of the current week           |
-| `Clear week`             | Delete all assignments for the current week     |
-| `Optimization (cascade)` | Recalculate forward starting from a change date |
-| `↩ / ↪`                  | Undo / Redo (up to 25 steps, Ctrl+Z / Ctrl+Y)   |
-| `Import`                 | Import legacy schedule text                     |
+| `Generate week`          | Full regeneration of the current week                           |
+| `Clear week`             | Delete all assignments for the current week                     |
+| `Optimization (cascade)` | Recalculate forward starting from a change date                 |
+| `↩ / ↪`                  | Undo / Redo (up to 25 steps, Ctrl+Z / Ctrl+Y)                   |
+| `Import`                 | Import legacy schedule text                                     |
 
 - **ScheduleTable** - main table: rows = users, columns = days of the week. When there are more than
   20 users, it switches to a **day-centric** mode (one column = list of users for that day).
@@ -240,7 +240,7 @@ fairness statistics, quick user status editor, chaos mode, and database wipe.
 The scheduler is implemented as a **two-pass CSP algorithm** (Constraint Satisfaction Problem):
 
 ```text
-Draft (Greedy pass) -> Swap Optimization (3 phases)
+Draft (Greedy pass) -> Swap Optimization (4 phases)
 ```
 
 ### 7.1. Draft - greedy pass
@@ -294,7 +294,8 @@ autoFillSchedule(dates, users, schedule, options, dayWeights)
     └── performSwapOptimization()
         ├── Phase 1: Pair-Exchange Swaps
         ├── Phase 2: Single-Replacement
-        └── Phase 3: Same-DOW Resolution
+        ├── Phase 3: Same-DOW Resolution
+        └── Phase 4: 3-Way Cyclic Swaps
     ↓
 saveAutoSchedule(entries, dayWeights)
     ├── db.schedule.put(entry)
@@ -392,7 +393,7 @@ $$
 
 ---
 
-## 12. Three-phase swap optimization
+## 12. Multi-phase swap optimization
 
 After the greedy draft, the system runs iterative optimization (up to `MAX_SWAP_ITERATIONS = 1500`).
 
@@ -419,6 +420,13 @@ After the greedy draft, the system runs iterative optimization (up to `MAX_SWAP_
 │ Phase 3: Same-DOW Resolution                        │
 │ Search for back-to-back same DOW assignments        │
 │ and resolve them through objective-improving swaps  │
+└────────────────────────┬────────────────────────────┘
+                         │ improvement? -> back to Phase 1
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│ Phase 4: 3-Way Cyclic Swaps                         │
+│ Try all triples (d₁,d₂,d₃): rotate A→B→C→A        │
+│ and A→C→B→A. Breaks plateaus unreachable by 2-way  │
 └────────────────────────┬────────────────────────────┘
                          │ improvement? -> back to Phase 1
                          ▼

@@ -265,8 +265,10 @@ export interface OptimizerHistoryEntry {
     | 'phase1-pair'
     | 'phase2-replace'
     | 'phase3-sameDow'
+    | 'phase4-cyclic'
     | 'tabu-pair'
     | 'tabu-replace'
+    | 'tabu-diversify'
     | 'lookahead';
   /** Brief Ukrainian description of what happened. */
   description: string;

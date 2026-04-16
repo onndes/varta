@@ -187,6 +187,28 @@ strict `newObj < baseObj - FLOAT_EPSILON` criterion is used (same as Phases 1–
 After all iterations, decision logs are rebuilt for any entry whose assigned user changed during
 swap optimization.
 
+**Phase 4 — 3-way cyclic swaps** Try every triple of auto-filled dates `(D1, D2, D3)`. For each
+triple, attempt two cyclic rotations of assigned users: `A→D2, B→D3, C→D1` and `A→D3, C→D2, B→D1`.
+All three tentative placements are applied before constraint checks (correct for adjacent dates).
+Accept if:
+
+- All three users are `isHardEligible` at their target dates.
+- None would violate `wouldViolateIncompatiblePairs`.
+- None would violate `wouldViolateRestDays`.
+- None would create a same-DOW-consecutive-week repeat (`wouldCreateSameDowRepeat`).
+- New objective `Z` is strictly lower.
+
+Breaks plateaus unreachable by any 2-way swap. Complexity is O(N³) per iteration, acceptable for
+typical schedules (7–30 dates).
+
+**`syncMiniOptimize` (multi-restart local search)** now runs both Phase 1 (pair-exchange) and Phase
+2 (single-replacement with weekly balance guard) per iteration, making each multi-restart local
+search more thorough.
+
+**Tabu Search diversification:** When the Tabu Search goes `diversifyInterval` iterations without
+improving `bestZ`, it randomly perturbs the schedule (2–3 constraint-safe pair swaps), clears the
+tabu list, and continues from the new basin. This prevents deep stagnation in local optima.
+
 ---
 
 ## 5. Critical Constants — Never Change Without Testing
