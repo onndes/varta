@@ -334,6 +334,8 @@ export interface AutoScheduleOptions {
   enableSchedulerVisualization?: boolean; // default: false
   schedulerVisSpeed?: number; // delay between visual events in ms (default: 40)
   schedulerVisShowAttempts?: boolean; // show all attempted swaps, not just accepted (default: false)
+  // Weekly drought: boost users who missed the previous week so they rotate back in
+  prioritizeAfterWeekOff?: boolean; // default: true
 }
 
 /** Progress callback for long-running scheduler operations. */

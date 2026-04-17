@@ -605,30 +605,31 @@ absence).
 
 Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 
-| Parameter                              | What it does                                                     |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| `avoidConsecutiveDays`                 | Avoid adjacent duties (`filterByRestDays`)                       |
-| `minRestDays`                          | Minimum rest in days (1 = not back-to-back, 2 = every other day) |
-| `respectOwedDays`                      | Prioritize users with `owedDays` for the current weekday         |
-| `considerLoad`                         | Include load in sorting                                          |
-| `aggressiveLoadBalancing`              | Force balancing when load gaps become too large                  |
-| `aggressiveLoadBalancingThreshold`     | Gap threshold for aggressive balancing (0.2 = 20%)               |
-| `limitOneDutyPerWeekWhenSevenPlus`     | 1 duty per week when 7+ users are available                      |
-| `allowDebtUsersExtraWeeklyAssignments` | Debt users may serve more often                                  |
-| `debtUsersWeeklyLimit`                 | Maximum weekly duties for debt users (1-4)                       |
-| `prioritizeFasterDebtRepayment`        | Speed up debt repayment                                          |
-| `forceUseAllWhenFew`                   | With <=7 users, rotate through everyone                          |
-| `evenWeeklyDistribution`               | With <=7 users, nobody gets N+1 duties while another has N       |
-| `ignoreHistoryInLogic`                 | Exclude `history` / `import` entries from load calculations      |
-| `lookaheadDepth`                       | Simulate N days ahead per candidate (0 = off)                    |
-| `lookaheadCandidates`                  | How many top candidates to simulate in lookahead                 |
-| `useTabuSearch`                        | Enable Tabu Search meta-heuristic after swap phases              |
-| `tabuMaxIterations`                    | Tabu Search iteration limit                                      |
-| `tabuTenure`                           | How many iterations a reverse move stays forbidden               |
-| `useMultiRestart`                      | Enable Multi-Restart (Iterated Local Search) after Tabu          |
-| `multiRestartTimeoutMs`                | Time budget for Multi-Restart in fixed mode (ms)                 |
-| `multiRestartStrategy`                 | Perturbation strategy: `'pair-swap'` or `'lns'`                  |
-| `multiRestartTimeLimitMode`            | `'fixed'` (timed) or `'unlimited'` (until user presses Stop)     |
+| Parameter                              | What it does                                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `avoidConsecutiveDays`                 | Avoid adjacent duties (`filterByRestDays`)                                                      |
+| `minRestDays`                          | Minimum rest in days (1 = not back-to-back, 2 = every other day)                                |
+| `respectOwedDays`                      | Prioritize users with `owedDays` for the current weekday                                        |
+| `considerLoad`                         | Include load in sorting                                                                         |
+| `aggressiveLoadBalancing`              | Force balancing when load gaps become too large                                                 |
+| `aggressiveLoadBalancingThreshold`     | Gap threshold for aggressive balancing (0.2 = 20%)                                              |
+| `limitOneDutyPerWeekWhenSevenPlus`     | 1 duty per week when 7+ users are available                                                     |
+| `allowDebtUsersExtraWeeklyAssignments` | Debt users may serve more often                                                                 |
+| `debtUsersWeeklyLimit`                 | Maximum weekly duties for debt users (1-4)                                                      |
+| `prioritizeFasterDebtRepayment`        | Speed up debt repayment                                                                         |
+| `forceUseAllWhenFew`                   | With <=7 users, rotate through everyone                                                         |
+| `evenWeeklyDistribution`               | With <=7 users, nobody gets N+1 duties while another has N                                      |
+| `ignoreHistoryInLogic`                 | Exclude `history` / `import` entries from load calculations                                     |
+| `lookaheadDepth`                       | Simulate N days ahead per candidate (0 = off)                                                   |
+| `lookaheadCandidates`                  | How many top candidates to simulate in lookahead                                                |
+| `useTabuSearch`                        | Enable Tabu Search meta-heuristic after swap phases                                             |
+| `tabuMaxIterations`                    | Tabu Search iteration limit                                                                     |
+| `tabuTenure`                           | How many iterations a reverse move stays forbidden                                              |
+| `useMultiRestart`                      | Enable Multi-Restart (Iterated Local Search) after Tabu                                         |
+| `multiRestartTimeoutMs`                | Time budget for Multi-Restart in fixed mode (ms)                                                |
+| `multiRestartStrategy`                 | Perturbation strategy: `'pair-swap'` or `'lns'`                                                 |
+| `multiRestartTimeLimitMode`            | `'fixed'` (timed) or `'unlimited'` (until user presses Stop)                                    |
+| `prioritizeAfterWeekOff`               | Give mild priority to users who missed the previous week. Scales down for groups >7, off at ≥14 |
 
 ---
 

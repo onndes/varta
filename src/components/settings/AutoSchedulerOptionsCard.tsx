@@ -145,6 +145,28 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
         </label>
       </div>
 
+      {/* Prioritize after week off */}
+      <div className="form-check form-switch mb-3">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id="prioritizeAfterWeekOff"
+          checked={autoOpts.prioritizeAfterWeekOff === true}
+          onChange={(e) =>
+            onAutoOptsChange({ ...autoOpts, prioritizeAfterWeekOff: e.target.checked })
+          }
+        />
+        <label className="form-check-label" htmlFor="prioritizeAfterWeekOff">
+          <strong>Пріоритет після тижня без чергувань</strong>
+          <div className="text-muted small">
+            Якщо боєць пропустив попередній тиждень — він отримує підвищений пріоритет на поточний.
+            Запобігає ситуації, коли одна й та сама людина «сидить» 2+ тижні поспіль без наряду.
+            Вплив плавно зменшується при збільшенні кількості осіб (від 7 до 14), для великих груп
+            вимикається автоматично.
+          </div>
+        </label>
+      </div>
+
       {/* Allow debt users / repayment options */}
       <DebtUserOptions autoOpts={autoOpts} onAutoOptsChange={onAutoOptsChange} />
     </div>

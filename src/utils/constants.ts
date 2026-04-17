@@ -123,6 +123,7 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   multiRestartTimeLimitMode: 'fixed' as const,
   enableSchedulerVisualization: false,
   schedulerVisSpeed: 0,
+  prioritizeAfterWeekOff: true,
 };
 
 /** Кількість тижнів назад для індикатора повторів DOW (за замовчуванням) */

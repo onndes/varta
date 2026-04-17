@@ -437,7 +437,8 @@ export const computeGlobalObjective = (
   userIds: number[],
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
-  users?: User[]
+  users?: User[],
+  enableDroughtPenalty?: boolean
 ): number => {
   const N = userIds.length;
   if (N === 0) return 0;
@@ -633,6 +634,44 @@ export const computeGlobalObjective = (
     }
   }
 
+  // ── 6. Weekly drought penalty ──────────────────────────────────────
+  // Penalizes users whose last assignment is ≥1 full week before the
+  // schedule horizon. Quadratic scaling: 1 week = 1×, 2 weeks = 4×.
+  // Group-size scaling: full weight at N ≤ MIN_USERS (7), linearly
+  // decays to 0 at N ≥ 2×MIN_USERS (14). Disabled for large groups
+  // where missing weeks is statistically expected.
+  let weeklyDroughtPenalty = 0;
+  if (enableDroughtPenalty && N >= 2) {
+    const droughtScale = Math.max(
+      0,
+      Math.min(1, (2 * MIN_USERS_FOR_WEEKLY_LIMIT - N) / MIN_USERS_FOR_WEEKLY_LIMIT)
+    );
+    if (droughtScale > 0) {
+      // Find the latest date in the schedule
+      let maxDateStr = '';
+      for (const entry of Object.values(schedule)) {
+        if (entry.date > maxDateStr) maxDateStr = entry.date;
+      }
+      if (maxDateStr) {
+        const maxTime = new Date(maxDateStr).getTime();
+        for (const uid of userIds) {
+          const dates = datesMap.get(uid)!;
+          if (dates.length === 0) continue; // new user, no assignments yet
+          // Find user's last assignment date
+          let lastDate = '';
+          for (const d of dates) {
+            if (d > lastDate) lastDate = d;
+          }
+          const gapDays = Math.round((maxTime - new Date(lastDate).getTime()) / MS_PER_DAY);
+          const gapWeeks = Math.floor(gapDays / 7);
+          if (gapWeeks >= 1) {
+            weeklyDroughtPenalty += gapWeeks * gapWeeks * droughtScale;
+          }
+        }
+      }
+    }
+  }
+
   // ── Weighted combination ───────────────────────────────────────────
   const W_SAME_DOW = 50.0; // Highest: avoid same DOW repeat week-over-week
   const W_SYSTEM_SSE = 3.0; // Cross-user DOW fairness
@@ -641,6 +680,7 @@ export const computeGlobalObjective = (
   const W_ZERO_GUARD = 10.0; // Multiplier — internal penalty already 5000+
   const W_TOTAL_SSE = 100.0; // Anti-concentration: prevents duty hoarding
   const W_RATE_SSE = 5000.0; // Rate-normalised fairness across users
+  const W_DROUGHT = 10_000.0; // Weekly drought: penalises consecutive weeks off (capped below zero-guard 50k)
 
   return (
     W_SAME_DOW * sameDowPenalty +
@@ -649,7 +689,8 @@ export const computeGlobalObjective = (
     W_LOAD_RANGE * loadRange +
     W_ZERO_GUARD * zeroGuardPenalty +
     W_TOTAL_SSE * totalAssignmentSSE +
-    W_RATE_SSE * rateSSE
+    W_RATE_SSE * rateSSE +
+    W_DROUGHT * weeklyDroughtPenalty
   );
 };
 

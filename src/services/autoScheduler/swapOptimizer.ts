@@ -315,7 +315,7 @@ export const performSwapOptimization = async (
             )
               continue;
 
-            const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+            const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
 
             // Apply exchange tentatively.
             const newUserId1 = newIds1.length === 1 ? newIds1[0] : newIds1;
@@ -343,7 +343,7 @@ export const performSwapOptimization = async (
               continue;
             }
 
-            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+            const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
 
             if (newObj < baseObj - FLOAT_EPSILON) {
               // Visualization: show accepted pair swap
@@ -411,7 +411,7 @@ export const performSwapOptimization = async (
         );
         if (candidates.length === 0) continue;
 
-        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+        const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
 
         for (const candidate of candidates) {
           const newIds = [...assignedIds];
@@ -433,7 +433,7 @@ export const performSwapOptimization = async (
             }
           }
 
-          const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+          const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
 
           if (newObj < baseObj - FLOAT_EPSILON) {
             // Even weekly distribution guard: block single-replacement swaps that
@@ -519,7 +519,7 @@ export const performSwapOptimization = async (
           if (gap !== 7 || new Date(d1).getDay() !== new Date(d2).getDay()) continue;
 
           // d2 is the repeat — try pair exchange.
-          const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+          const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
           const entry2 = tempSchedule[d2];
           if (!entry2) continue;
 
@@ -587,7 +587,7 @@ export const performSwapOptimization = async (
                 continue;
               }
 
-              const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+              const newObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
               // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
               const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
               if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
@@ -645,7 +645,7 @@ export const performSwapOptimization = async (
     // 2-way swaps alone.
     let foundCyclic = false;
     if (autoFilledDates.length >= 3) {
-      const baseObj4 = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+      const baseObj4 = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
       outerCyclic: for (let ci = 0; ci < autoFilledDates.length - 2; ci++) {
         for (let cj = ci + 1; cj < autoFilledDates.length - 1; cj++) {
           for (let ck = cj + 1; ck < autoFilledDates.length; ck++) {
@@ -903,7 +903,7 @@ export const performTabuSearch = async (
   const diversifyInterval = Math.max(5, Math.floor(maxIter / 5));
 
   // Track the best solution seen
-  let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+  let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
   const bestAssignment = new Map<string, number | number[]>();
   for (const d of autoFilledDates) {
     const e = tempSchedule[d];
@@ -934,7 +934,7 @@ export const performTabuSearch = async (
       await new Promise<void>((r) => setTimeout(r, 0));
     }
 
-    const currentZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+    const currentZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
 
     // Evaluate all neighbor moves, pick the best non-tabu (or aspiration)
     let bestMoveZ = Infinity;
@@ -1002,7 +1002,7 @@ export const performTabuSearch = async (
             const rv2 = minRest > 0 && wouldViolateRestDays(u1, d2, minRest, tempSchedule);
 
             if (!rv1 && !rv2 && !wouldViolateWeeklyBalance([d1, d2])) {
-              const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+              const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
               const key = swapKey(d1, u1, d2, u2);
               const isTabu = (tabuMap.get(key) ?? -1) > iter;
               // Aspiration: accept tabu move if it beats the global best
@@ -1078,7 +1078,7 @@ export const performTabuSearch = async (
             continue;
           }
 
-          const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+          const z = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
           const key = replaceKey(dateStr, assignedId, candidate.id);
           const isTabu = (tabuMap.get(key) ?? -1) > iter;
 
@@ -1269,7 +1269,7 @@ const syncMiniOptimize = (
     let improved = false;
 
     // Compute baseline once per iteration, NOT inside the inner loop.
-    let baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+    let baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users, options?.prioritizeAfterWeekOff === true);
 
     // Phase 1: Pair-exchange swaps
     outerPair: for (let i = 0; i < autoFilledDates.length - 1; i++) {
@@ -1316,7 +1316,7 @@ const syncMiniOptimize = (
               continue;
             }
 
-            const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+            const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users, options?.prioritizeAfterWeekOff === true);
             if (newObj < baseObj - FLOAT_EPSILON) {
               baseObj = newObj;
               improved = true;
@@ -1333,7 +1333,7 @@ const syncMiniOptimize = (
     if (improved) continue;
 
     // Phase 2: Single-replacement swaps
-    baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+    baseObj = computeGlobalObjective(userIds, schedule, dayWeights, users, options?.prioritizeAfterWeekOff === true);
     for (const dateStr of autoFilledDates) {
       const entry = schedule[dateStr];
       if (!entry) continue;
@@ -1389,7 +1389,7 @@ const syncMiniOptimize = (
             }
           }
 
-          const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users);
+          const newObj = computeGlobalObjective(userIds, schedule, dayWeights, users, options?.prioritizeAfterWeekOff === true);
           if (newObj < baseObj - FLOAT_EPSILON) {
             baseObj = newObj;
             improved = true;
@@ -1638,7 +1638,7 @@ export const performMultiRestartOptimization = async (
   if (autoFilledDates.length < 2 || participants.length < 2) return;
 
   // Seed with current best (result of all previous optimization phases)
-  let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+  let bestZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
   const bestAssignment = new Map<string, number | number[]>();
   for (const d of autoFilledDates) {
     const e = tempSchedule[d];
@@ -1838,7 +1838,7 @@ export const performMultiRestartOptimization = async (
 
     // Accept only if no violations AND better than global best
     if (!hasViolation) {
-      const newZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users);
+      const newZ = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
       if (newZ < bestZ - FLOAT_EPSILON) {
         bestZ = newZ;
         improvements++;

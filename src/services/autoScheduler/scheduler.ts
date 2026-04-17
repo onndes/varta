@@ -150,7 +150,13 @@ const simulateForwardScore = (
     }
   }
 
-  return computeGlobalObjective(userIds, sim, dayWeights, users);
+  return computeGlobalObjective(
+    userIds,
+    sim,
+    dayWeights,
+    users,
+    options.prioritizeAfterWeekOff === true
+  );
 };
 
 /**

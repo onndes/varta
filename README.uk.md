@@ -579,30 +579,31 @@ DayWeights = {
 Центральний конфіг алгоритму. Всі параметри використовуються у `autoFillSchedule` та
 `buildUserComparator`:
 
-| Параметр                               | Що робить                                                     |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `avoidConsecutiveDays`                 | Не ставити підряд (`filterByRestDays`)                        |
-| `minRestDays`                          | Мінімум днів відпочинку (1 = не підряд, 2 = через день)       |
-| `respectOwedDays`                      | Пріоритет бійцям з `owedDays` для цього дня                   |
-| `considerLoad`                         | Враховувати навантаження при сортуванні                       |
-| `aggressiveLoadBalancing`              | Примусово переставляти при великому розриві навантаження      |
-| `aggressiveLoadBalancingThreshold`     | Поріг розриву для агресивного балансування (0.2 = 20%)        |
-| `limitOneDutyPerWeekWhenSevenPlus`     | 1 наряд на тиждень при 7+ доступних бійцях                    |
-| `allowDebtUsersExtraWeeklyAssignments` | Боржники можуть чергувати частіше                             |
-| `debtUsersWeeklyLimit`                 | Максимум нарядів на тиждень для боржників (1–4)               |
-| `prioritizeFasterDebtRepayment`        | Прискорене погашення боргу                                    |
-| `forceUseAllWhenFew`                   | При ≤7 бійців — використовувати всіх циклічно                 |
-| `evenWeeklyDistribution`               | При ≤7 бійців — ніхто не отримує N+1 наряд, поки інший має N  |
-| `ignoreHistoryInLogic`                 | Виключати `history`/`import` записи з розрахунку навантаження |
-| `lookaheadDepth`                       | Симулювати N днів уперед для кожного кандидата (0 = вимк.)    |
-| `lookaheadCandidates`                  | Скільки топ-кандидатів симулювати у lookahead                 |
-| `useTabuSearch`                        | Увімкнути Tabu Search метаевристику після фаз свопу           |
-| `tabuMaxIterations`                    | Ліміт ітерацій Tabu Search                                    |
-| `tabuTenure`                           | Скільки ітерацій зворотній хід заборонений                    |
-| `useMultiRestart`                      | Увімкнути Multi-Restart (ILS) після Tabu Search               |
-| `multiRestartTimeoutMs`                | Бюджет часу для Multi-Restart у фіксованому режимі (мс)       |
-| `multiRestartStrategy`                 | Стратегія збурення: `'pair-swap'` або `'lns'`                 |
-| `multiRestartTimeLimitMode`            | `'fixed'` (за часом) або `'unlimited'` (до натискання Стоп)   |
+| Параметр                               | Що робить                                                                                          |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `avoidConsecutiveDays`                 | Не ставити підряд (`filterByRestDays`)                                                             |
+| `minRestDays`                          | Мінімум днів відпочинку (1 = не підряд, 2 = через день)                                            |
+| `respectOwedDays`                      | Пріоритет бійцям з `owedDays` для цього дня                                                        |
+| `considerLoad`                         | Враховувати навантаження при сортуванні                                                            |
+| `aggressiveLoadBalancing`              | Примусово переставляти при великому розриві навантаження                                           |
+| `aggressiveLoadBalancingThreshold`     | Поріг розриву для агресивного балансування (0.2 = 20%)                                             |
+| `limitOneDutyPerWeekWhenSevenPlus`     | 1 наряд на тиждень при 7+ доступних бійцях                                                         |
+| `allowDebtUsersExtraWeeklyAssignments` | Боржники можуть чергувати частіше                                                                  |
+| `debtUsersWeeklyLimit`                 | Максимум нарядів на тиждень для боржників (1–4)                                                    |
+| `prioritizeFasterDebtRepayment`        | Прискорене погашення боргу                                                                         |
+| `forceUseAllWhenFew`                   | При ≤7 бійців — використовувати всіх циклічно                                                      |
+| `evenWeeklyDistribution`               | При ≤7 бійців — ніхто не отримує N+1 наряд, поки інший має N                                       |
+| `ignoreHistoryInLogic`                 | Виключати `history`/`import` записи з розрахунку навантаження                                      |
+| `lookaheadDepth`                       | Симулювати N днів уперед для кожного кандидата (0 = вимк.)                                         |
+| `lookaheadCandidates`                  | Скільки топ-кандидатів симулювати у lookahead                                                      |
+| `useTabuSearch`                        | Увімкнути Tabu Search метаевристику після фаз свопу                                                |
+| `tabuMaxIterations`                    | Ліміт ітерацій Tabu Search                                                                         |
+| `tabuTenure`                           | Скільки ітерацій зворотній хід заборонений                                                         |
+| `useMultiRestart`                      | Увімкнути Multi-Restart (ILS) після Tabu Search                                                    |
+| `multiRestartTimeoutMs`                | Бюджет часу для Multi-Restart у фіксованому режимі (мс)                                            |
+| `multiRestartStrategy`                 | Стратегія збурення: `'pair-swap'` або `'lns'`                                                      |
+| `multiRestartTimeLimitMode`            | `'fixed'` (за часом) або `'unlimited'` (до натискання Стоп)                                        |
+| `prioritizeAfterWeekOff`               | М'який пріоритет бійцям, які пропустили попередній тиждень. Зменшується для груп >7, вимк. при ≥14 |
 
 ---
 
