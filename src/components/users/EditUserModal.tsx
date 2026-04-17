@@ -42,9 +42,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 }) => {
   const [incompatibleSearch, setIncompatibleSearch] = useState('');
   const todayStr = toLocalISO(new Date());
-  // Show only current and future periods — past ones (to < today) are auto-pruned from display.
+  // All status periods — including past ones (history shown in a collapsible section).
   const statusPeriods = useMemo(
-    () => getUserStatusPeriods(user).filter((p) => !p.to || p.to >= todayStr),
+    () => getUserStatusPeriods(user),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user]
   );
@@ -107,8 +107,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     });
   };
 
-  const addStatusPeriod = () =>
-    applyStatusPeriods([...statusPeriods, { status: 'TRIP', from: todayStr, to: todayStr }]);
+  const addStatusPeriod = (initialFrom?: string) => {
+    const from = initialFrom || todayStr;
+    applyStatusPeriods([...statusPeriods, { status: 'TRIP', from, to: from }]);
+  };
 
   const updateStatusPeriod = (index: number, patch: Partial<UserStatusPeriod>) => {
     applyStatusPeriods(statusPeriods.map((p, i) => (i === index ? { ...p, ...patch } : p)));

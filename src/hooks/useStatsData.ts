@@ -101,10 +101,15 @@ export const useStatsData = ({
       const end = new Date(to);
       while (cursor <= end) {
         const iso = toLocalISO(cursor);
+        const status = getUserAvailabilityStatus(user, iso);
+        // Only subtract true absences. Soft scheduling blocks (rest days around a status
+        // period, birthday blocks) are NOT subtracted — they are scheduling preferences,
+        // not actual duty-unavailable days.
         if (
           isInPeriod(iso, user.inactivePeriods) ||
           isInPeriod(iso, user.excludedFromAutoPeriods) ||
-          getUserAvailabilityStatus(user, iso) !== 'AVAILABLE'
+          status === 'STATUS_BUSY' ||
+          status === 'DAY_BLOCKED'
         )
           count++;
         cursor.setDate(cursor.getDate() + 1);
