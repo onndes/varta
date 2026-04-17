@@ -20,6 +20,9 @@ export interface UserStats extends User {
   comparableLoad: number;
   effectiveComparable: number;
   dayCountComparable: Record<number, number>;
+  /** Total calendar days from trackingFrom to windowEnd (no exclusions). */
+  totalWindowDays: number;
+  /** Days actually available for duty (totalWindowDays minus status/inactive/excluded periods). */
   availableDaysForDuty: number;
   windowDuties: number;
   dutyRate: number;
@@ -31,6 +34,8 @@ export interface StatsGroupMeta {
   maxDutyRate: number;
 }
 
+export type StatsWindowMode = 'today' | 'weekEnd' | 'lastGenerated';
+
 interface UseStatsDataProps {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
@@ -40,7 +45,7 @@ interface UseStatsDataProps {
   showInactive: boolean;
   sortKey: SortKey | null;
   sortDir: SortDir;
-  includeFuture: boolean;
+  windowMode: StatsWindowMode;
   useFirstDutyDateAsActiveFrom: boolean;
 }
 
@@ -54,10 +59,30 @@ export const useStatsData = ({
   showInactive,
   sortKey,
   sortDir,
-  includeFuture,
+  windowMode,
   useFirstDutyDateAsActiveFrom,
 }: UseStatsDataProps) => {
   const todayStr = toLocalISO(new Date());
+
+  // Compute the global window-end cap based on the selected mode.
+  const globalWindowEnd = useMemo((): string => {
+    if (windowMode === 'today') return todayStr;
+    if (windowMode === 'weekEnd') {
+      // Sunday of the current week (Mon=1 based)
+      const now = new Date();
+      const day = now.getDay(); // 0=Sun
+      const diff = day === 0 ? 0 : 7 - day;
+      const sun = new Date(now);
+      sun.setDate(sun.getDate() + diff);
+      return toLocalISO(sun);
+    }
+    // 'lastGenerated' — last scheduled date across the entire schedule
+    const logicSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
+    const allDates = Object.entries(logicSched)
+      .filter(([, e]) => !isHistoryType(e))
+      .map(([d]) => d);
+    return allDates.length > 0 ? allDates.reduce((a, b) => (b > a ? b : a)) : todayStr;
+  }, [windowMode, todayStr, schedule, ignoreHistoryInLogic]);
 
   const allStats = useMemo((): UserStats[] => {
     const logicSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
@@ -67,13 +92,21 @@ export const useStatsData = ({
       .sort();
     const earliestScheduleDate = nonHistoryDates[0] || todayStr;
 
+    const isInPeriod = (iso: string, periods?: { from: string; to?: string }[]): boolean =>
+      (periods || []).some((p) => iso >= p.from && (!p.to || iso <= p.to));
+
     const countUnavailableDays = (user: User, from: string, to: string): number => {
       let count = 0;
       const cursor = new Date(from);
       const end = new Date(to);
       while (cursor <= end) {
         const iso = toLocalISO(cursor);
-        if (getUserAvailabilityStatus(user, iso) !== 'AVAILABLE') count++;
+        if (
+          isInPeriod(iso, user.inactivePeriods) ||
+          isInPeriod(iso, user.excludedFromAutoPeriods) ||
+          getUserAvailabilityStatus(user, iso) !== 'AVAILABLE'
+        )
+          count++;
         cursor.setDate(cursor.getDate() + 1);
       }
       return count;
@@ -100,22 +133,28 @@ export const useStatsData = ({
           return false;
         });
 
-        // Window end: for includeFuture mode, extend to the last assigned date;
-        // for past-only mode, cap at today.
-        const lastEntryDateInWindow = comparableEntries
-          .map((s) => s.date)
-          .filter((d) => d >= trackingFrom)
-          .reduce((max, d) => (d > max ? d : max), trackingFrom);
-        const windowEnd = includeFuture ? lastEntryDateInWindow : todayStr;
+        // Window end: use the global cap (same for all users in this mode).
+        // windowDuties are then filtered to [trackingFrom, windowEnd].
+        let windowEnd: string;
+        if (windowMode === 'today' || windowMode === 'weekEnd') {
+          // Hard cap at global date, but never before the user's trackingFrom.
+          windowEnd = globalWindowEnd >= trackingFrom ? globalWindowEnd : trackingFrom;
+        } else {
+          // 'lastGenerated': use the global last scheduled date — same for everyone.
+          windowEnd = globalWindowEnd >= trackingFrom ? globalWindowEnd : trackingFrom;
+        }
+
+        const totalWindowDays =
+          trackingFrom <= windowEnd
+            ? Math.floor(
+                (new Date(windowEnd).getTime() - new Date(trackingFrom).getTime()) / 86400000
+              ) + 1
+            : 0;
 
         let availableDaysForDuty = 0;
         if (trackingFrom <= windowEnd && u.isActive && !u.excludeFromAuto) {
-          const totalWindowDays =
-            Math.floor(
-              (new Date(windowEnd).getTime() - new Date(trackingFrom).getTime()) / 86400000
-            ) + 1;
-          const statusBlockedDays = countUnavailableDays(u, trackingFrom, windowEnd);
-          availableDaysForDuty = Math.max(0, totalWindowDays - statusBlockedDays);
+          const blockedDays = countUnavailableDays(u, trackingFrom, windowEnd);
+          availableDaysForDuty = Math.max(0, totalWindowDays - blockedDays);
         }
 
         let comparableLoad = 0;
@@ -146,6 +185,7 @@ export const useStatsData = ({
           comparableLoad,
           effectiveComparable: comparableLoad + balance,
           dayCountComparable,
+          totalWindowDays,
           availableDaysForDuty,
           windowDuties,
           dutyRate,
@@ -162,7 +202,8 @@ export const useStatsData = ({
     dayWeights,
     todayStr,
     ignoreHistoryInLogic,
-    includeFuture,
+    windowMode,
+    globalWindowEnd,
     useFirstDutyDateAsActiveFrom,
   ]);
 

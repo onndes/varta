@@ -75,6 +75,8 @@ export interface User {
   statusComment?: string; // Legacy comment field (migrated into statusPeriods[].comment)
   statusPeriods?: UserStatusPeriod[]; // Planned/current status periods (multiple intervals)
   birthday?: string; // YYYY-MM-DD format — full date of birth, blocks duty on birthday
+  inactivePeriods?: { from: string; to?: string }[]; // Auto-tracked periods when isActive was false
+  excludedFromAutoPeriods?: { from: string; to?: string }[]; // Auto-tracked periods when excludeFromAuto was true
 }
 
 export interface BirthdayBlockOpts {

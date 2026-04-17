@@ -3,6 +3,7 @@ import React from 'react';
 import { formatRank } from '../utils/helpers';
 import type { SortKey, SortDir } from '../utils/helpers';
 import type { UserStats, StatsGroupMeta } from '../hooks/useStatsData';
+import type { StatsWindowMode } from '../hooks/useStatsData';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLASSIC (default) view — full columns, no progress bars
@@ -51,13 +52,15 @@ export const StatsTableHeaderClassic: React.FC<ClassicHeaderProps> = ({
         <br />
         <small className="fw-normal">всього</small>
       </th>
-      <th rowSpan={2} style={{ minWidth: '80px' }} className="text-center">
-        В черзі
-      </th>
       <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
         Днів в графіку
         <br />
-        <small className="fw-normal">в обліку</small>
+        <small className="fw-normal">усього</small>
+      </th>
+      <th rowSpan={2} style={{ minWidth: '90px' }} className="text-center">
+        З них доступних
+        <br />
+        <small className="fw-normal">для чергувань</small>
       </th>
       <th colSpan={7} className="text-center border-start">
         По днях (у черзі)
@@ -142,8 +145,10 @@ export const StatsTableRowClassic: React.FC<ClassicRowProps> = ({ u, onSelect })
       </button>
     </td>
     <td className="text-center fw-bold text-primary">{u.totalAllDuties}</td>
-    <td className="text-center fw-bold">{u.totalComparableDuties}</td>
-    <td className="text-center">{u.availableDaysForDuty}</td>
+    <td className="text-center">{u.totalWindowDays}</td>
+    <td className="text-center">
+      {u.availableDaysForDuty > 0 ? u.availableDaysForDuty : <span className="text-muted">—</span>}
+    </td>
     {DAYS_ORDER.map((dayIdx, i) => (
       <td key={dayIdx} className={`text-center small${i === 0 ? ' border-start' : ''}`}>
         {u.dayCountComparable[dayIdx] || 0}
@@ -160,7 +165,7 @@ export const StatsTableRowClassic: React.FC<ClassicRowProps> = ({ u, onSelect })
     <td className="text-center fw-bold">{u.effectiveComparable.toFixed(1)}</td>
     <td
       className="text-center border-start fw-bold"
-      title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} днів`}
+      title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} доступних днів`}
     >
       {u.availableDaysForDuty > 0 ? (
         <span
@@ -340,7 +345,7 @@ interface StatsTableRowProps {
   onSelect: (u: UserStats) => void;
   groupMeta: StatsGroupMeta;
   showDayBreakdown: boolean;
-  includeFuture: boolean;
+  windowMode: StatsWindowMode;
 }
 
 /** Returns bar color class and deviation label for the duty rate cell. */
@@ -380,7 +385,7 @@ export const StatsTableRow: React.FC<StatsTableRowProps> = ({
   onSelect,
   groupMeta,
   showDayBreakdown,
-  includeFuture,
+  windowMode,
 }) => {
   const hasDutyRate = u.availableDaysForDuty > 0;
   const rateDisplay = hasDutyRate
@@ -484,7 +489,7 @@ export const StatsTableRow: React.FC<StatsTableRowProps> = ({
                 day: '2-digit',
                 month: '2-digit',
               })}
-              {includeFuture && u.windowEnd > new Date().toLocaleDateString('sv') && (
+              {windowMode !== 'today' && u.windowEnd > new Date().toLocaleDateString('sv') && (
                 <span className="text-info">
                   {' →\u00a0'}
                   {new Date(u.windowEnd).toLocaleDateString('uk-UA', {
@@ -518,6 +523,15 @@ export const StatsLegend: React.FC = () => (
           <li>
             <strong>Наряди (всього / черга)</strong>: Ліворуч — загальна кількість нарядів за всю
             історію. Праворуч — скільки враховується для поточної авточерги.
+          </li>
+          <li>
+            <strong>Днів в графіку (усього)</strong>: Загальна кількість календарних днів від дати
+            початку обліку до кінця вікна. Без жодних знижок.
+          </li>
+          <li>
+            <strong>З них доступних для чергувань</strong>: Дні, коли боєць фактично міг нести
+            наряд. Вираховуються відпустки, відрядження, лікарняні, а також дні деактивації та
+            виключення з авторозподілу. Саме цей показник є знаменником у колонці «Частота».
           </li>
           <li>
             <strong>Пн–Нд</strong>: Розподіл нарядів по днях тижня (тільки в обліковому періоді).

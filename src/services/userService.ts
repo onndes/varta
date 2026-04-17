@@ -93,10 +93,70 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<number | undef
 };
 
 /**
- * Update user
+ * Update user.
+ * Automatically tracks isActive and excludeFromAuto transitions so that
+ * statistics can subtract the periods when the user was deactivated or
+ * excluded from auto-scheduling.
  */
 export const updateUser = async (id: number, updates: Partial<User>): Promise<number> => {
-  return await db.users.update(id, updates);
+  const todayStr = toLocalISO(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = toLocalISO(yesterday);
+
+  const current = await db.users.get(id);
+  const extraUpdates: Partial<User> = {};
+
+  if (current) {
+    // --- isActive transition tracking ---
+    if ('isActive' in updates && updates.isActive !== current.isActive) {
+      const periods = [...(current.inactivePeriods || [])];
+      if (!updates.isActive) {
+        // Active → Inactive: open a new period if none is open
+        const hasOpen = periods.some((p) => !p.to);
+        if (!hasOpen) periods.push({ from: todayStr });
+      } else {
+        // Inactive → Active: close the last open period
+        let lastOpen = -1;
+        for (let i = periods.length - 1; i >= 0; i--) {
+          if (!periods[i].to) {
+            lastOpen = i;
+            break;
+          }
+        }
+        if (lastOpen >= 0) {
+          periods[lastOpen] = { ...periods[lastOpen], to: yesterdayStr };
+        }
+      }
+      extraUpdates.inactivePeriods = periods;
+    }
+
+    // --- excludeFromAuto transition tracking ---
+    const wasExcluded = current.excludeFromAuto ?? false;
+    const willBeExcluded =
+      'excludeFromAuto' in updates ? (updates.excludeFromAuto ?? false) : wasExcluded;
+    if (willBeExcluded !== wasExcluded) {
+      const periods = [...(current.excludedFromAutoPeriods || [])];
+      if (willBeExcluded) {
+        const hasOpen = periods.some((p) => !p.to);
+        if (!hasOpen) periods.push({ from: todayStr });
+      } else {
+        let lastOpen = -1;
+        for (let i = periods.length - 1; i >= 0; i--) {
+          if (!periods[i].to) {
+            lastOpen = i;
+            break;
+          }
+        }
+        if (lastOpen >= 0) {
+          periods[lastOpen] = { ...periods[lastOpen], to: yesterdayStr };
+        }
+      }
+      extraUpdates.excludedFromAutoPeriods = periods;
+    }
+  }
+
+  return await db.users.update(id, { ...updates, ...extraUpdates });
 };
 
 const normalizeIncompatibleIds = (ids?: number[], selfId?: number): number[] =>

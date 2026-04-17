@@ -3,6 +3,7 @@ import type { User, ScheduleEntry, DayWeights } from '../types';
 import { type SortKey, type SortDir } from '../utils/helpers';
 import UserStatsModal from './users/UserStatsModal';
 import { useStatsData } from '../hooks/useStatsData';
+import type { StatsWindowMode } from '../hooks/useStatsData';
 import {
   StatsTableHeader,
   StatsTableRow,
@@ -33,7 +34,7 @@ const StatsView: React.FC<StatsViewProps> = ({
   const [showInactive, setShowInactive] = useState(true);
   const [showActive, setShowActive] = useState(true);
   const [showDayBreakdown, setShowDayBreakdown] = useState(false);
-  const [includeFuture, setIncludeFuture] = useState(true);
+  const [windowMode, setWindowMode] = useState<StatsWindowMode>('today');
   const [selectedUser, setSelectedUser] = useState<UserStats | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -65,7 +66,7 @@ const StatsView: React.FC<StatsViewProps> = ({
     showInactive,
     sortKey,
     sortDir,
-    includeFuture,
+    windowMode,
     useFirstDutyDateAsActiveFrom,
   });
 
@@ -157,31 +158,42 @@ const StatsView: React.FC<StatsViewProps> = ({
           <div className="d-flex gap-2 align-items-center">
             <div className="d-flex gap-2">
               {useExperimentalStatsView && (
-                <>
-                  <button
-                    type="button"
-                    className={`btn btn-sm stats-filter-btn ${showDayBreakdown ? 'is-on' : ''}`}
-                    onClick={() => setShowDayBreakdown(!showDayBreakdown)}
-                    title="Показати/сховати розбивку по дням тижня"
-                  >
-                    <i className="fas fa-calendar-week me-1"></i>
-                    Пн–Нд
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm stats-filter-btn ${includeFuture ? 'is-on' : ''}`}
-                    onClick={() => setIncludeFuture(!includeFuture)}
-                    title={
-                      includeFuture
-                        ? 'Зараз: враховуються минулі + майбутні наряди. Натисніть — тільки минулі'
-                        : 'Зараз: тільки минулі наряди. Натисніть — враховувати майбутні'
-                    }
-                  >
-                    <i className={`fas fa-${includeFuture ? 'calendar-alt' : 'history'} me-1`}></i>
-                    {includeFuture ? 'З майбутніми' : 'Минулі'}
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className={`btn btn-sm stats-filter-btn ${showDayBreakdown ? 'is-on' : ''}`}
+                  onClick={() => setShowDayBreakdown(!showDayBreakdown)}
+                  title="Показати/сховати розбивку по дням тижня"
+                >
+                  <i className="fas fa-calendar-week me-1"></i>
+                  Пн–Нд
+                </button>
               )}
+              <div className="btn-group btn-group-sm" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm stats-filter-btn ${windowMode === 'today' ? 'is-on' : ''}`}
+                  onClick={() => setWindowMode('today')}
+                  title="Статистика на сьогодні"
+                >
+                  Сьогодні
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm stats-filter-btn ${windowMode === 'weekEnd' ? 'is-on' : ''}`}
+                  onClick={() => setWindowMode('weekEnd')}
+                  title="Статистика до кінця поточного тижня (неділя)"
+                >
+                  Тиждень
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm stats-filter-btn ${windowMode === 'lastGenerated' ? 'is-on' : ''}`}
+                  onClick={() => setWindowMode('lastGenerated')}
+                  title="Статистика до кінця останньої згенерованої неділі"
+                >
+                  Весь графік
+                </button>
+              </div>
               <div className="btn-group btn-group-sm" role="group">
                 <button
                   type="button"
@@ -229,7 +241,7 @@ const StatsView: React.FC<StatsViewProps> = ({
                         onSelect={setSelectedUser}
                         groupMeta={groupMeta}
                         showDayBreakdown={showDayBreakdown}
-                        includeFuture={includeFuture}
+                        windowMode={windowMode}
                       />
                     ))}
                   </tbody>
