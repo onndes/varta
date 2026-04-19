@@ -48,6 +48,7 @@ const UsersView: React.FC<UsersViewProps> = ({
   const {
     editingUser,
     setEditingUser,
+    editBaseUser,
     pendingEditReview,
     isApplyingEdit,
     handleStartEdit,
@@ -196,6 +197,7 @@ const UsersView: React.FC<UsersViewProps> = ({
       {editingUser && !pendingEditReview && (
         <EditUserModal
           user={editingUser}
+          baseUser={editBaseUser}
           onChange={setEditingUser}
           onClose={() => handleCloseEditModal(dutyUsers)}
           onSave={() => handleSaveDirectly()}

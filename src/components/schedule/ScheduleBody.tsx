@@ -177,6 +177,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   logAction,
   refreshData,
   editingUser,
+  editBaseUser,
   setEditingUser,
   pendingEditReview,
   isApplyingEdit,
@@ -184,6 +185,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   handleApplyEditChanges,
   handleDiscardEditChanges,
   handleCancelEditReview,
+  handleSaveDirectly,
 }) => {
   const [rowFilter, setRowFilter] = useState<'all' | 'available' | 'assigned'>('all');
   const showRowFilters = users.filter((user) => user.isActive).length <= 20;
@@ -345,6 +347,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
         logAction={logAction}
         refreshData={refreshData}
         editingUser={editingUser}
+        editBaseUser={editBaseUser}
         pendingEditReview={pendingEditReview}
         isApplyingEdit={isApplyingEdit}
         setEditingUser={setEditingUser}
@@ -352,6 +355,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
         handleApplyEditChanges={handleApplyEditChanges}
         handleDiscardEditChanges={handleDiscardEditChanges}
         handleCancelEditReview={handleCancelEditReview}
+        handleSaveDirectly={handleSaveDirectly}
       />
     </div>
   );

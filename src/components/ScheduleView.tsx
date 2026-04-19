@@ -99,6 +99,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   const {
     editingUser,
     setEditingUser,
+    editBaseUser,
     pendingEditReview,
     isApplyingEdit,
     handleStartEdit,
@@ -106,6 +107,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     handleCancelEditReview,
     handleDiscardEditChanges,
     handleApplyEditChanges,
+    handleSaveDirectly,
   } = useUserEditFlow({ schedule, updateCascadeTrigger, refreshData, logAction });
 
   // ── Core schedule mutations ───────────────────────────────────────────────
@@ -345,6 +347,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       logAction={logAction}
       refreshData={refreshData}
       editingUser={editingUser}
+      editBaseUser={editBaseUser}
       pendingEditReview={pendingEditReview}
       isApplyingEdit={isApplyingEdit}
       setEditingUser={setEditingUser}
@@ -352,6 +355,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
       handleApplyEditChanges={handleApplyEditChanges}
       handleDiscardEditChanges={handleDiscardEditChanges}
       handleCancelEditReview={handleCancelEditReview}
+      handleSaveDirectly={handleSaveDirectly}
       signatories={signatories}
       printMode={printMode}
       printWeekRange={printWeekRange}

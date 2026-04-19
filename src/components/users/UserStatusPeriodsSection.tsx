@@ -40,10 +40,11 @@ const StatusPeriodEditForm: React.FC<{
   onUpdate: (index: number, patch: Partial<UserStatusPeriod>) => void;
   onRemove: (index: number) => void;
   onDone: () => void;
-}> = ({ period, idx, onUpdate, onRemove, onDone }) => (
+  showDoneButton?: boolean;
+}> = ({ period, idx, onUpdate, onRemove, onDone, showDoneButton = true }) => (
   <div className="border border-primary rounded p-2 bg-light">
     <div className="row g-2 align-items-end">
-      <div className="col-md-4">
+      <div className={showDoneButton ? 'col-md-4' : 'col-md-4'}>
         <label className="small text-muted">Статус</label>
         <select
           className="form-select form-select-sm"
@@ -66,7 +67,7 @@ const StatusPeriodEditForm: React.FC<{
           onChange={(e) => onUpdate(idx, { from: e.target.value || undefined })}
         />
       </div>
-      <div className="col-md-3">
+      <div className={showDoneButton ? 'col-md-3' : 'col-md-4'}>
         <label className="small text-muted">Дата завершення</label>
         <input
           type="date"
@@ -75,10 +76,10 @@ const StatusPeriodEditForm: React.FC<{
           onChange={(e) => onUpdate(idx, { to: e.target.value || undefined })}
         />
       </div>
-      <div className="col-md-2 d-flex gap-1">
+      <div className={showDoneButton ? 'col-md-2 d-flex gap-1' : 'col-md-1 d-flex'}>
         <button
           type="button"
-          className="btn btn-outline-danger btn-sm flex-fill"
+          className={`btn btn-outline-danger btn-sm${showDoneButton ? ' flex-fill' : ' ms-md-auto'}`}
           title="Видалити"
           onClick={() => {
             onRemove(idx);
@@ -87,14 +88,16 @@ const StatusPeriodEditForm: React.FC<{
         >
           <i className="fas fa-trash"></i>
         </button>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm flex-fill"
-          title="Готово"
-          onClick={onDone}
-        >
-          <i className="fas fa-check"></i>
-        </button>
+        {showDoneButton && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm flex-fill"
+            title="Готово"
+            onClick={onDone}
+          >
+            <i className="fas fa-check"></i>
+          </button>
+        )}
       </div>
     </div>
     {(!period.from || !period.to) && (
@@ -288,6 +291,7 @@ export const StatusPeriodsSection: React.FC<StatusPeriodsSectionProps> = ({
               idx={currentIndices[localIdx]}
               onUpdate={onUpdate}
               onRemove={onRemove}
+              showDoneButton={false}
               onDone={() => {
                 /* current periods don't need a "done" collapse */
               }}

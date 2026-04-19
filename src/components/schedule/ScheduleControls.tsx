@@ -222,6 +222,8 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
               <i className={`fas ${forceAssignMode ? 'fa-unlock' : 'fa-user-lock'} me-1`}></i>
               {forceAssignMode ? 'Форсаж ✅' : 'Форсаж'}
             </button>
+            {/* Hidden preview button: kept in code intentionally, not rendered in UI. */}
+            {/*
             <button
               className={`btn btn-sm position-relative ${previewMode ? 'btn-success' : 'btn-outline-secondary'}`}
               onClick={onPreviewToggle}
@@ -251,6 +253,7 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
                 <span className="preview-prefetch-dot" aria-hidden="true" />
               )}
             </button>
+            */}
             <div ref={helpersMenuRef} className="position-relative">
               <button
                 className={`btn btn-sm ${enabledHelpersCount > 0 && enabledHelpersCount < 4 ? 'btn-outline-info' : 'btn-outline-secondary'}`}

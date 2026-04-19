@@ -60,6 +60,7 @@ export interface ScheduleModalsProps {
   refreshData: () => Promise<void>;
   // User edit flow
   editingUser: User | null;
+  editBaseUser: User | null;
   pendingEditReview: { draft: User; changes: UserChangeItem[] } | null;
   isApplyingEdit: boolean;
   setEditingUser: (user: User | null) => void;
@@ -67,6 +68,7 @@ export interface ScheduleModalsProps {
   handleApplyEditChanges: () => Promise<void>;
   handleDiscardEditChanges: () => void;
   handleCancelEditReview: () => void;
+  handleSaveDirectly: () => Promise<void>;
 }
 
 /**
@@ -97,6 +99,7 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
   logAction,
   refreshData,
   editingUser,
+  editBaseUser,
   setEditingUser,
   pendingEditReview,
   isApplyingEdit,
@@ -104,6 +107,7 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
   handleApplyEditChanges,
   handleDiscardEditChanges,
   handleCancelEditReview,
+  handleSaveDirectly,
 }) => (
   <>
     {selectedCell && (
@@ -169,8 +173,11 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
     {editingUser && !pendingEditReview && (
       <EditUserModal
         user={editingUser}
+        baseUser={editBaseUser}
         onChange={(u) => u && (setEditingUser as (u: User | null) => void)(u)}
         onClose={() => handleCloseEditModal(users)}
+        onSave={() => handleSaveDirectly()}
+        isSaving={isApplyingEdit}
         computedFairnessDate={(() => {
           const dates = Object.keys(schedule).sort();
           return dates[0] || toLocalISO(new Date());

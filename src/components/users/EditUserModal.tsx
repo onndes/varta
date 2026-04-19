@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import type { User, UserStatusPeriod } from '../../types';
 import { formatRank } from '../../utils/helpers';
 import { getUserStatusPeriods, normalizeStatusPeriods } from '../../utils/userStatus';
+import { getUserChangeSummary } from '../../utils/userEditDiff';
 import { toLocalISO } from '../../utils/dateUtils';
 import Modal from '../Modal';
 import {
@@ -14,6 +15,7 @@ import { StatusPeriodsSection } from './UserStatusPeriodsSection';
 
 interface EditUserModalProps {
   user: User;
+  baseUser?: User | null;
   onChange: (user: User) => void;
   onClose: () => void;
   onSave?: () => Promise<void>;
@@ -32,6 +34,7 @@ interface EditUserModalProps {
  */
 const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
+  baseUser = null,
   onChange,
   onClose,
   onSave,
@@ -90,6 +93,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       .slice(0, 8);
   }, [otherUsers, incompatibleSearch, incompatibleIds]);
 
+  const hasUnsavedChanges = useMemo(() => {
+    if (!baseUser) return false;
+    return getUserChangeSummary(baseUser, user, allUsers).length > 0;
+  }, [allUsers, baseUser, user]);
+
   // ── Status period helpers ─────────────────────────────────────────────────
   const applyStatusPeriods = (nextPeriods: UserStatusPeriod[]) => {
     const normalized = normalizeStatusPeriods(nextPeriods);
@@ -123,7 +131,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const footer = onSave ? (
     <button
       type="button"
-      className="btn btn-primary"
+      className={`btn ${hasUnsavedChanges ? 'btn-warning settings-save-button-dirty' : 'btn-primary'}`}
       onClick={() => void onSave()}
       disabled={isSaving}
     >
