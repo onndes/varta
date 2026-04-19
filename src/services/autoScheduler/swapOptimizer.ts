@@ -6,6 +6,7 @@ import type {
   ScheduleEntry,
   DayWeights,
   AutoScheduleOptions,
+  DutyPattern,
   SchedulerProgressCallback,
   SchedulerVisCallback,
   OptimizerHistoryEntry,
@@ -24,6 +25,7 @@ import {
 } from './helpers';
 import {
   buildUserComparator,
+  filterByBlockRotation,
   filterByRestDays,
   filterByIncompatiblePairs,
   filterBySameWeekdayLastWeek,
@@ -32,6 +34,7 @@ import {
   filterEvenWeeklyDistribution,
 } from './comparator';
 import { getLogicSchedule } from '../../utils/assignment';
+import { getBlockRotationPhase, isBlockContinuation } from './dutyPatternService';
 
 export const isAutoParticipant = (u: User): boolean =>
   Boolean(u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);
@@ -187,6 +190,36 @@ export const wouldCreateSameDowRepeat = (
 };
 
 /**
+ * Returns true if swapping userId onto dateStr would break a block-rotation cycle.
+ * Specifically: if another user already has a duty block passing through dateStr
+ * (phase 'duty' with dayInBlock > 0), placing a different user there is forbidden.
+ *
+ * Only called when dutyPattern.mode === 'block-rotation'.
+ */
+export const wouldBreakBlockRotation = (
+  userId: number,
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>,
+  users: User[],
+  pattern: DutyPattern
+): boolean => {
+  const knownUserIds = new Set(
+    users.map((user) => user.id).filter((id): id is number => id != null)
+  );
+  const assignedIds = toAssignedUserIds(schedule[dateStr]?.userId);
+
+  for (const assignedId of assignedIds) {
+    if (assignedId === userId || !knownUserIds.has(assignedId)) continue;
+    const phase = getBlockRotationPhase(assignedId, dateStr, schedule, pattern);
+    if (phase.phase === 'duty' && phase.dayInBlock > 0) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
  * Post-optimization via multi-phase swap refinement.
  *
  * ─── Phase 1: Pair-exchange swaps ──────────────────────────────────────────
@@ -219,7 +252,12 @@ export const performSwapOptimization = async (
 ): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
-  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const minRest =
+    options.dutyPattern?.mode === 'block-rotation'
+      ? 0
+      : options.avoidConsecutiveDays
+        ? options.minRestDays || 1
+        : 0;
 
   // Work with a stable, sorted list of auto-filled dates.
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
@@ -314,6 +352,12 @@ export const performSwapOptimization = async (
               wouldCreateSameDowRepeat(user2, date1, tempSchedule)
             )
               continue;
+            if (
+              options.dutyPattern?.mode === 'block-rotation' &&
+              (wouldBreakBlockRotation(user2, date1, tempSchedule, users, options.dutyPattern) ||
+                wouldBreakBlockRotation(user1, date2, tempSchedule, users, options.dutyPattern))
+            )
+              continue;
 
             const baseObj = computeGlobalObjective(userIds, tempSchedule, dayWeights, users, options.prioritizeAfterWeekOff === true);
 
@@ -406,6 +450,8 @@ export const performSwapOptimization = async (
             !assignedIds.includes(u.id) &&
             isHardEligible(u, dateStr) &&
             (minRest === 0 || !wouldViolateRestDays(u.id, dateStr, minRest, tempSchedule)) &&
+            (options.dutyPattern?.mode !== 'block-rotation' ||
+              !wouldBreakBlockRotation(u.id, dateStr, tempSchedule, users, options.dutyPattern)) &&
             !wouldViolateIncompatiblePairs(u.id, dateStr, tempSchedule, users) &&
             !wouldCreateSameDowRepeat(u.id, dateStr, tempSchedule)
         );
@@ -558,6 +604,24 @@ export const performSwapOptimization = async (
                 wouldViolateIncompatiblePairs(otherId, d2, tempSchedule, users)
               )
                 continue;
+              if (
+                options.dutyPattern?.mode === 'block-rotation' &&
+                (wouldBreakBlockRotation(
+                  uid,
+                  otherDate,
+                  tempSchedule,
+                  users,
+                  options.dutyPattern
+                ) ||
+                  wouldBreakBlockRotation(
+                    otherId,
+                    d2,
+                    tempSchedule,
+                    users,
+                    options.dutyPattern
+                  ))
+              )
+                continue;
 
               // Tentative swap
               const newUserId2P3 = newIds2P3.length === 1 ? newIds2P3[0] : newIds2P3;
@@ -684,6 +748,31 @@ export const performSwapOptimization = async (
                       !isHardEligible(u1obj, d1) ||
                       !isHardEligible(u2obj, d2) ||
                       !isHardEligible(u3obj, d3)
+                    )
+                      continue;
+                    if (
+                      options.dutyPattern?.mode === 'block-rotation' &&
+                      (wouldBreakBlockRotation(
+                        newU1,
+                        d1,
+                        tempSchedule,
+                        users,
+                        options.dutyPattern
+                      ) ||
+                        wouldBreakBlockRotation(
+                          newU2,
+                          d2,
+                          tempSchedule,
+                          users,
+                          options.dutyPattern
+                        ) ||
+                        wouldBreakBlockRotation(
+                          newU3,
+                          d3,
+                          tempSchedule,
+                          users,
+                          options.dutyPattern
+                        ))
                     )
                       continue;
 
@@ -846,7 +935,12 @@ export const performTabuSearch = async (
   const maxIter = options.tabuMaxIterations || 50;
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
-  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const minRest =
+    options.dutyPattern?.mode === 'block-rotation'
+      ? 0
+      : options.avoidConsecutiveDays
+        ? options.minRestDays || 1
+        : 0;
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
   const enforceWeeklyBalance = !!(options.forceUseAllWhenFew || options.evenWeeklyDistribution);
 
@@ -982,6 +1076,12 @@ export const performTabuSearch = async (
               wouldViolateIncompatiblePairs(u2, d1, tempSchedule, users)
             )
               continue;
+            if (
+              options.dutyPattern?.mode === 'block-rotation' &&
+              (wouldBreakBlockRotation(u2, d1, tempSchedule, users, options.dutyPattern) ||
+                wouldBreakBlockRotation(u1, d2, tempSchedule, users, options.dutyPattern))
+            )
+              continue;
 
             // Tentative swap to evaluate
             const newUserId1T = newIds1.length === 1 ? newIds1[0] : newIds1;
@@ -1054,6 +1154,14 @@ export const performTabuSearch = async (
             assignedIds.includes(candidate.id) ||
             !isHardEligible(candidate, dateStr) ||
             (minRest > 0 && wouldViolateRestDays(candidate.id, dateStr, minRest, tempSchedule)) ||
+            (options.dutyPattern?.mode === 'block-rotation' &&
+              wouldBreakBlockRotation(
+                candidate.id,
+                dateStr,
+                tempSchedule,
+                users,
+                options.dutyPattern
+              )) ||
             wouldViolateIncompatiblePairs(candidate.id, dateStr, tempSchedule, users)
           )
             continue;
@@ -1190,6 +1298,13 @@ export const performTabuSearch = async (
         const pu2obj = participants.find((u) => u.id === pids2[psj]);
         if (!pu1obj || !pu2obj) continue;
         if (!isHardEligible(pu1obj, pd2) || !isHardEligible(pu2obj, pd1)) continue;
+        if (
+          options.dutyPattern?.mode === 'block-rotation' &&
+          (wouldBreakBlockRotation(pids2[psj], pd1, tempSchedule, users, options.dutyPattern) ||
+            wouldBreakBlockRotation(pids1[psi], pd2, tempSchedule, users, options.dutyPattern))
+        ) {
+          continue;
+        }
         const pNewIds1 = [...pids1];
         pNewIds1[psi] = pids2[psj];
         const pNewIds2 = [...pids2];
@@ -1301,6 +1416,12 @@ const syncMiniOptimize = (
             if (wouldViolateIncompatiblePairs(user2, date1, schedule, users)) continue;
             if (wouldCreateSameDowRepeat(user1, date2, schedule)) continue;
             if (wouldCreateSameDowRepeat(user2, date1, schedule)) continue;
+            if (
+              options?.dutyPattern?.mode === 'block-rotation' &&
+              (wouldBreakBlockRotation(user2, date1, schedule, users, options.dutyPattern) ||
+                wouldBreakBlockRotation(user1, date2, schedule, users, options.dutyPattern))
+            )
+              continue;
 
             const newUserId1S = newIds1.length === 1 ? newIds1[0] : newIds1;
             const newUserId2S = newIds2.length === 1 ? newIds2[0] : newIds2;
@@ -1346,6 +1467,11 @@ const syncMiniOptimize = (
           if (uid === assignedId || assignedIds.includes(uid)) continue;
           if (!isHardEligible(uObj, dateStr)) continue;
           if (minRest > 0 && wouldViolateRestDays(uid, dateStr, minRest, schedule)) continue;
+          if (
+            options?.dutyPattern?.mode === 'block-rotation' &&
+            wouldBreakBlockRotation(uid, dateStr, schedule, users, options.dutyPattern)
+          )
+            continue;
           if (wouldViolateIncompatiblePairs(uid, dateStr, schedule, users)) continue;
           if (wouldCreateSameDowRepeat(uid, dateStr, schedule)) continue;
 
@@ -1466,7 +1592,12 @@ const lnsRepair = (
   fairnessUsers: User[],
   slotsPerDay: number
 ): void => {
-  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const minRest =
+    options.dutyPattern?.mode === 'block-rotation'
+      ? 0
+      : options.avoidConsecutiveDays
+        ? options.minRestDays || 1
+        : 0;
 
   for (const dateStr of destroyedDates) {
     // Track users already picked for earlier slots on this date.
@@ -1482,10 +1613,34 @@ const lnsRepair = (
       if (hardPool.length === 0) break;
 
       let pool = [...hardPool];
+      if (options.dutyPattern?.mode === 'block-rotation') {
+        const continuationUsers = hardPool.filter(
+          (user) =>
+            user.id != null &&
+            isBlockContinuation(user.id, dateStr, schedule, options.dutyPattern!)
+        );
+        if (continuationUsers.length > 0) {
+          pool = continuationUsers;
+        } else {
+          const activeDutyUsers = hardPool.filter(
+            (user) =>
+              user.id != null &&
+              getBlockRotationPhase(user.id, dateStr, schedule, options.dutyPattern!).phase ===
+                'duty'
+          );
+          if (activeDutyUsers.length > 0) {
+            pool = activeDutyUsers;
+          }
+        }
+      }
 
       // Rest days filter
       if (minRest > 0) {
         const filtered = filterByRestDays(pool, dateStr, minRest, schedule);
+        if (filtered.length > 0) pool = filtered;
+      }
+      if (options.dutyPattern?.mode === 'block-rotation') {
+        const filtered = filterByBlockRotation(pool, dateStr, schedule, options.dutyPattern);
         if (filtered.length > 0) pool = filtered;
       }
 
@@ -1629,7 +1784,12 @@ export const performMultiRestartOptimization = async (
 ): Promise<void> => {
   const participants = users.filter(isAutoParticipant);
   const userIds = participants.map((u) => u.id!);
-  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const minRest =
+    options.dutyPattern?.mode === 'block-rotation'
+      ? 0
+      : options.avoidConsecutiveDays
+        ? options.minRestDays || 1
+        : 0;
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d)).sort();
   const strategy = options.multiRestartStrategy ?? 'pair-swap';
   const isUnlimited = options.multiRestartTimeLimitMode === 'unlimited';
@@ -1758,6 +1918,13 @@ export const performMultiRestartOptimization = async (
             const u2obj = participants.find((u) => u.id === u2);
             if (!u1obj || !u2obj) continue;
             if (!isHardEligible(u1obj, d2) || !isHardEligible(u2obj, d1)) continue;
+            if (
+              options.dutyPattern?.mode === 'block-rotation' &&
+              (wouldBreakBlockRotation(u2, d1, tempSchedule, users, options.dutyPattern) ||
+                wouldBreakBlockRotation(u1, d2, tempSchedule, users, options.dutyPattern))
+            ) {
+              continue;
+            }
             const nu1 = newIds1.length === 1 ? newIds1[0] : newIds1;
             const nu2 = newIds2.length === 1 ? newIds2[0] : newIds2;
             tempSchedule[d1] = { ...e1, userId: nu1 };

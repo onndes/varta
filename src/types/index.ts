@@ -97,6 +97,18 @@ export interface UserStatusPeriod {
   restAfter?: boolean; // Rest day after this status period
 }
 
+// Duty rotation pattern — controls how many consecutive days a person works
+// and how many mandatory rest days follow before the next rotation starts.
+export type DutyPatternMode = 'classic' | 'block-rotation';
+
+export interface DutyPattern {
+  mode: DutyPatternMode;
+  /** block-rotation: how many consecutive duty days per cycle (min 1, max 14) */
+  dutyDays: number;
+  /** block-rotation: how many mandatory rest days after the duty block (min 1, max 30) */
+  restDays: number;
+}
+
 // ─── Decision Log (Info Button «i») ──────────────────────────────────────
 
 /** Reason code for why a candidate was filtered out / outranked. */
@@ -336,6 +348,7 @@ export interface AutoScheduleOptions {
   schedulerVisShowAttempts?: boolean; // show all attempted swaps, not just accepted (default: false)
   // Weekly drought: boost users who missed the previous week so they rotate back in
   prioritizeAfterWeekOff?: boolean; // default: true
+  dutyPattern?: DutyPattern;
 }
 
 /** Progress callback for long-running scheduler operations. */

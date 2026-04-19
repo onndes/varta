@@ -30,6 +30,7 @@ import {
 import { countUserDaysOfWeek } from '../scheduleService';
 import {
   buildUserComparator,
+  filterByBlockRotation,
   filterByIncompatiblePairs,
   filterByRestDays,
   filterBySameWeekdayLastWeek,
@@ -37,6 +38,7 @@ import {
   filterForceUseAllWhenFew,
   filterEvenWeeklyDistribution,
 } from './comparator';
+import { getBlockRotationPhase, isBlockContinuation } from './dutyPatternService';
 import {
   isAutoParticipant,
   isHardEligible,
@@ -84,7 +86,12 @@ const simulateForwardScore = (
   const sim = { ...tempSchedule };
   sim[dateStr] = { date: dateStr, userId: candidate.id!, type: 'auto' as const };
   const userIds = fairnessUsers.map((u) => u.id!);
-  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const minRest =
+    options.dutyPattern?.mode === 'block-rotation'
+      ? 0
+      : options.avoidConsecutiveDays
+        ? options.minRestDays || 1
+        : 0;
 
   // Simulate the next `depth` unfilled future dates
   const futureDates = dates.filter((d) => d > dateStr).slice(0, depth);
@@ -98,10 +105,33 @@ const simulateForwardScore = (
     );
     if (hardPool.length === 0) continue;
 
-    // Basic filters: rest days + same-DOW-last-week + weekly fairness
+    // Basic filters: duty-pattern eligibility + same-DOW-last-week + weekly fairness
     let pool = hardPool;
-    if (minRest > 0) {
+    if (options.dutyPattern?.mode === 'block-rotation') {
+      const continuationUsers = hardPool.filter(
+        (user) =>
+          user.id != null &&
+          isBlockContinuation(user.id, futDate, sim, options.dutyPattern!)
+      );
+      if (continuationUsers.length > 0) {
+        pool = continuationUsers;
+      } else {
+        const activeDutyUsers = hardPool.filter(
+          (user) =>
+            user.id != null &&
+            getBlockRotationPhase(user.id, futDate, sim, options.dutyPattern!).phase === 'duty'
+        );
+        if (activeDutyUsers.length > 0) {
+          pool = activeDutyUsers;
+        }
+      }
+    }
+    if (options.dutyPattern?.mode !== 'block-rotation' && minRest > 0) {
       const filtered = filterByRestDays(pool, futDate, minRest, sim);
+      if (filtered.length > 0) pool = filtered;
+    }
+    if (options.dutyPattern?.mode === 'block-rotation') {
+      const filtered = filterByBlockRotation(pool, futDate, sim, options.dutyPattern);
       if (filtered.length > 0) pool = filtered;
     }
     const filtered2 = filterBySameWeekdayLastWeek(
@@ -202,7 +232,12 @@ export const autoFillSchedule = async (
 
   // Deterministic order is important for reproducibility.
   const dates = [...targetDates].sort();
-  const minRest = options.avoidConsecutiveDays ? options.minRestDays || 1 : 0;
+  const minRest =
+    options.dutyPattern?.mode === 'block-rotation'
+      ? 0
+      : options.avoidConsecutiveDays
+        ? options.minRestDays || 1
+        : 0;
 
   for (const dateStr of dates) {
     if (dateStr < todayStr) continue;
@@ -268,6 +303,28 @@ export const autoFillSchedule = async (
       }
 
       let pool = [...hardPool];
+      // Block-rotation: users who must continue their duty block take absolute priority.
+      // This runs before all soft filters so continuation users are never pushed down.
+      if (options.dutyPattern?.mode === 'block-rotation') {
+        const continuationUsers = hardPool.filter(
+          (user) =>
+            user.id != null &&
+            isBlockContinuation(user.id, dateStr, tempSchedule, options.dutyPattern!)
+        );
+        if (continuationUsers.length > 0) {
+          pool = continuationUsers;
+        } else {
+          const activeDutyUsers = hardPool.filter(
+            (user) =>
+              user.id != null &&
+              getBlockRotationPhase(user.id, dateStr, tempSchedule, options.dutyPattern!)
+                .phase === 'duty'
+          );
+          if (activeDutyUsers.length > 0) {
+            pool = activeDutyUsers;
+          }
+        }
+      }
       if (pool.length === 0) break;
 
       // Enhanced decision log: track filter pipeline steps
@@ -277,7 +334,7 @@ export const autoFillSchedule = async (
       filterPipeline.push(trackFilterStep('hardEligible', allAutoUsers, hardPool));
 
       // Optional constraints from settings.
-      if (options.avoidConsecutiveDays) {
+      if (options.dutyPattern?.mode !== 'block-rotation' && options.avoidConsecutiveDays) {
         const preRestPool = [...pool];
         pool = filterByRestDays(pool, dateStr, options.minRestDays || 1, tempSchedule);
         const step = trackFilterStep('restDays', preRestPool, pool);
@@ -288,6 +345,27 @@ export const autoFillSchedule = async (
         filterPipeline.push(step);
       }
       logPoolSizes.afterRestDays = pool.length;
+
+      // Block-rotation filter — only active when pattern mode is block-rotation.
+      // Classic path is completely unaffected.
+      if (options.dutyPattern?.mode === 'block-rotation') {
+        const preBlockRotationPool = [...pool];
+        const brFiltered = filterByBlockRotation(
+          pool,
+          dateStr,
+          tempSchedule,
+          options.dutyPattern
+        );
+        pool = brFiltered;
+        const step = trackFilterStep('blockRotation', preBlockRotationPool, pool);
+        step.wasFallback =
+          step.eliminated.length === 0 &&
+          preBlockRotationPool.length === pool.length &&
+          preBlockRotationPool.length > 0;
+        filterPipeline.push(step);
+        // Pool cannot be empty here because filterByBlockRotation has the same
+        // fallback contract as filterByRestDays (returns original pool if result is empty).
+      }
 
       {
         const preIncompatPool = [...pool];

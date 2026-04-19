@@ -87,10 +87,6 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   onRedo,
   zenMode = false,
   onZenToggle,
-  previewMode = false,
-  isPreviewComputing = false,
-  isPreviewPrefetching = false,
-  onPreviewToggle,
   schedulerProgress,
   onStopScheduler,
 }) => {

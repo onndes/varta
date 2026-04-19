@@ -1,12 +1,13 @@
 // src/services/autoScheduler/comparator.ts
 // Deterministic comparator + candidate pool filters for constraint optimization.
 
-import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../../types';
+import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions, DutyPattern } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 import { calculateUserLoad, countUserDaysOfWeek } from '../scheduleService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
 import { compareByRankAndName } from '../../utils/helpers';
+import { isEligibleBlockRotation } from './dutyPatternService';
 import {
   countEligibleUsersForWeek,
   countUserAssignmentsInRange,
@@ -488,5 +489,26 @@ export const filterBySameWeekdayLastWeek = (
     const weeklyCount = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
     return weeklyCount === 0;
   });
+  return filtered.length > 0 ? filtered : pool;
+};
+
+/**
+ * Block-rotation variant of the rest-days filter.
+ * Only called when dutyPattern.mode === 'block-rotation'.
+ *
+ * - Removes users who are in a mandatory rest phase (isEligibleBlockRotation === false).
+ * - If all users are removed (edge case: whole pool in rest), returns original pool unchanged
+ *   (same fallback contract as filterByRestDays).
+ * - Does NOT touch avoidConsecutiveDays or minRestDays — those remain classic-only.
+ */
+export const filterByBlockRotation = (
+  pool: User[],
+  dateStr: string,
+  schedule: Record<string, ScheduleEntry>,
+  pattern: DutyPattern
+): User[] => {
+  const filtered = pool.filter(
+    (user) => user.id != null && isEligibleBlockRotation(user.id, dateStr, schedule, pattern)
+  );
   return filtered.length > 0 ? filtered : pool;
 };

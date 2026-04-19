@@ -30,6 +30,105 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
         Ці параметри визначають, як алгоритм обирає осіб при автоматичному заповненні графіка.
       </div>
 
+      {/* Duty rotation pattern */}
+      <div className="mb-4">
+        <label className="form-label fw-bold">
+          <i className="fas fa-sync-alt me-2"></i>Режим ротації
+        </label>
+        <div className="d-flex flex-column gap-2">
+          <div className="form-check">
+            <input
+              className="form-check-input"
+              type="radio"
+              name="dutyPatternMode"
+              id="patternClassic"
+              checked={!autoOpts.dutyPattern || autoOpts.dutyPattern.mode === 'classic'}
+              onChange={() => onAutoOptsChange({ ...autoOpts, dutyPattern: undefined })}
+            />
+            <label className="form-check-label" htmlFor="patternClassic">
+              <strong>Класичний</strong>
+              <div className="text-muted small">
+                Поодинокі наряди з мінімальним відпочинком (поточний режим).
+              </div>
+            </label>
+          </div>
+          <div className="form-check">
+            <input
+              className="form-check-input"
+              type="radio"
+              name="dutyPatternMode"
+              id="patternBlock"
+              checked={autoOpts.dutyPattern?.mode === 'block-rotation'}
+              onChange={() =>
+                onAutoOptsChange({
+                  ...autoOpts,
+                  dutyPattern: { mode: 'block-rotation', dutyDays: 4, restDays: 2 },
+                })
+              }
+            />
+            <label className="form-check-label" htmlFor="patternBlock">
+              <strong>Блочна ротація</strong>
+              <div className="text-muted small">
+                N діб поспіль у наряді, потім M діб відсипного.
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {autoOpts.dutyPattern?.mode === 'block-rotation' && (
+          <div className="ms-4 mt-3 p-3 bg-light rounded">
+            <div className="row g-3">
+              <div className="col-auto">
+                <label className="form-label fw-bold small">Діб у наряді</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={14}
+                  className="form-control"
+                  style={{ width: '80px' }}
+                  value={autoOpts.dutyPattern.dutyDays}
+                  onChange={(e) =>
+                    onAutoOptsChange({
+                      ...autoOpts,
+                      dutyPattern: {
+                        ...autoOpts.dutyPattern!,
+                        dutyDays: Math.max(1, Math.min(14, parseInt(e.target.value) || 1)),
+                      },
+                    })
+                  }
+                />
+              </div>
+              <div className="col-auto">
+                <label className="form-label fw-bold small">Діб відсипного</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  className="form-control"
+                  style={{ width: '80px' }}
+                  value={autoOpts.dutyPattern.restDays}
+                  onChange={(e) =>
+                    onAutoOptsChange({
+                      ...autoOpts,
+                      dutyPattern: {
+                        ...autoOpts.dutyPattern!,
+                        restDays: Math.max(1, Math.min(30, parseInt(e.target.value) || 1)),
+                      },
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="form-text mt-2">
+              <i className="fas fa-info-circle me-1"></i>
+              Цикл: {autoOpts.dutyPattern.dutyDays} діб наряду +{' '}
+              {autoOpts.dutyPattern.restDays} діб відсипного ={' '}
+              {autoOpts.dutyPattern.dutyDays + autoOpts.dutyPattern.restDays} діб повного циклу.
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Avoid consecutive days */}
       <div className="form-check form-switch mb-3">
         <input
