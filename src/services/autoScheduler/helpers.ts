@@ -438,7 +438,8 @@ export const computeGlobalObjective = (
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights,
   users?: User[],
-  enableDroughtPenalty?: boolean
+  enableDroughtPenalty?: boolean,
+  daysActiveCache?: Map<number, number>
 ): number => {
   const N = userIds.length;
   if (N === 0) return 0;
@@ -591,7 +592,17 @@ export const computeGlobalObjective = (
       let total = 0;
       const counts = dowCountsMap.get(uid)!;
       for (let d = 0; d < 7; d++) total += counts[d];
-      const daysActive = computeDaysActive(user, todayStr, schedule);
+      let daysActive: number;
+      if (daysActiveCache) {
+        if (daysActiveCache.has(uid)) {
+          daysActive = daysActiveCache.get(uid)!;
+        } else {
+          daysActive = computeDaysActive(user, todayStr, schedule);
+          daysActiveCache.set(uid, daysActive);
+        }
+      } else {
+        daysActive = computeDaysActive(user, todayStr, schedule);
+      }
       rates.push(total / daysActive);
     }
     if (rates.length > 0) {

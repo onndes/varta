@@ -95,6 +95,8 @@ const simulateForwardScore = (
 
   // Simulate the next `depth` unfilled future dates
   const futureDates = dates.filter((d) => d > dateStr).slice(0, depth);
+  // Compute fairnessSchedule once before the loop — re-built only after each assignment.
+  let fairSim = getLogicSchedule(sim, false);
   for (const futDate of futureDates) {
     const existing = sim[futDate];
     if (existing && toAssignedUserIds(existing.userId).length > 0) continue;
@@ -162,7 +164,6 @@ const simulateForwardScore = (
       if (filtered.length > 0) pool = filtered;
     }
 
-    const fairSim = getLogicSchedule(sim, false);
     const compare = buildUserComparator(
       futDate,
       sim,
@@ -177,6 +178,8 @@ const simulateForwardScore = (
     pool.sort(compare);
     if (pool.length > 0 && pool[0].id) {
       sim[futDate] = { date: futDate, userId: pool[0].id, type: 'auto' as const };
+      // Rebuild fairSim so subsequent dates see this assignment in their DOW counts.
+      fairSim = getLogicSchedule(sim, false);
     }
   }
 
