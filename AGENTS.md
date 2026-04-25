@@ -580,3 +580,27 @@ Run through every item below before writing a single line:
       by comparing the before/after schedule for a full 4-week window?
 - [ ] Did I apply the Documentation Sync Rule (Section 11) — updated `README.md`, `README.uk.md`,
       `InfoModalContent.tsx`, and/or `InfoLegendTables.tsx` as required by the change?
+
+---
+
+## 14. DutyPattern — Block Rotation
+
+`src/services/autoScheduler/dutyPatternService.ts` contains all pure helpers for the block-rotation
+duty mode. It may inspect `schedule` and dates, but it must not contain DB calls, React imports,
+UI logic, or comparator/swap orchestration.
+
+Invariant: `dutyPattern === undefined` must always keep the scheduler on the classic code path.
+Classic mode behavior must remain byte-for-byte compatible with the pre-change logic unless a
+separate logic change explicitly says otherwise.
+
+Protected functions — do not rename:
+
+| Function                 | Lives in                                               |
+| ------------------------ | ------------------------------------------------------ |
+| `getBlockRotationPhase`  | `src/services/autoScheduler/dutyPatternService.ts`     |
+| `isEligibleBlockRotation` | `src/services/autoScheduler/dutyPatternService.ts`    |
+| `isBlockContinuation`    | `src/services/autoScheduler/dutyPatternService.ts`     |
+| `wouldBreakBlockRotation` | `src/services/autoScheduler/swapOptimizer.ts`         |
+
+`filterByBlockRotation` must preserve the same empty-pool fallback contract as `filterByRestDays`:
+if it would eliminate the whole pool, it must return the original pool unchanged.

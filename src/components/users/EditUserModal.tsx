@@ -46,11 +46,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const [incompatibleSearch, setIncompatibleSearch] = useState('');
   const todayStr = toLocalISO(new Date());
   // All status periods — including past ones (history shown in a collapsible section).
-  const statusPeriods = useMemo(
-    () => getUserStatusPeriods(user),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user]
-  );
+  const statusPeriods = useMemo(() => getUserStatusPeriods(user), [user]);
 
   /** IDs of users that list this user in their incompatibleWith (reverse links). */
   const reverseIncompatibleIds = useMemo(() => {

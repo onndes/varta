@@ -284,7 +284,10 @@ export const useAutoScheduler = (
       try {
         setIsProcessing(true);
         setError(null);
-        setProgress(null);
+        setProgress({ phase: 'Ініціалізація…', percent: 0 });
+        await new Promise<void>((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => r()))
+        );
 
         const todayStr = toLocalISO(new Date());
         const validDates = dates.filter((d) => d >= todayStr);
@@ -356,7 +359,10 @@ export const useAutoScheduler = (
       try {
         setIsProcessing(true);
         setError(null);
-        setProgress(null);
+        setProgress({ phase: 'Ініціалізація…', percent: 0 });
+        await new Promise<void>((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => r()))
+        );
 
         const todayStr = toLocalISO(new Date());
         const start = startDate < todayStr ? todayStr : startDate;
@@ -394,7 +400,10 @@ export const useAutoScheduler = (
       try {
         setIsProcessing(true);
         setError(null);
-        setProgress(null);
+        setProgress({ phase: 'Ініціалізація…', percent: 0 });
+        await new Promise<void>((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => r()))
+        );
 
         const todayStr = toLocalISO(new Date());
         const validDates = weekDates.filter((d) => d >= todayStr);

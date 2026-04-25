@@ -609,6 +609,7 @@ Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `avoidConsecutiveDays`                 | Avoid adjacent duties (`filterByRestDays`)                                                      |
 | `minRestDays`                          | Minimum rest in days (1 = not back-to-back, 2 = every other day)                                |
+| `dutyPattern`                          | Optional duty pattern mode: classic single duties or block rotation (`N` duty days + `M` rest) |
 | `respectOwedDays`                      | Prioritize users with `owedDays` for the current weekday                                        |
 | `considerLoad`                         | Include load in sorting                                                                         |
 | `aggressiveLoadBalancing`              | Force balancing when load gaps become too large                                                 |
