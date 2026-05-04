@@ -84,7 +84,7 @@ export const useScheduleActions = ({
       return false;
     }
     return true;
-  }, [users, showAlert]);
+  }, [users, showAlert, todayStr]);
 
   const runFillGaps = useCallback(async () => {
     if (!(await hasEnoughActiveUsers())) return;

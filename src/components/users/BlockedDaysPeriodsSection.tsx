@@ -1,5 +1,5 @@
 // src/components/users/BlockedDaysPeriodsSection.tsx
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { BlockedDaysPeriod } from '../../types';
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
@@ -226,16 +226,6 @@ export const BlockedDaysPeriodsSection: React.FC<BlockedDaysPeriodsSectionProps>
   const [showHistory, setShowHistory] = useState(false);
   const [historyYear, setHistoryYear] = useState(currentYear);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const prevLengthRef = useRef(periods.length);
-
-  // When the parent adds a new period, auto-open it in edit mode.
-  useEffect(() => {
-    if (periods.length > prevLengthRef.current) {
-      // The new period is always appended at the end; its global index = periods.length - 1.
-      setEditingIdx(periods.length - 1);
-    }
-    prevLengthRef.current = periods.length;
-  }, [periods.length]);
 
   const { currentPeriods, currentIndices, pastPeriods, pastIndices, availableYears } =
     useMemo(() => {
@@ -282,7 +272,15 @@ export const BlockedDaysPeriodsSection: React.FC<BlockedDaysPeriodsSectionProps>
           <h6 className="card-title mb-0">
             <i className="fas fa-ban me-2 text-danger"></i>Блокування днів тижня
           </h6>
-          <button type="button" className="btn btn-outline-primary btn-sm" onClick={onAdd}>
+          <button
+            type="button"
+            className="btn btn-outline-primary btn-sm"
+            onClick={() => {
+              onAdd();
+              // New period is appended by parent, so its future index equals current length.
+              setEditingIdx(periods.length);
+            }}
+          >
             <i className="fas fa-plus me-1"></i>Додати період
           </button>
         </div>
