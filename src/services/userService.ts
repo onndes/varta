@@ -5,6 +5,7 @@ import type { User, ScheduleEntry, BirthdayBlockOpts } from '../types';
 import { DEFAULT_MAX_DEBT, DEFAULT_BIRTHDAY_BLOCK_OPTS } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
 import { getStatusPeriodAtDate, getUserStatusPeriods } from '../utils/userStatus';
+import { isDateBlockedByPeriod } from '../utils/userBlockedDays';
 
 // Module-level birthday blocking configuration.
 // Updated by useSettings after settings load so the scheduler and all callers
@@ -22,14 +23,6 @@ export interface DeletedUserInfo {
   name: string;
   rank: string;
 }
-
-/** Дата-сентінел: «з початку часів» */
-const MIN_DATE = '0000-01-01';
-/** Дата-сентінел: «до кінця часів» */
-const MAX_DATE = '9999-12-31';
-
-/** Конвертація JS dayOfWeek (0=Нд) → ISO dayIdx (1=Пн..7=Нд) */
-const toIsoDayIdx = (jsDow: number): number => (jsDow === 0 ? 7 : jsDow);
 
 /** Чи призначений боєць на попередній день (перевірка відпочинку після наряду) */
 const wasPrevDayAssigned = (
@@ -94,9 +87,8 @@ export const createUser = async (user: Omit<User, 'id'>): Promise<number | undef
 
 /**
  * Update user.
- * Automatically tracks isActive and excludeFromAuto transitions so that
- * statistics can subtract the periods when the user was deactivated or
- * excluded from auto-scheduling.
+ * Automatically tracks isActive transitions so that
+ * statistics can subtract the periods when the user was deactivated.
  */
 export const updateUser = async (id: number, updates: Partial<User>): Promise<number> => {
   const todayStr = toLocalISO(new Date());
@@ -131,30 +123,9 @@ export const updateUser = async (id: number, updates: Partial<User>): Promise<nu
       extraUpdates.inactivePeriods = periods;
     }
 
-    // --- excludeFromAuto transition tracking ---
-    const wasExcluded = current.excludeFromAuto ?? false;
-    const willBeExcluded =
-      'excludeFromAuto' in updates ? (updates.excludeFromAuto ?? false) : wasExcluded;
-    if (willBeExcluded !== wasExcluded) {
-      const periods = [...(current.excludedFromAutoPeriods || [])];
-      if (willBeExcluded) {
-        const hasOpen = periods.some((p) => !p.to);
-        if (!hasOpen) periods.push({ from: todayStr });
-      } else {
-        let lastOpen = -1;
-        for (let i = periods.length - 1; i >= 0; i--) {
-          if (!periods[i].to) {
-            lastOpen = i;
-            break;
-          }
-        }
-        if (lastOpen >= 0) {
-          periods[lastOpen] = { ...periods[lastOpen], to: yesterdayStr };
-        }
-      }
-      extraUpdates.excludedFromAutoPeriods = periods;
-    }
   }
+  // Note: excludedFromAutoPeriods auto-tracking removed — periods are now
+  // managed explicitly via ExcludeFromAutoPeriodsSection in the UI.
 
   return await db.users.update(id, { ...updates, ...extraUpdates });
 };
@@ -381,16 +352,8 @@ export const getUserAvailabilityStatus = (
   | 'BIRTHDAY' => {
   if (!user.isActive) return 'UNAVAILABLE';
 
-  // Заблокований день тижня (з урахуванням періоду)
-  if (user.blockedDays && user.blockedDays.length > 0) {
-    const dayIdx = toIsoDayIdx(new Date(dateStr).getDay());
-    if (user.blockedDays.includes(dayIdx)) {
-      // Якщо вказано період — перевірити чи дата потрапляє в нього
-      const from = user.blockedDaysFrom || MIN_DATE;
-      const to = user.blockedDaysTo || MAX_DATE;
-      if (dateStr >= from && dateStr <= to) return 'DAY_BLOCKED';
-    }
-  }
+  // Заблокований день тижня (з урахуванням всіх періодів)
+  if (isDateBlockedByPeriod(user, dateStr)) return 'DAY_BLOCKED';
 
   const activeStatusPeriod = getStatusPeriodAtDate(user, dateStr);
   if (activeStatusPeriod) return 'STATUS_BUSY';

@@ -76,7 +76,9 @@ export interface User {
   statusPeriods?: UserStatusPeriod[]; // Planned/current status periods (multiple intervals)
   birthday?: string; // YYYY-MM-DD format — full date of birth, blocks duty on birthday
   inactivePeriods?: { from: string; to?: string }[]; // Auto-tracked periods when isActive was false
-  excludedFromAutoPeriods?: { from: string; to?: string }[]; // Auto-tracked periods when excludeFromAuto was true
+  excludedFromAutoPeriods?: { from: string; to?: string }[]; // Auto-tracked periods when excludeFromAuto was true (legacy)
+  blockedDaysPeriods?: BlockedDaysPeriod[]; // Period-based blocked days (new system)
+  excludeFromAutoPeriods2?: ExcludeFromAutoPeriod[]; // Explicitly managed exclude-from-auto periods (new system)
 }
 
 export interface BirthdayBlockOpts {
@@ -95,6 +97,19 @@ export interface UserStatusPeriod {
   comment?: string; // For ABSENT only
   restBefore?: boolean; // Rest day before this status period
   restAfter?: boolean; // Rest day after this status period
+}
+
+export interface BlockedDaysPeriod {
+  days: number[]; // array of ISO weekday indices (1=Mon…7=Sun)
+  from?: string; // ISO date, undefined = always active from start
+  to?: string; // ISO date, undefined = open-ended
+  comment?: string;
+}
+
+export interface ExcludeFromAutoPeriod {
+  from: string; // ISO date — required (defaults to today when created via UI)
+  to?: string; // ISO date, undefined = still active
+  comment?: string;
 }
 
 // Duty rotation pattern — controls how many consecutive days a person works

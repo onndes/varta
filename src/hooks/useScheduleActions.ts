@@ -11,6 +11,7 @@ import {
 } from '../services/scheduleService';
 import * as autoSchedulerService from '../services/autoScheduler';
 import { getAssignedCount } from '../utils/assignment';
+import { isCurrentlyExcludedFromAuto } from '../utils/userExcludeFromAuto';
 
 interface ScheduleIssues {
   conflicts: string[];
@@ -72,7 +73,9 @@ export const useScheduleActions = ({
   const { showAlert, showConfirm, showChoice, showDatePick } = useDialog();
 
   const hasEnoughActiveUsers = useCallback(async (): Promise<boolean> => {
-    const activeUsers = users.filter((u) => u.isActive && !u.isExtra && !u.excludeFromAuto);
+    const activeUsers = users.filter(
+      (u) => u.isActive && !u.isExtra && !isCurrentlyExcludedFromAuto(u, todayStr)
+    );
     if (activeUsers.length < 2) {
       await showAlert(
         '⚠️ НЕДОСТАТНЬО ОСІБ!\n\nДля автоматичного розподілу потрібно мінімум 2 активних особи.\n\nЗараз доступно: ' +

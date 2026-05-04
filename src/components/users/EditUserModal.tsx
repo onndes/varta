@@ -1,17 +1,18 @@
 // src/components/users/EditUserModal.tsx
 import React, { useState, useMemo } from 'react';
-import type { User, UserStatusPeriod } from '../../types';
+import type { User, UserStatusPeriod, BlockedDaysPeriod, ExcludeFromAutoPeriod } from '../../types';
 import { formatRank } from '../../utils/helpers';
 import { getUserStatusPeriods, normalizeStatusPeriods } from '../../utils/userStatus';
 import { getUserChangeSummary } from '../../utils/userEditDiff';
 import { toLocalISO } from '../../utils/dateUtils';
 import Modal from '../Modal';
 import {
-  BlockedDaysSection,
   IncompatiblePairsSection,
   AdvancedSettingsSection,
 } from './EditUserModalSections';
 import { StatusPeriodsSection } from './UserStatusPeriodsSection';
+import { BlockedDaysPeriodsSection } from './BlockedDaysPeriodsSection';
+import { ExcludeFromAutoPeriodsSection } from './ExcludeFromAutoPeriodsSection';
 
 interface EditUserModalProps {
   user: User;
@@ -124,6 +125,56 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     applyStatusPeriods(statusPeriods.filter((_, i) => i !== index));
   };
 
+  // ── BlockedDaysPeriods helpers ────────────────────────────────────────────
+  const blockedDaysPeriods: BlockedDaysPeriod[] = user.blockedDaysPeriods || [];
+
+  const addBlockedDaysPeriod = () => {
+    onChange({
+      ...user,
+      blockedDaysPeriods: [...blockedDaysPeriods, { days: [], from: todayStr }],
+    });
+  };
+
+  const updateBlockedDaysPeriod = (index: number, patch: Partial<BlockedDaysPeriod>) => {
+    onChange({
+      ...user,
+      blockedDaysPeriods: blockedDaysPeriods.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+    });
+  };
+
+  const removeBlockedDaysPeriod = (index: number) => {
+    onChange({
+      ...user,
+      blockedDaysPeriods: blockedDaysPeriods.filter((_, i) => i !== index),
+    });
+  };
+
+  // ── ExcludeFromAutoPeriods2 helpers ───────────────────────────────────────
+  const excludeFromAutoPeriods2: ExcludeFromAutoPeriod[] = user.excludeFromAutoPeriods2 || [];
+
+  const addExcludeFromAutoPeriod = () => {
+    onChange({
+      ...user,
+      excludeFromAutoPeriods2: [...excludeFromAutoPeriods2, { from: todayStr }],
+    });
+  };
+
+  const updateExcludeFromAutoPeriod = (index: number, patch: Partial<ExcludeFromAutoPeriod>) => {
+    onChange({
+      ...user,
+      excludeFromAutoPeriods2: excludeFromAutoPeriods2.map((p, i) =>
+        i === index ? { ...p, ...patch } : p
+      ),
+    });
+  };
+
+  const removeExcludeFromAutoPeriod = (index: number) => {
+    onChange({
+      ...user,
+      excludeFromAutoPeriods2: excludeFromAutoPeriods2.filter((_, i) => i !== index),
+    });
+  };
+
   const footer = onSave ? (
     <button
       type="button"
@@ -151,10 +202,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         onAdd={addStatusPeriod}
       />
 
-      {/* Active / exclude toggles */}
+      {/* Active toggle */}
       <div className="card border-primary mb-3">
         <div className="card-body">
-          <div className="form-check form-switch mb-3">
+          <div className="form-check form-switch">
             <input
               type="checkbox"
               className="form-check-input"
@@ -174,34 +225,24 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               Якщо вимкнено — особа відсутня (показується сірим, тільки в окремій вкладці).
             </div>
           </div>
-
-          <div className="form-check form-switch">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="excludeFromAuto"
-              checked={user.excludeFromAuto || false}
-              onChange={(e) => onChange({ ...user, excludeFromAuto: e.target.checked })}
-              style={{ cursor: 'pointer' }}
-              disabled={!user.isActive}
-            />
-            <label
-              className="form-check-label"
-              htmlFor="excludeFromAuto"
-              style={{ cursor: 'pointer' }}
-            >
-              <i className="fas fa-user-times me-2 text-warning"></i>Виключити з автоматичного
-              розподілення
-            </label>
-            <div className="small text-muted mt-1">
-              Якщо відмічено — НЕ бере участь в <strong>автоматичному</strong> розподіленні. Ручне
-              призначення можливе завжди.
-            </div>
-          </div>
         </div>
       </div>
 
-      <BlockedDaysSection user={user} onChange={onChange} />
+      <ExcludeFromAutoPeriodsSection
+        periods={excludeFromAutoPeriods2}
+        onUpdate={updateExcludeFromAutoPeriod}
+        onRemove={removeExcludeFromAutoPeriod}
+        onAdd={addExcludeFromAutoPeriod}
+        todayStr={todayStr}
+      />
+
+      <BlockedDaysPeriodsSection
+        periods={blockedDaysPeriods}
+        onUpdate={updateBlockedDaysPeriod}
+        onRemove={removeBlockedDaysPeriod}
+        onAdd={addBlockedDaysPeriod}
+        todayStr={todayStr}
+      />
 
       <IncompatiblePairsSection
         user={user}

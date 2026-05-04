@@ -2,6 +2,8 @@ import type { User, UserStatusPeriod } from '../types';
 import { DAY_NAMES_FULL, STATUSES } from './constants';
 import { formatRank } from './helpers';
 import { getUserStatusPeriods } from './userStatus';
+import { getBlockedDaysPeriods } from './userBlockedDays';
+import { getExcludeFromAutoPeriods } from './userExcludeFromAuto';
 
 export interface UserChangeItem {
   label: string;
@@ -19,6 +21,8 @@ export const cloneUserDraft = (user: User): User => ({
   incompatibleWith: user.incompatibleWith ? [...user.incompatibleWith] : undefined,
   owedDays: user.owedDays ? { ...user.owedDays } : undefined,
   statusPeriods: user.statusPeriods ? user.statusPeriods.map(cloneStatusPeriod) : undefined,
+  blockedDaysPeriods: user.blockedDaysPeriods ? user.blockedDaysPeriods.map((p) => ({ ...p, days: [...p.days] })) : undefined,
+  excludeFromAutoPeriods2: user.excludeFromAutoPeriods2 ? user.excludeFromAutoPeriods2.map((p) => ({ ...p })) : undefined,
 });
 
 const formatDate = (iso?: string): string => {
@@ -54,22 +58,34 @@ const formatStatusPeriods = (user: User): string => {
 };
 
 const formatBlockedDays = (user: User): string => {
-  const days = (user.blockedDays || [])
-    .slice()
-    .sort((a, b) => a - b)
-    .map((day) => DAY_NAMES_FULL[day === 7 ? 0 : day] || String(day));
+  const periods = getBlockedDaysPeriods(user);
+  if (periods.length === 0) return 'Немає';
+  return periods
+    .map((period) => {
+      const days = period.days
+        .slice()
+        .sort((a, b) => a - b)
+        .map((day) => DAY_NAMES_FULL[day === 7 ? 0 : day] || String(day))
+        .join(', ');
+      const parts: string[] = [days];
+      if (period.from || period.to) {
+        parts.push(`${formatDate(period.from)}-${formatDate(period.to)}`);
+      }
+      if (period.comment?.trim()) parts.push(period.comment.trim());
+      return parts.join(' • ');
+    })
+    .join('; ');
+};
 
-  if (days.length === 0) return 'Немає';
-
-  const details: string[] = [days.join(', ')];
-  if (user.blockedDaysFrom || user.blockedDaysTo) {
-    details.push(`${formatDate(user.blockedDaysFrom)}-${formatDate(user.blockedDaysTo)}`);
-  }
-  if (user.blockedDaysComment?.trim()) {
-    details.push(user.blockedDaysComment.trim());
-  }
-
-  return details.join(' • ');
+const formatExcludeFromAutoPeriods = (user: User): string => {
+  const periods = getExcludeFromAutoPeriods(user);
+  if (periods.length === 0) return 'Немає';
+  return periods
+    .map((p) => {
+      const range = `${formatDate(p.from)}-${formatDate(p.to)}`;
+      return p.comment?.trim() ? `${range} • ${p.comment.trim()}` : range;
+    })
+    .join('; ');
 };
 
 const formatBirthday = (birthday?: string): string => {
@@ -126,8 +142,8 @@ export const getUserChangeSummary = (
   pushChange(
     changes,
     'Виключення з авторозподілу',
-    formatFlag(original.excludeFromAuto),
-    formatFlag(draft.excludeFromAuto)
+    formatExcludeFromAutoPeriods(original),
+    formatExcludeFromAutoPeriods(draft)
   );
   pushChange(
     changes,

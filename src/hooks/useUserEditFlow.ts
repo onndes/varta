@@ -72,6 +72,8 @@ export const useUserEditFlow = ({
         statusPeriods: normalizedPeriods,
         dateAddedToAuto: safeUser.dateAddedToAuto,
         birthday: safeUser.birthday,
+        blockedDaysPeriods: safeUser.blockedDaysPeriods,
+        excludeFromAutoPeriods2: safeUser.excludeFromAutoPeriods2,
       });
       await userService.syncUserIncompatibility(userId, safeUser.incompatibleWith);
 

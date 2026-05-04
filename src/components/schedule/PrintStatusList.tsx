@@ -4,6 +4,7 @@ import { formatRank, splitFormattedName, compareByRankAndName } from '../../util
 import { toAssignedUserIds } from '../../utils/assignment';
 import { STATUSES, DAY_SHORT_NAMES } from '../../utils/constants';
 import { getUserStatusPeriods } from '../../utils/userStatus';
+import { getBlockedDaysPeriods } from '../../utils/userBlockedDays';
 
 interface PrintStatusListProps {
   users: User[];
@@ -77,17 +78,24 @@ const collectSwaps = (
 };
 
 /** Зібрати бійців із заблокованими днями (навіть якщо статус ACTIVE) */
-const collectBlockedRows = (users: User[]): StatusRow[] =>
-  users
-    .filter((u) => u.isActive && u.blockedDays && u.blockedDays.length > 0)
-    .sort(compareByRankAndName)
-    .map((user) => ({
-      user,
-      reason: `Блок: ${formatBlockedDays(user.blockedDays!)}`,
-      from: formatDate(user.blockedDaysFrom),
-      to: formatDate(user.blockedDaysTo),
-      comment: [user.note, user.blockedDaysComment].filter(Boolean).join('. '),
-    }));
+const collectBlockedRows = (users: User[], todayStr: string): StatusRow[] => {
+  const rows: StatusRow[] = [];
+  for (const user of users.filter((u) => u.isActive).sort(compareByRankAndName)) {
+    const periods = getBlockedDaysPeriods(user).filter(
+      (p) => !p.to || p.to >= todayStr
+    );
+    for (const period of periods) {
+      rows.push({
+        user,
+        reason: `Блок: ${formatBlockedDays(period.days)}`,
+        from: formatDate(period.from),
+        to: formatDate(period.to),
+        comment: [user.note, period.comment].filter(Boolean).join('. '),
+      });
+    }
+  }
+  return rows;
+};
 
 // ── Футер з підписом ──────────────────────────────────────────────────
 
@@ -159,7 +167,8 @@ const PrintStatusList: React.FC<PrintStatusListProps> = ({
     );
 
   // Бійці із заблокованими днями
-  const blockedRows = collectBlockedRows(users);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const blockedRows = collectBlockedRows(users, todayStr);
 
   // Заміни/обміни за тиждень
   const swapRows = collectSwaps(weekDates, schedule, usersMap);
