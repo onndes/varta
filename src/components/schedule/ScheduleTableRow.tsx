@@ -339,7 +339,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               <span className="print-only">{printContent}</span>
               {user.excludeFromAuto && (
                 <span className="exclude-auto-marker no-print" aria-hidden="true">
-                  А
+                  <i className="fas fa-ban" />
                 </span>
               )}
               {helperDecorations.dowDutyCounts && (
