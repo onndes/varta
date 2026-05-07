@@ -300,6 +300,15 @@ export const performSwapOptimization = async (
     }
   }
 
+  // Pre-compute week-eligible participant IDs once — constant for the entire run.
+  const weekEligibleIdsP2: number[] =
+    options.forceUseAllWhenFew || options.evenWeeklyDistribution
+      ? userIds.filter((uid) => {
+          const u = participantsMap.get(uid);
+          return u && autoFilledDates.some((ad) => isHardEligible(u, ad));
+        })
+      : [];
+
   // Throttled vis for showing every attempted swap (60fps max)
   const showAttempts13 = !!(onVis && options.schedulerVisShowAttempts);
   let lastVisTick13 = 0;
@@ -312,6 +321,34 @@ export const performSwapOptimization = async (
     }
 
     let improved = false;
+
+    // Compute baseline objective once per iteration — valid for all phases
+    // because the schedule is always reverted on rejection. This avoids
+    // O(N²) redundant computeGlobalObjective calls in Phase 1.
+    const iterBaseObj = computeGlobalObjective(
+      userIds,
+      tempSchedule,
+      dayWeights,
+      users,
+      options.prioritizeAfterWeekOff === true,
+      daysActiveCache
+    );
+
+    // Build weekly count cache for Phase 2 balance guard (O(S) instead of O(S×U) per candidate).
+    // Rebuilding once per iteration is correct because the schedule may have changed
+    // in a previous iteration via an accepted swap.
+    let weeklyCountP2: Map<string, Map<number, number>> | null = null;
+    if (weekEligibleIdsP2.length > 0) {
+      weeklyCountP2 = new Map();
+      for (const entry of Object.values(tempSchedule)) {
+        const wk = getWeekKey(entry.date);
+        if (!weeklyCountP2.has(wk)) weeklyCountP2.set(wk, new Map());
+        const wm = weeklyCountP2.get(wk)!;
+        for (const uid of toAssignedUserIds(entry.userId)) {
+          wm.set(uid, (wm.get(uid) || 0) + 1);
+        }
+      }
+    }
 
     // ── Phase 1: Pair-exchange swaps ──────────────────────────────────────
     outerPair: for (let i = 0; i < autoFilledDates.length - 1; i++) {
@@ -367,15 +404,6 @@ export const performSwapOptimization = async (
             )
               continue;
 
-            const baseObj = computeGlobalObjective(
-              userIds,
-              tempSchedule,
-              dayWeights,
-              users,
-              options.prioritizeAfterWeekOff === true,
-              daysActiveCache
-            );
-
             // Apply exchange tentatively.
             const newUserId1 = newIds1.length === 1 ? newIds1[0] : newIds1;
             const newUserId2 = newIds2.length === 1 ? newIds2[0] : newIds2;
@@ -411,7 +439,7 @@ export const performSwapOptimization = async (
               daysActiveCache
             );
 
-            if (newObj < baseObj - FLOAT_EPSILON) {
+            if (newObj < iterBaseObj - FLOAT_EPSILON) {
               // Visualization: show accepted pair swap
               if (onVis)
                 await onVis({
@@ -422,25 +450,25 @@ export const performSwapOptimization = async (
 
               logSwap(date1, {
                 phase: 'phase1-pair',
-                description: `Обмін: ${userName(user1)} ↔ ${userName(user2)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                description: `Обмін: ${userName(user1)} ↔ ${userName(user2)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
                 previousUserId: user1,
                 previousUserName: userName(user1),
                 newUserId: user2,
                 newUserName: userName(user2),
-                zBefore: baseObj,
+                zBefore: iterBaseObj,
                 zAfter: newObj,
-                rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
+                rejectionReason: `Z покращилась з ${iterBaseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(iterBaseObj - newObj).toFixed(1)})`,
               });
               logSwap(date2, {
                 phase: 'phase1-pair',
-                description: `Обмін: ${userName(user2)} ↔ ${userName(user1)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                description: `Обмін: ${userName(user2)} ↔ ${userName(user1)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
                 previousUserId: user2,
                 previousUserName: userName(user2),
                 newUserId: user1,
                 newUserName: userName(user1),
-                zBefore: baseObj,
+                zBefore: iterBaseObj,
                 zAfter: newObj,
-                rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
+                rejectionReason: `Z покращилась з ${iterBaseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(iterBaseObj - newObj).toFixed(1)})`,
               });
               improved = true;
               break outerPair;
@@ -479,15 +507,6 @@ export const performSwapOptimization = async (
         );
         if (candidates.length === 0) continue;
 
-        const baseObj = computeGlobalObjective(
-          userIds,
-          tempSchedule,
-          dayWeights,
-          users,
-          options.prioritizeAfterWeekOff === true,
-          daysActiveCache
-        );
-
         for (const candidate of candidates) {
           const newIds = [...assignedIds];
           newIds[slotIdx] = candidate.id!;
@@ -517,54 +536,35 @@ export const performSwapOptimization = async (
             daysActiveCache
           );
 
-          if (newObj < baseObj - FLOAT_EPSILON) {
+          if (newObj < iterBaseObj - FLOAT_EPSILON) {
             // Even weekly distribution guard: block single-replacement swaps that
             // would give the candidate more duties than minCount + 1 across all
             // week-eligible participants. This prevents indirect imbalance where
             // a sequence of objective-improving swaps creates 2-0 gaps.
-            if (options.forceUseAllWhenFew || options.evenWeeklyDistribution) {
-              const d = new Date(dateStr);
-              const dow = d.getDay();
-              const mondayOffset = dow === 0 ? -6 : 1 - dow;
-              const monday = new Date(d);
-              monday.setDate(d.getDate() + mondayOffset);
-              const from = toLocalISO(monday);
-              const sunday = new Date(monday);
-              sunday.setDate(monday.getDate() + 6);
-              const to = toLocalISO(sunday);
-
-              const countInWeek = (uid: number): number =>
-                Object.values(tempSchedule).filter(
-                  (s) => s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(uid)
-                ).length;
-
-              const candidateNewCount = countInWeek(candidate.id!);
-
-              // Find min weekly count among week-eligible participants
-              const weekEligibleIds = userIds.filter((uid) => {
-                const u = participants.find((p) => p.id === uid);
-                return u && autoFilledDates.some((ad) => isHardEligible(u, ad));
-              });
-
-              if (weekEligibleIds.length > 0) {
-                const minWeekCount = Math.min(...weekEligibleIds.map((uid) => countInWeek(uid)));
-                if (candidateNewCount > minWeekCount + 1) {
-                  tempSchedule[dateStr] = entry;
-                  continue;
-                }
+            if (weeklyCountP2 && weekEligibleIdsP2.length > 0) {
+              const weekKey = getWeekKey(dateStr);
+              const wm = weeklyCountP2.get(weekKey);
+              const preCandidateCount = wm?.get(candidate.id!) ?? 0;
+              const candidateNewCount = preCandidateCount + 1;
+              const minWeekCount = Math.min(
+                ...weekEligibleIdsP2.map((u) => wm?.get(u) ?? 0)
+              );
+              if (candidateNewCount > minWeekCount + 1) {
+                tempSchedule[dateStr] = entry;
+                continue;
               }
             }
 
             logSwap(dateStr, {
               phase: 'phase2-replace',
-              description: `Заміна: ${userName(assignedId)} → ${userName(candidate.id!)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+              description: `Заміна: ${userName(assignedId)} → ${userName(candidate.id!)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
               previousUserId: assignedId,
               previousUserName: userName(assignedId),
               newUserId: candidate.id!,
               newUserName: userName(candidate.id!),
-              zBefore: baseObj,
+              zBefore: iterBaseObj,
               zAfter: newObj,
-              rejectionReason: `Z покращилась з ${baseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(baseObj - newObj).toFixed(1)})`,
+              rejectionReason: `Z покращилась з ${iterBaseObj.toFixed(1)} до ${newObj.toFixed(1)} (−${(iterBaseObj - newObj).toFixed(1)})`,
             });
 
             // Visualization: show accepted single replacement
@@ -601,14 +601,6 @@ export const performSwapOptimization = async (
           if (gap !== 7 || new Date(d1).getDay() !== new Date(d2).getDay()) continue;
 
           // d2 is the repeat — try pair exchange.
-          const baseObj = computeGlobalObjective(
-            userIds,
-            tempSchedule,
-            dayWeights,
-            users,
-            options.prioritizeAfterWeekOff === true,
-            daysActiveCache
-          );
           const entry2 = tempSchedule[d2];
           if (!entry2) continue;
 
@@ -698,7 +690,7 @@ export const performSwapOptimization = async (
               );
               // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
               const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
-              if (newObj < baseObj - FLOAT_EPSILON + sameDowTolerance) {
+              if (newObj < iterBaseObj - FLOAT_EPSILON + sameDowTolerance) {
                 // Visualization: show accepted Phase 3 swap
                 if (onVis)
                   await onVis({
@@ -709,23 +701,23 @@ export const performSwapOptimization = async (
 
                 logSwap(d2, {
                   phase: 'phase3-sameDow',
-                  description: `Усунення повтору дня тижня: ${userName(uid)} ↔ ${userName(otherId)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                  description: `Усунення повтору дня тижня: ${userName(uid)} ↔ ${userName(otherId)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
                   previousUserId: uid,
                   previousUserName: userName(uid),
                   newUserId: otherId,
                   newUserName: userName(otherId),
-                  zBefore: baseObj,
+                  zBefore: iterBaseObj,
                   zAfter: newObj,
                   rejectionReason: `Усунено повтор дня тижня для ${userName(uid)}`,
                 });
                 logSwap(otherDate, {
                   phase: 'phase3-sameDow',
-                  description: `Усунення повтору дня тижня: ${userName(otherId)} ↔ ${userName(uid)} (Z: ${baseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
+                  description: `Усунення повтору дня тижня: ${userName(otherId)} ↔ ${userName(uid)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj.toFixed(1)})`,
                   previousUserId: otherId,
                   previousUserName: userName(otherId),
                   newUserId: uid,
                   newUserName: userName(uid),
-                  zBefore: baseObj,
+                  zBefore: iterBaseObj,
                   zAfter: newObj,
                   rejectionReason: `Переміщення для усунення повтору дня тижня ${userName(uid)}`,
                 });
@@ -753,14 +745,6 @@ export const performSwapOptimization = async (
     // 2-way swaps alone.
     let foundCyclic = false;
     if (autoFilledDates.length >= 3) {
-      const baseObj4 = computeGlobalObjective(
-        userIds,
-        tempSchedule,
-        dayWeights,
-        users,
-        options.prioritizeAfterWeekOff === true,
-        daysActiveCache
-      );
       outerCyclic: for (let ci = 0; ci < autoFilledDates.length - 2; ci++) {
         for (let cj = ci + 1; cj < autoFilledDates.length - 1; cj++) {
           for (let ck = cj + 1; ck < autoFilledDates.length; ck++) {
@@ -887,7 +871,7 @@ export const performSwapOptimization = async (
                       options.prioritizeAfterWeekOff === true,
                       daysActiveCache
                     );
-                    if (newObj4 < baseObj4 - FLOAT_EPSILON) {
+                    if (newObj4 < iterBaseObj - FLOAT_EPSILON) {
                       // Visualization: show accepted 3-way swap
                       if (onVis)
                         await onVis({
@@ -898,36 +882,36 @@ export const performSwapOptimization = async (
 
                       logSwap(d1, {
                         phase: 'phase4-cyclic',
-                        description: `Циклічний обмін 3-х: ${userName(u1)} → ${userName(newU1)} (Z: ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)})`,
+                        description: `Циклічний обмін 3-х: ${userName(u1)} → ${userName(newU1)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj4.toFixed(1)})`,
                         previousUserId: u1,
                         previousUserName: userName(u1),
                         newUserId: newU1,
                         newUserName: userName(newU1),
-                        zBefore: baseObj4,
+                        zBefore: iterBaseObj,
                         zAfter: newObj4,
-                        rejectionReason: `3-way цикл: Z ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)}`,
+                        rejectionReason: `3-way цикл: Z ${iterBaseObj.toFixed(1)} → ${newObj4.toFixed(1)}`,
                       });
                       logSwap(d2, {
                         phase: 'phase4-cyclic',
-                        description: `Циклічний обмін 3-х: ${userName(u2)} → ${userName(newU2)} (Z: ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)})`,
+                        description: `Циклічний обмін 3-х: ${userName(u2)} → ${userName(newU2)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj4.toFixed(1)})`,
                         previousUserId: u2,
                         previousUserName: userName(u2),
                         newUserId: newU2,
                         newUserName: userName(newU2),
-                        zBefore: baseObj4,
+                        zBefore: iterBaseObj,
                         zAfter: newObj4,
-                        rejectionReason: `3-way цикл: Z ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)}`,
+                        rejectionReason: `3-way цикл: Z ${iterBaseObj.toFixed(1)} → ${newObj4.toFixed(1)}`,
                       });
                       logSwap(d3, {
                         phase: 'phase4-cyclic',
-                        description: `Циклічний обмін 3-х: ${userName(u3)} → ${userName(newU3)} (Z: ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)})`,
+                        description: `Циклічний обмін 3-х: ${userName(u3)} → ${userName(newU3)} (Z: ${iterBaseObj.toFixed(1)} → ${newObj4.toFixed(1)})`,
                         previousUserId: u3,
                         previousUserName: userName(u3),
                         newUserId: newU3,
                         newUserName: userName(newU3),
-                        zBefore: baseObj4,
+                        zBefore: iterBaseObj,
                         zAfter: newObj4,
-                        rejectionReason: `3-way цикл: Z ${baseObj4.toFixed(1)} → ${newObj4.toFixed(1)}`,
+                        rejectionReason: `3-way цикл: Z ${iterBaseObj.toFixed(1)} → ${newObj4.toFixed(1)}`,
                       });
                       foundCyclic = true;
                       break outerCyclic;
@@ -953,6 +937,15 @@ export const performSwapOptimization = async (
 };
 
 // ─── Tabu Search (Phase 4) ──────────────────────────────────────────────────
+
+/** Monday ISO string for the week containing dateStr (shared by Tabu Search and syncMiniOptimize). */
+const getWeekKey = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  const dow = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return toLocalISO(monday);
+};
 
 /** Encode a pair-swap move as a string key for the tabu map. */
 const swapKey = (d1: string, u1: number, d2: string, u2: number): string =>
@@ -1009,14 +1002,6 @@ export const performTabuSearch = async (
 
   // Pre-build weeklyCountCache for wouldViolateWeeklyBalance.
   // weekKey = Monday ISO string of that week; value = Map<userId, count>
-  const getWeekKey = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    const dow = d.getDay();
-    const mondayOffset = dow === 0 ? -6 : 1 - dow;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + mondayOffset);
-    return toLocalISO(monday);
-  };
   const weeklyCountCache = new Map<string, Map<number, number>>();
   for (const entry of Object.values(tempSchedule)) {
     const wk = getWeekKey(entry.date);
@@ -1494,6 +1479,27 @@ const syncMiniOptimize = (
 ): void => {
   const enforceWeeklyBalance = !!(options?.forceUseAllWhenFew || options?.evenWeeklyDistribution);
 
+  // Pre-compute once: week-eligible participant IDs and initial weekly count cache.
+  // weeklyCountMini is updated incrementally after each accepted swap so we never
+  // rescan Object.values(schedule) inside the hot balance-check path.
+  const weekEligibleIdsMini: number[] = enforceWeeklyBalance
+    ? userIds.filter((u) => {
+        const uCheck = participantMap.get(u);
+        return uCheck && autoFilledDates.some((ad) => isHardEligible(uCheck, ad));
+      })
+    : [];
+  const weeklyCountMini = new Map<string, Map<number, number>>();
+  if (enforceWeeklyBalance) {
+    for (const entry of Object.values(schedule)) {
+      const wk = getWeekKey(entry.date);
+      if (!weeklyCountMini.has(wk)) weeklyCountMini.set(wk, new Map());
+      const wm = weeklyCountMini.get(wk)!;
+      for (const uid of toAssignedUserIds(entry.userId)) {
+        wm.set(uid, (wm.get(uid) || 0) + 1);
+      }
+    }
+  }
+
   for (let iter = 0; iter < maxIter; iter++) {
     let improved = false;
 
@@ -1567,6 +1573,23 @@ const syncMiniOptimize = (
             if (newObj < baseObj - FLOAT_EPSILON) {
               baseObj = newObj;
               improved = true;
+              // Keep weeklyCountMini in sync: pair swap moves user1 date1→date2
+              // and user2 date2→date1. If dates span two different weeks, update
+              // both week maps; if same week the net counts are unchanged.
+              if (enforceWeeklyBalance) {
+                const wk1 = getWeekKey(date1);
+                const wk2 = getWeekKey(date2);
+                if (wk1 !== wk2) {
+                  const wm1 = weeklyCountMini.get(wk1) || new Map<number, number>();
+                  const wm2 = weeklyCountMini.get(wk2) || new Map<number, number>();
+                  wm1.set(user1, Math.max(0, (wm1.get(user1) ?? 0) - 1));
+                  wm1.set(user2, (wm1.get(user2) ?? 0) + 1);
+                  wm2.set(user2, Math.max(0, (wm2.get(user2) ?? 0) - 1));
+                  wm2.set(user1, (wm2.get(user1) ?? 0) + 1);
+                  weeklyCountMini.set(wk1, wm1);
+                  weeklyCountMini.set(wk2, wm2);
+                }
+              }
               break outerPair;
             } else {
               schedule[date1] = entry1;
@@ -1614,32 +1637,17 @@ const syncMiniOptimize = (
             userId: newIds.length === 1 ? newIds[0] : newIds,
           };
 
-          // Weekly balance guard: prevent giving a user more duties than minCount + 1
+          // Weekly balance guard: prevent giving a user more duties than minCount + 1.
+          // Uses pre-built cache (O(U)) instead of scanning Object.values(schedule) (O(S×U)).
           if (enforceWeeklyBalance) {
-            const d = new Date(dateStr);
-            const dow = d.getDay();
-            const mondayOffset = dow === 0 ? -6 : 1 - dow;
-            const monday = new Date(d);
-            monday.setDate(d.getDate() + mondayOffset);
-            const from = toLocalISO(monday);
-            const sunday = new Date(monday);
-            sunday.setDate(monday.getDate() + 6);
-            const to = toLocalISO(sunday);
-
-            const countInWeek = (checkUid: number): number =>
-              Object.values(schedule).filter(
-                (s) =>
-                  s.date >= from && s.date <= to && toAssignedUserIds(s.userId).includes(checkUid)
-              ).length;
-
-            const candidateNewCount = countInWeek(uid);
-            const weekEligibleIds = userIds.filter((u) => {
-              const uCheck = participantMap.get(u);
-              return uCheck && autoFilledDates.some((ad) => isHardEligible(uCheck, ad));
-            });
-
-            if (weekEligibleIds.length > 0) {
-              const minWeekCount = Math.min(...weekEligibleIds.map((u) => countInWeek(u)));
+            const weekKey = getWeekKey(dateStr);
+            const wm = weeklyCountMini.get(weekKey);
+            const preCandidateCount = wm?.get(uid) ?? 0;
+            const candidateNewCount = preCandidateCount + 1;
+            if (weekEligibleIdsMini.length > 0) {
+              const minWeekCount = Math.min(
+                ...weekEligibleIdsMini.map((u) => wm?.get(u) ?? 0)
+              );
               if (candidateNewCount > minWeekCount + 1) {
                 schedule[dateStr] = entry;
                 continue;
@@ -1657,6 +1665,14 @@ const syncMiniOptimize = (
           if (newObj < baseObj - FLOAT_EPSILON) {
             baseObj = newObj;
             improved = true;
+            // Update weekly count cache: assignedId lost a duty, uid gained one.
+            if (enforceWeeklyBalance) {
+              const wk = getWeekKey(dateStr);
+              if (!weeklyCountMini.has(wk)) weeklyCountMini.set(wk, new Map());
+              const wm = weeklyCountMini.get(wk)!;
+              wm.set(assignedId, Math.max(0, (wm.get(assignedId) ?? 0) - 1));
+              wm.set(uid, (wm.get(uid) ?? 0) + 1);
+            }
             break;
           } else {
             schedule[dateStr] = entry;
