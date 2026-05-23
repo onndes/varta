@@ -546,9 +546,7 @@ export const performSwapOptimization = async (
               const wm = weeklyCountP2.get(weekKey);
               const preCandidateCount = wm?.get(candidate.id!) ?? 0;
               const candidateNewCount = preCandidateCount + 1;
-              const minWeekCount = Math.min(
-                ...weekEligibleIdsP2.map((u) => wm?.get(u) ?? 0)
-              );
+              const minWeekCount = Math.min(...weekEligibleIdsP2.map((u) => wm?.get(u) ?? 0));
               if (candidateNewCount > minWeekCount + 1) {
                 tempSchedule[dateStr] = entry;
                 continue;
@@ -1464,7 +1462,8 @@ export const performTabuSearch = async (
  * Used within multi-restart loops where async overhead would dominate runtime.
  * Phase 1: count-preserving pair swaps.
  * Phase 2: single-replacement swaps (with weekly balance guard).
- * Runs until convergence or maxIter, whichever comes first.
+ * Runs until convergence, maxIter, or stagnation (5 iterations without
+ * improvement), whichever comes first.
  */
 const syncMiniOptimize = (
   autoFilledDates: string[],
@@ -1475,7 +1474,8 @@ const syncMiniOptimize = (
   dayWeights: DayWeights,
   minRest: number,
   maxIter: number,
-  options?: AutoScheduleOptions
+  options?: AutoScheduleOptions,
+  daysActiveCache?: Map<number, number>
 ): void => {
   const enforceWeeklyBalance = !!(options?.forceUseAllWhenFew || options?.evenWeeklyDistribution);
 
@@ -1500,6 +1500,7 @@ const syncMiniOptimize = (
     }
   }
 
+  let stagnation = 0;
   for (let iter = 0; iter < maxIter; iter++) {
     let improved = false;
 
@@ -1509,7 +1510,8 @@ const syncMiniOptimize = (
       schedule,
       dayWeights,
       users,
-      options?.prioritizeAfterWeekOff === true
+      options?.prioritizeAfterWeekOff === true,
+      daysActiveCache
     );
 
     // Phase 1: Pair-exchange swaps
@@ -1568,7 +1570,8 @@ const syncMiniOptimize = (
               schedule,
               dayWeights,
               users,
-              options?.prioritizeAfterWeekOff === true
+              options?.prioritizeAfterWeekOff === true,
+              daysActiveCache
             );
             if (newObj < baseObj - FLOAT_EPSILON) {
               baseObj = newObj;
@@ -1600,7 +1603,10 @@ const syncMiniOptimize = (
       }
     }
 
-    if (improved) continue;
+    if (improved) {
+      stagnation = 0;
+      continue;
+    }
 
     // Phase 2: Single-replacement swaps
     baseObj = computeGlobalObjective(
@@ -1608,7 +1614,8 @@ const syncMiniOptimize = (
       schedule,
       dayWeights,
       users,
-      options?.prioritizeAfterWeekOff === true
+      options?.prioritizeAfterWeekOff === true,
+      daysActiveCache
     );
     for (const dateStr of autoFilledDates) {
       const entry = schedule[dateStr];
@@ -1645,9 +1652,7 @@ const syncMiniOptimize = (
             const preCandidateCount = wm?.get(uid) ?? 0;
             const candidateNewCount = preCandidateCount + 1;
             if (weekEligibleIdsMini.length > 0) {
-              const minWeekCount = Math.min(
-                ...weekEligibleIdsMini.map((u) => wm?.get(u) ?? 0)
-              );
+              const minWeekCount = Math.min(...weekEligibleIdsMini.map((u) => wm?.get(u) ?? 0));
               if (candidateNewCount > minWeekCount + 1) {
                 schedule[dateStr] = entry;
                 continue;
@@ -1660,7 +1665,8 @@ const syncMiniOptimize = (
             schedule,
             dayWeights,
             users,
-            options?.prioritizeAfterWeekOff === true
+            options?.prioritizeAfterWeekOff === true,
+            daysActiveCache
           );
           if (newObj < baseObj - FLOAT_EPSILON) {
             baseObj = newObj;
@@ -1683,7 +1689,12 @@ const syncMiniOptimize = (
       if (improved) break;
     }
 
-    if (!improved) break;
+    if (!improved) {
+      stagnation++;
+      // Early exit: 5 consecutive iterations without improvement means
+      // the local search has converged. Continuing wastes CPU.
+      if (stagnation >= 5) break;
+    }
   }
 };
 
@@ -1753,6 +1764,12 @@ const lnsRepair = (
         ? options.minRestDays || 1
         : 0;
 
+  // Pre-compute once: fairness schedule and eligible-count cache.
+  // Previously getLogicSchedule was called inside the inner loop for every
+  // destroyed date, and countEligibleUsersForWeek was recomputed per date.
+  const cachedFairnessSchedule = getLogicSchedule(schedule, false);
+  const eligibleCountCache = new Map<string, number>();
+
   for (const dateStr of destroyedDates) {
     // Track users already picked for earlier slots on this date.
     const selectedIds: number[] = [];
@@ -1814,7 +1831,13 @@ const lnsRepair = (
         if (filtered.length > 0) pool = filtered;
       }
 
-      const totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+      // Use cached eligible count per week to avoid recomputing O(U×7×availability) per date.
+      const weekKeyForEligible = getWeekKey(dateStr);
+      let totalEligibleCount = eligibleCountCache.get(weekKeyForEligible);
+      if (totalEligibleCount === undefined) {
+        totalEligibleCount = countEligibleUsersForWeek(users, schedule, dateStr);
+        eligibleCountCache.set(weekKeyForEligible, totalEligibleCount);
+      }
 
       // Weekly cap filter
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
@@ -1871,14 +1894,13 @@ const lnsRepair = (
       if (pool.length === 0) break;
 
       // Sort by the same comparator used in the greedy pass
-      const fairnessSchedule = getLogicSchedule(schedule, false);
       const compare = buildUserComparator(
         dateStr,
         schedule,
         dayWeights,
         options,
         undefined,
-        fairnessSchedule,
+        cachedFairnessSchedule,
         totalEligibleCount,
         pool,
         fairnessUsers
@@ -2001,15 +2023,21 @@ export const performMultiRestartOptimization = async (
   // responsive regardless of how fast restarts get.
   let lastYield = startTime;
 
-  // Minimum 250 restarts regardless of time budget
-  const MIN_RESTARTS = 250;
+  // Adaptive minimum restarts based on search space size.
+  // For small groups (3–5 users × 7–14 dates) the search space is tiny;
+  // 250 restarts mostly re-explore the same solutions. Scaling down avoids
+  // wasting 80%+ of the time on redundant iterations.
+  const searchSpaceSize = participants.length * autoFilledDates.length;
+  const MIN_RESTARTS = searchSpaceSize <= 50 ? 30 : searchSpaceSize <= 150 ? 80 : 250;
 
   // Stagnation detection: track unique solutions seen. If too many consecutive
   // restarts produce solutions we have already seen, assume the search space
   // is exhausted and stop early.
   const seenSolutions = new Set<string>();
   let duplicatesInRow = 0;
-  const MAX_DUPLICATES_IN_ROW = 80;
+  // Scale duplicate limit with search space size:
+  // Tiny graphs exit extremely fast if they hit the same solutions 20 times.
+  const MAX_DUPLICATES_IN_ROW = searchSpaceSize <= 50 ? 20 : searchSpaceSize <= 150 ? 40 : 80;
 
   const solutionFingerprint = (): string => {
     const parts: string[] = [];
@@ -2111,7 +2139,10 @@ export const performMultiRestartOptimization = async (
       }
     }
 
-    // Local search from perturbed/repaired state (sync, no UI yields)
+    // Local search from perturbed/repaired state (sync, no UI yields).
+    // Adaptive iteration cap: for small groups the search converges in
+    // 20–40 iterations; 200 wastes CPU. For large groups keep 200.
+    const miniOptIter = Math.max(20, Math.min(200, autoFilledDates.length * participants.length));
     syncMiniOptimize(
       autoFilledDates,
       participantMap,
@@ -2120,8 +2151,9 @@ export const performMultiRestartOptimization = async (
       users,
       dayWeights,
       minRest,
-      200,
-      options
+      miniOptIter,
+      options,
+      daysActiveCache
     );
 
     // Stagnation detection: check if this solution was already seen
