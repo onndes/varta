@@ -299,7 +299,7 @@ const buildWorkbook = ({
     filename = `varta_calendar_${sanitizeFilenamePart(`${fromDate}_${toDate}`)}.xlsx`;
   }
 
-  if (mode === 'duty-table') {
+  if (mode === 'duty-table' || mode === 'duty-table-with-stats') {
     XLSX.utils.book_append_sheet(
       workbook,
       buildDutyTableSheet(users, schedule, resolvedWeekDates, maxRowsPerPage, signatories),

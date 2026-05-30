@@ -1,9 +1,47 @@
 // 5. PRINT STYLES
 // print or screen
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║   НАЛАШТУВАННЯ ДРУКУ — ЗМІНЮЙ ЦЕЙ БЛОК ЩОБ ПІДЛАШТУВАТИ ВИГЛЯД          ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+//
+// ⚙️  ЩО ВІДОБРАЖАТИ у клітинках (символ Н, відпустки, тижнів) — у файлі:
+//     src/utils/printConfig.ts
+//
+// ── 1. СТОРІНКА ───────────────────────────────────────────────────────────────
+$print-page-size:       A4 landscape;   // 'A4 landscape' або 'A4 portrait'
+$print-page-margin:     5mm 8mm;        // поля: верх/низ  ліво/право (менше = більша таблиця)
+
+// ── 2. МАСШТАБ ТАБЛИЦІ ────────────────────────────────────────────────────────
+$print-table-font-size: 8.5pt;          // базовий шрифт (↑ крупніше, менше рядків на сторінці)
+$print-cell-padding:    1px 3px;        // відступи у клітинках (↑ перше число = рядки вищі)
+
+// ── 3. ШИРИНИ КОЛОНОК ─────────────────────────────────────────────────────────
+$print-col-num-width:   22px;           // колонка «№»
+$print-col-rank-width:  70px;           // колонка «Звання»
+$print-col-name-width:  200px;          // колонка «ПІБ» (фіксована; ↑ ширше, ↓ вужче)
+$print-col-day-width:   80px;           // ширина кожної колонки дня (↓ більше тижнів вміщується)
+
+// ── 4. ЗАГОЛОВКИ ТАБЛИЦІ ──────────────────────────────────────────────────────
+$print-th-font-size:    7.5pt;          // шрифт у рядку заголовків (дати / назви днів)
+$print-th-bg:           #f5f5f5;        // фон рядку заголовків
+
+// ── 5. КЛІТИНКА НАРЯДУ (буква «Н») ───────────────────────────────────────────
+$print-duty-bg:         #e2e8f0;        // фон закрашеної клітинки
+$print-duty-mark-size:  10pt;           // розмір букви «Н» (або 08:00)
+
+// ── 6. ВІДПУСТКА / ЛІКАРНЯНИЙ / ВІДРЯДЖЕННЯ ──────────────────────────────────
+$print-vacation-color:  #353535;        // колір тексту (#999 = бліді, #000 = чорний)
+$print-vacation-size:   6.25pt;         // розмір тексту
+
+// ── 7. СТАТИСТИКА — ЦИФРИ У КУТКАХ КЛІТИНОК ──────────────────────────────────
+$print-badge-size:      5.5pt;          // розмір цифрок
+$print-badge-opacity:   0.7;            // прозорість: 0.0 = невидимі, 1.0 = чіткі
+
 @media print {
   @page {
-    size: A4 landscape;
-    margin: 8mm 10mm;
+    size: #{$print-page-size};
+    margin: $print-page-margin;
   }
 
   * {
@@ -84,7 +122,7 @@
 
   // ===== PRINT HEADER =====
   .print-header-container {
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
 
   .print-top-row {
@@ -199,7 +237,7 @@
 
   // ===== PRINT FOOTER =====
   .print-footer-container {
-    margin-top: 40px;
+    margin-top: 40px; // відступ від таблиці до підписів
     width: 100%;
     break-before: avoid; // never orphan the footer — keep it with the last table row
     break-inside: avoid;
@@ -221,7 +259,7 @@
     font-size: 10pt;
     margin-bottom: 2px;
     word-wrap: break-word;
-    max-width: 400px;
+    max-width: 400px; 
   }
 
   .creator-filled-row {
@@ -327,61 +365,134 @@
 
   // ===== Duty Table (таблиця чергувань) =====
   .print-duty-table-wrapper {
-    margin-top: 10px;
+    margin-top: 4px;
   }
 
   .print-duty-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 10pt;
+    table-layout: fixed;          // фіксована розкладка: ширини колонок строго дотримуються
+    font-size: $print-table-font-size;
 
     th,
     td {
       border: 1px solid #000;
-      padding: 4px 6px;
+      padding: $print-cell-padding;
       text-align: center;
       vertical-align: middle;
     }
 
     th {
       font-weight: bold;
-      font-size: 9pt;
-      background-color: #f5f5f5 !important;
+      font-size: $print-th-font-size;
+      background-color: $print-th-bg !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
     .col-num {
-      width: 30px;
+      width: $print-col-num-width;
     }
 
     .col-rank {
-      width: 90px;
+      width: $print-col-rank-width;
       text-align: left;
       white-space: nowrap;
     }
 
     .col-name {
+      width: $print-col-name-width;
       text-align: left;
       white-space: nowrap;
+      overflow: hidden;
     }
 
     .col-day {
-      width: 105px;
-      font-size: 9pt;
+      width: $print-col-day-width;
+      font-size: $print-th-font-size;
     }
 
     .duty-highlight {
-      background-color: #4e4e4e !important;
+      background-color: $print-duty-bg !important;
+      color: #000000 !important;
       font-weight: bold;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-
+    // Відпустка / Лікарняний / Відрядження — колір
     .duty-status-highlight {
-      font-size: 8pt;
+      color: $print-vacation-color !important;
+    }
+
+    .duty-status-highlight .print-cell-main-text {
+      font-size: $print-vacation-size;
       font-style: normal;
       font-weight: 400;
+      line-height: 1.05;
+    }
+
+    .print-cell-main-text {
+      font-size: 12pt;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .duty-highlight .print-cell-main-text {
+      font-size: $print-duty-mark-size;
+      line-height: 1;
+    }
+
+    // ── Розмітка комірки з нарядом / статусом ───────────────────────────────
+    // Flex-column: рядок 1 (Н + кількість нарядів праворуч), рядок 2 (тижні тому знизу).
+    // .print-cell-bottom-row завжди рендериться при showStats=true —
+    // тому всі клітинки однакової висоти незалежно від наявності даних.
+    .print-duty-cell-wrapper {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    // Рядок 1: Н/Відпустка по центру; значок кількості — абсолютно справа
+    .print-cell-main-row {
+      flex: 1 !important;
+      min-height: 13px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+    }
+
+    // Рядок 2: тижні тому — завжди присутній div (резервує місце), текст праворуч знизу
+    .print-cell-bottom-row {
+      display: flex !important;
+      align-items: flex-end !important;
+      justify-content: flex-end !important;
+      min-height: 8px !important;
+    }
+
+    // Значок кількості нарядів — на рівні Н, абсолютно справа у рядку 1
+    .print-cell-badge-top-right {
+      position: absolute !important;
+      right: 1px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      font-size: $print-badge-size !important;
+      font-weight: normal !important;
+      color: #000000 !important;
+      opacity: $print-badge-opacity !important;
+      line-height: 1 !important;
+    }
+
+    // Значок тижнів тому — правий нижній кут; може бути довгим (1/2/3/4...)
+    .print-cell-badge-bottom-right {
+      text-align: right !important;
+      word-break: break-all !important;
+      font-size: $print-badge-size !important;
+      font-weight: normal !important;
+      color: #000000 !important;
+      opacity: $print-badge-opacity !important;
+      line-height: 1.1 !important;
     }
 
     // Anchor last row to the footer below — prevents footer orphaning on next page

@@ -292,13 +292,15 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
       {printMode === 'calendar' && (
         <PrintCalendar weekDates={weekDates} schedule={schedule} users={users} />
       )}
-      {printMode === 'duty-table' && (
+      {(printMode === 'duty-table' || printMode === 'duty-table-with-stats') && (
         <PrintDutyTable
           weekDates={weekDates}
           schedule={schedule}
           users={users}
           maxRowsPerPage={printMaxRows}
           showAllUsers={printDutyTableShowAllUsers}
+          showStats={printMode === 'duty-table-with-stats'}
+          dowHistoryWeeks={dowHistoryWeeks}
           footer={
             signatories.showCreatorFooter !== false ? (
               <PrintFooter signatories={signatories} />
@@ -319,7 +321,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
       )}
       {printMode !== 'status-list' &&
         printMode !== 'week-calendar-table' &&
-        printMode !== 'duty-table' && <PrintFooter signatories={signatories} />}
+        printMode !== 'duty-table' &&
+        printMode !== 'duty-table-with-stats' && <PrintFooter signatories={signatories} />}
 
       <ScheduleModals
         selectedCell={selectedCell}

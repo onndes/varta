@@ -1,6 +1,6 @@
 // src/types/index.ts
 
-export type PrintMode = 'calendar' | 'duty-table' | 'week-calendar-table' | 'status-list';
+export type PrintMode = 'calendar' | 'duty-table' | 'duty-table-with-stats' | 'week-calendar-table' | 'status-list';
 export type ScheduleDocumentMode = Exclude<PrintMode, 'status-list'>;
 
 export interface PrintWeekRange {

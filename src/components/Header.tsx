@@ -65,7 +65,7 @@ const Header: React.FC<HeaderProps> = ({
         <div className="btn-group">
           <button
             className="btn btn-dark btn-sm position-relative"
-            onClick={() => onPrint('duty-table')}
+            onClick={() => onPrint('duty-table-with-stats')}
           >
             <i className="fas fa-print me-1"></i>Друк
             {violationsCount > 0 && (
@@ -89,6 +89,11 @@ const Header: React.FC<HeaderProps> = ({
             <li>
               <button className="dropdown-item" onClick={() => onPrint('calendar')}>
                 <i className="fas fa-calendar-days me-2"></i>Графік (календар)
+              </button>
+            </li>
+            <li>
+              <button className="dropdown-item" onClick={() => onPrint('duty-table-with-stats')}>
+                <i className="fas fa-table-list me-2"></i>Графік (таблиця + статистика)
               </button>
             </li>
             <li>
