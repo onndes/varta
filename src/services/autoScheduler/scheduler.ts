@@ -112,8 +112,7 @@ const simulateForwardScore = (
     if (options.dutyPattern?.mode === 'block-rotation') {
       const continuationUsers = hardPool.filter(
         (user) =>
-          user.id != null &&
-          isBlockContinuation(user.id, futDate, sim, options.dutyPattern!)
+          user.id != null && isBlockContinuation(user.id, futDate, sim, options.dutyPattern!)
       );
       if (continuationUsers.length > 0) {
         pool = continuationUsers;
@@ -145,6 +144,15 @@ const simulateForwardScore = (
     if (filtered2.length > 0) pool = filtered2;
 
     const totalEligible = countEligibleUsersForWeek(users, sim, futDate);
+
+    // Weekly cap: must mirror the main greedy pipeline so the simulation
+    // never produces double-assignments that real greedy would forbid.
+    // Without this, lookahead scores a path where one person serves twice
+    // (lower rateSSE) as better than a path where everyone serves once.
+    if (options.limitOneDutyPerWeekWhenSevenPlus) {
+      const filtered = filterByWeeklyCap(pool, users, futDate, sim, options);
+      if (filtered.length > 0) pool = filtered;
+    }
 
     // Weekly fairness filters (same as main pipeline)
     if (
@@ -320,8 +328,8 @@ export const autoFillSchedule = async (
           const activeDutyUsers = hardPool.filter(
             (user) =>
               user.id != null &&
-              getBlockRotationPhase(user.id, dateStr, tempSchedule, options.dutyPattern!)
-                .phase === 'duty'
+              getBlockRotationPhase(user.id, dateStr, tempSchedule, options.dutyPattern!).phase ===
+                'duty'
           );
           if (activeDutyUsers.length > 0) {
             pool = activeDutyUsers;
@@ -353,12 +361,7 @@ export const autoFillSchedule = async (
       // Classic path is completely unaffected.
       if (options.dutyPattern?.mode === 'block-rotation') {
         const preBlockRotationPool = [...pool];
-        const brFiltered = filterByBlockRotation(
-          pool,
-          dateStr,
-          tempSchedule,
-          options.dutyPattern
-        );
+        const brFiltered = filterByBlockRotation(pool, dateStr, tempSchedule, options.dutyPattern);
         pool = brFiltered;
         const step = trackFilterStep('blockRotation', preBlockRotationPool, pool);
         step.wasFallback =

@@ -44,7 +44,7 @@ describe('autoScheduler fairness', () => {
     // Setup: 7 active users, 1 sick (excluded by hard eligibility)
     const users: User[] = [
       mkUser(1, 'Alpha'),
-      mkUser(2, 'Bravo', { status: 'SICK', statusFrom: '2026-04-01', statusTo: '2026-04-30' }),
+      mkUser(2, 'Bravo', { status: 'SICK', statusFrom: '2026-07-01', statusTo: '2026-07-31' }),
       mkUser(3, 'Charlie'),
       mkUser(5, 'Delta'),
       mkUser(6, 'Echo'),
@@ -53,27 +53,27 @@ describe('autoScheduler fairness', () => {
       mkUser(10, 'Hotel'),
     ];
 
-    // Previous week (week 15): each user served on a different day.
-    // Alpha served on Sunday (04-12) — this means sameWeekdayLastWeek
-    // will filter Alpha from Sunday 04-19 of week 16.
+    // Previous week: each user served on a different day.
+    // Alpha served on Sunday (07-12) — this means sameWeekdayLastWeek
+    // will filter Alpha from Sunday 07-19 of the target week.
     const schedule: Record<string, ScheduleEntry> = {
-      '2026-04-06': { date: '2026-04-06', userId: 5, type: 'auto' }, // Mon
-      '2026-04-07': { date: '2026-04-07', userId: 3, type: 'auto' }, // Tue
-      '2026-04-08': { date: '2026-04-08', userId: 9, type: 'auto' }, // Wed
-      '2026-04-09': { date: '2026-04-09', userId: 6, type: 'auto' }, // Thu
-      '2026-04-10': { date: '2026-04-10', userId: 10, type: 'auto' }, // Fri
-      '2026-04-11': { date: '2026-04-11', userId: 7, type: 'auto' }, // Sat
-      '2026-04-12': { date: '2026-04-12', userId: 1, type: 'auto' }, // Sun — Alpha
+      '2026-07-06': { date: '2026-07-06', userId: 5, type: 'auto' }, // Mon
+      '2026-07-07': { date: '2026-07-07', userId: 3, type: 'auto' }, // Tue
+      '2026-07-08': { date: '2026-07-08', userId: 9, type: 'auto' }, // Wed
+      '2026-07-09': { date: '2026-07-09', userId: 6, type: 'auto' }, // Thu
+      '2026-07-10': { date: '2026-07-10', userId: 10, type: 'auto' }, // Fri
+      '2026-07-11': { date: '2026-07-11', userId: 7, type: 'auto' }, // Sat
+      '2026-07-12': { date: '2026-07-12', userId: 1, type: 'auto' }, // Sun — Alpha
     };
 
     const week16Dates = [
-      '2026-04-13',
-      '2026-04-14',
-      '2026-04-15',
-      '2026-04-16',
-      '2026-04-17',
-      '2026-04-18',
-      '2026-04-19',
+      '2026-07-13',
+      '2026-07-14',
+      '2026-07-15',
+      '2026-07-16',
+      '2026-07-17',
+      '2026-07-18',
+      '2026-07-19',
     ];
 
     const options: AutoScheduleOptions = {
@@ -129,13 +129,13 @@ describe('autoScheduler fairness', () => {
     const schedule: Record<string, ScheduleEntry> = {};
 
     const week16Dates = [
-      '2026-04-13',
-      '2026-04-14',
-      '2026-04-15',
-      '2026-04-16',
-      '2026-04-17',
-      '2026-04-18',
-      '2026-04-19',
+      '2026-07-13',
+      '2026-07-14',
+      '2026-07-15',
+      '2026-07-16',
+      '2026-07-17',
+      '2026-07-18',
+      '2026-07-19',
     ];
 
     const options: AutoScheduleOptions = {

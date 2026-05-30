@@ -461,7 +461,23 @@ export const filterByWeeklyCap = (
     const assignedInWeek = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
     return assignedInWeek < getWeeklyAssignmentCap(u, options);
   });
-  return filtered.length >= 1 ? filtered : pool;
+  if (filtered.length >= 1) return filtered;
+
+  // Fallback: all pool members already have ≥1 duty this week.
+  // Instead of returning the full pool (which lets the comparator pick by DOW-balance,
+  // potentially choosing someone with 2 duties over someone with 1), return only
+  // users with the minimum weekly count so tie-breaking stays within the least-loaded.
+  const week2 = getWeekWindow(dateStr);
+  const withCounts = pool
+    .filter((u) => u.id != null)
+    .map((u) => ({
+      user: u,
+      count: countUserAssignmentsInRange(u.id!, schedule, week2.from, week2.to),
+    }));
+  if (withCounts.length === 0) return pool;
+  const minCount = Math.min(...withCounts.map((x) => x.count));
+  const minPool = withCounts.filter((x) => x.count === minCount).map((x) => x.user);
+  return minPool.length > 0 ? minPool : pool;
 };
 
 /**

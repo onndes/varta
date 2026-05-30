@@ -301,13 +301,20 @@ export const performSwapOptimization = async (
   }
 
   // Pre-compute week-eligible participant IDs once — constant for the entire run.
-  const weekEligibleIdsP2: number[] =
-    options.forceUseAllWhenFew || options.evenWeeklyDistribution
-      ? userIds.filter((uid) => {
-          const u = participantsMap.get(uid);
-          return u && autoFilledDates.some((ad) => isHardEligible(u, ad));
-        })
-      : [];
+  // needsWeeklyTrackingP2: also active when limitOneDutyPerWeekWhenSevenPlus is on.
+  // Previously, weekEligibleIdsP2 was empty for groups > MIN_USERS_FOR_WEEKLY_LIMIT
+  // (where forceUseAllWhenFew and evenWeeklyDistribution are both inactive), so the
+  // Phase 2 hard-cap guard was unreachable for exactly the groups that need it most.
+  const needsWeeklyTrackingP2 =
+    options.forceUseAllWhenFew ||
+    options.evenWeeklyDistribution ||
+    !!options.limitOneDutyPerWeekWhenSevenPlus;
+  const weekEligibleIdsP2: number[] = needsWeeklyTrackingP2
+    ? userIds.filter((uid) => {
+        const u = participantsMap.get(uid);
+        return u && autoFilledDates.some((ad) => isHardEligible(u, ad));
+      })
+    : [];
 
   // Throttled vis for showing every attempted swap (60fps max)
   const showAttempts13 = !!(onVis && options.schedulerVisShowAttempts);
@@ -548,6 +555,25 @@ export const performSwapOptimization = async (
               const candidateNewCount = preCandidateCount + 1;
               const minWeekCount = Math.min(...weekEligibleIdsP2.map((u) => wm?.get(u) ?? 0));
               if (candidateNewCount > minWeekCount + 1) {
+                tempSchedule[dateStr] = entry;
+                continue;
+              }
+            }
+
+            // Hard 1-duty-per-week cap for limitOneDutyPerWeekWhenSevenPlus.
+            // The balance guard above does NOT catch the case where all users already
+            // have 1 duty (candidateNewCount=2, minWeekCount=1, 2 > 1+1 = false).
+            // Without this, the optimizer can freely give a second duty to the candidate
+            // with the lowest loadRate (reducing rateSSE) when the objective improves.
+            if (
+              options.limitOneDutyPerWeekWhenSevenPlus &&
+              weekEligibleIdsP2.length >= MIN_USERS_FOR_WEEKLY_LIMIT &&
+              weeklyCountP2
+            ) {
+              const weekKey = getWeekKey(dateStr);
+              const wm = weeklyCountP2.get(weekKey);
+              const preCandidateCount = wm?.get(candidate.id!) ?? 0;
+              if (preCandidateCount >= 1) {
                 tempSchedule[dateStr] = entry;
                 continue;
               }
@@ -989,6 +1015,20 @@ export const performTabuSearch = async (
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
   const enforceWeeklyBalance = !!(options.forceUseAllWhenFew || options.evenWeeklyDistribution);
 
+  // Pre-compute eligible IDs for weekly cap enforcement.
+  // Built regardless of enforceWeeklyBalance so that limitOneDutyPerWeekWhenSevenPlus
+  // is enforced even when forceUseAllWhenFew and evenWeeklyDistribution are both inactive
+  // (group size > MIN_USERS_FOR_WEEKLY_LIMIT). Previously enforceWeeklyBalance=false for
+  // 8+ users made wouldViolateWeeklyBalance always return false, allowing Tabu Search to
+  // freely assign a second duty to any candidate whose loadRate reduced the objective.
+  const weekEligibleIdsTabu: number[] =
+    enforceWeeklyBalance || !!options.limitOneDutyPerWeekWhenSevenPlus
+      ? userIds.filter((uid) => {
+          const u = participantsMap.get(uid);
+          return u && autoFilledDates.some((ad) => isHardEligible(u, ad));
+        })
+      : [];
+
   if (autoFilledDates.length < 2 || participants.length < 2) return;
 
   // Pre-compute daysActive per participant once.
@@ -1238,7 +1278,15 @@ export const performTabuSearch = async (
                 users,
                 options.dutyPattern
               )) ||
-            wouldViolateIncompatiblePairs(candidate.id, dateStr, tempSchedule, users)
+            wouldViolateIncompatiblePairs(candidate.id, dateStr, tempSchedule, users) ||
+            // Hard 1-duty-per-week cap: reject if candidate already has ≥1 duty this week.
+            // weeklyCountCache holds pre-swap counts (correct for pre-assignment check).
+            // wouldViolateWeeklyBalance cannot catch this: it checks pre-swap global balance,
+            // not whether THIS candidate specifically gains a 2nd duty, and its
+            // enforceWeeklyBalance gate is false for groups > MIN_USERS_FOR_WEEKLY_LIMIT.
+            (options.limitOneDutyPerWeekWhenSevenPlus &&
+              weekEligibleIdsTabu.length >= MIN_USERS_FOR_WEEKLY_LIMIT &&
+              (weeklyCountCache.get(getWeekKey(dateStr))?.get(candidate.id) ?? 0) >= 1)
           )
             continue;
 
@@ -1479,17 +1527,25 @@ const syncMiniOptimize = (
 ): void => {
   const enforceWeeklyBalance = !!(options?.forceUseAllWhenFew || options?.evenWeeklyDistribution);
 
+  // needsWeeklyTracking: true when EITHER enforceWeeklyBalance OR limitOneDutyPerWeekWhenSevenPlus
+  // is active. Previously, weekEligibleIdsMini and weeklyCountMini were only built when
+  // enforceWeeklyBalance was true, leaving the limitOneDutyPerWeekWhenSevenPlus guard with an
+  // empty list (0 >= MIN_USERS_FOR_WEEKLY_LIMIT = false) and no count cache — meaning the optimizer
+  // could freely assign the same person twice per week when group size > MIN_USERS_FOR_WEEKLY_LIMIT
+  // (where forceUseAllWhenFew and evenWeeklyDistribution are both inactive).
+  const needsWeeklyTracking = enforceWeeklyBalance || !!options?.limitOneDutyPerWeekWhenSevenPlus;
+
   // Pre-compute once: week-eligible participant IDs and initial weekly count cache.
   // weeklyCountMini is updated incrementally after each accepted swap so we never
   // rescan Object.values(schedule) inside the hot balance-check path.
-  const weekEligibleIdsMini: number[] = enforceWeeklyBalance
+  const weekEligibleIdsMini: number[] = needsWeeklyTracking
     ? userIds.filter((u) => {
         const uCheck = participantMap.get(u);
         return uCheck && autoFilledDates.some((ad) => isHardEligible(uCheck, ad));
       })
     : [];
   const weeklyCountMini = new Map<string, Map<number, number>>();
-  if (enforceWeeklyBalance) {
+  if (needsWeeklyTracking) {
     for (const entry of Object.values(schedule)) {
       const wk = getWeekKey(entry.date);
       if (!weeklyCountMini.has(wk)) weeklyCountMini.set(wk, new Map());
@@ -1579,7 +1635,7 @@ const syncMiniOptimize = (
               // Keep weeklyCountMini in sync: pair swap moves user1 date1→date2
               // and user2 date2→date1. If dates span two different weeks, update
               // both week maps; if same week the net counts are unchanged.
-              if (enforceWeeklyBalance) {
+              if (needsWeeklyTracking) {
                 const wk1 = getWeekKey(date1);
                 const wk2 = getWeekKey(date2);
                 if (wk1 !== wk2) {
@@ -1646,7 +1702,7 @@ const syncMiniOptimize = (
 
           // Weekly balance guard: prevent giving a user more duties than minCount + 1.
           // Uses pre-built cache (O(U)) instead of scanning Object.values(schedule) (O(S×U)).
-          if (enforceWeeklyBalance) {
+          if (needsWeeklyTracking) {
             const weekKey = getWeekKey(dateStr);
             const wm = weeklyCountMini.get(weekKey);
             const preCandidateCount = wm?.get(uid) ?? 0;
@@ -1657,6 +1713,22 @@ const syncMiniOptimize = (
                 schedule[dateStr] = entry;
                 continue;
               }
+            }
+          }
+
+          // Hard 1-duty-per-week cap when ≥7 eligible users.
+          // The weeklyBalance guard above only checks relative balance (max − min ≤ 1),
+          // not whether the candidate already has ≥1 duty this week.
+          if (
+            options?.limitOneDutyPerWeekWhenSevenPlus &&
+            weekEligibleIdsMini.length >= MIN_USERS_FOR_WEEKLY_LIMIT
+          ) {
+            const wkKey = getWeekKey(dateStr);
+            const wm = weeklyCountMini.get(wkKey);
+            const candidateWeeklyCount = wm?.get(uid) ?? 0;
+            if (candidateWeeklyCount >= 1) {
+              schedule[dateStr] = entry;
+              continue;
             }
           }
 
@@ -1672,7 +1744,7 @@ const syncMiniOptimize = (
             baseObj = newObj;
             improved = true;
             // Update weekly count cache: assignedId lost a duty, uid gained one.
-            if (enforceWeeklyBalance) {
+            if (needsWeeklyTracking) {
               const wk = getWeekKey(dateStr);
               if (!weeklyCountMini.has(wk)) weeklyCountMini.set(wk, new Map());
               const wm = weeklyCountMini.get(wk)!;
@@ -1907,11 +1979,11 @@ const lnsRepair = (
       );
       pool.sort(compare);
 
-      // Pick randomly from top-3 to add exploration diversity across restarts.
-      // Pure greedy (always pool[0]) is deterministic and produces the same
-      // assignment every time given the same surrounding context.
-      const topN = Math.min(3, pool.length);
-      const picked = pool[Math.floor(Math.random() * topN)];
+      // lnsRepair must be deterministic: always pick pool[0] (sorted by comparator).
+      // Random top-N belongs in the perturbation step, not in the repair/greedy phase.
+      // Non-deterministic repair causes every LNS restart to produce a different
+      // starting point for syncMiniOptimize → different final schedule on each run.
+      const picked = pool[0];
       if (picked?.id) {
         selectedIds.push(picked.id);
       }

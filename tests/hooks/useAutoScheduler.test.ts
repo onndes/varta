@@ -48,13 +48,13 @@ describe('useAutoScheduler.generateWeekSchedule', () => {
 
   it('rebuilds a fresh schedule snapshot after clearing auto entries', async () => {
     const schedule: Record<string, ScheduleEntry> = {
-      '2026-04-14': { date: '2026-04-14', userId: 5, type: 'auto' },
-      '2026-04-20': { date: '2026-04-20', userId: 7, type: 'manual' },
+      '2026-07-14': { date: '2026-07-14', userId: 5, type: 'auto' },
+      '2026-07-20': { date: '2026-07-20', userId: 7, type: 'manual' },
     };
 
     vi.mocked(scheduleService.bulkDeleteSchedule).mockResolvedValue();
     vi.mocked(autoScheduler.autoFillSchedule).mockResolvedValue([
-      { date: '2026-04-14', userId: 1, type: 'auto' },
+      { date: '2026-07-14', userId: 1, type: 'auto' },
     ]);
     vi.mocked(autoScheduler.saveAutoSchedule).mockResolvedValue();
 
@@ -63,23 +63,24 @@ describe('useAutoScheduler.generateWeekSchedule', () => {
     );
 
     await act(async () => {
-      await result.current.generateWeekSchedule(['2026-04-14']);
+      await result.current.generateWeekSchedule(['2026-07-14']);
     });
 
-    expect(scheduleService.bulkDeleteSchedule).toHaveBeenCalledWith(['2026-04-14']);
+    expect(scheduleService.bulkDeleteSchedule).toHaveBeenCalledWith(['2026-07-14']);
     expect(autoScheduler.autoFillSchedule).toHaveBeenCalledWith(
-      ['2026-04-14'],
+      ['2026-07-14'],
       users,
-      { '2026-04-20': { date: '2026-04-20', userId: 7, type: 'manual' } },
+      { '2026-07-20': { date: '2026-07-20', userId: 7, type: 'manual' } },
       dayWeights,
       1,
       DEFAULT_AUTO_SCHEDULE_OPTIONS,
       false,
       expect.any(Function),
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      undefined
     );
     expect(autoScheduler.saveAutoSchedule).toHaveBeenCalledWith(
-      [{ date: '2026-04-14', userId: 1, type: 'auto' }],
+      [{ date: '2026-07-14', userId: 1, type: 'auto' }],
       dayWeights
     );
   });
