@@ -208,6 +208,8 @@ const UsersView: React.FC<UsersViewProps> = ({
           })()}
           firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
           allUsers={dutyUsers}
+          onStatsChanged={refreshData}
+          logAction={logAction}
         />
       )}
 

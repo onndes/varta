@@ -14,12 +14,6 @@ const WEIGHT_INPUT_WIDTH = '70px';
 const DUTIES_MIN = 1;
 const DUTIES_MAX = 10;
 
-// Debt cap constraints
-const DEBT_MIN = 1;
-const DEBT_MAX = 20;
-const DEBT_STEP = 0.5;
-const HIGH_DEBT_THRESHOLD = 10;
-const DEBT_DEFAULT = 4;
 
 // Day-of-week render order: Mon–Sat then Sun
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -38,21 +32,16 @@ interface LogicTabPanelProps {
   onPerDayChange: (n: number) => void;
   autoOpts: AutoScheduleOptions;
   onAutoOptsChange: (opts: AutoScheduleOptions) => void;
-  debt: number;
-  onDebtChange: (n: number) => void;
   ignoreHistory: boolean;
   onIgnoreHistoryChange: (b: boolean) => void;
   onApplyFirstDutyDates: () => void;
   birthdayOpts: BirthdayBlockOpts;
   onBirthdayOptsChange: (opts: BirthdayBlockOpts) => void;
-  karmaManual: boolean;
-  onKarmaManualChange: (b: boolean) => void;
-  onResetAllKarma: () => void;
 }
 
 /**
  * Logic tab — contains day weights, duties-per-day, first-duty-date sync,
- * auto-scheduler options, karma cap, and history-mode toggle.
+ * auto-scheduler options and history-mode toggle.
  */
 const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
   weights,
@@ -66,16 +55,11 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
   onPerDayChange,
   autoOpts,
   onAutoOptsChange,
-  debt,
-  onDebtChange,
   ignoreHistory,
   onIgnoreHistoryChange,
   onApplyFirstDutyDates,
   birthdayOpts,
   onBirthdayOptsChange,
-  karmaManual,
-  onKarmaManualChange,
-  onResetAllKarma,
 }) => (
   <>
     {/* Day Weights */}
@@ -255,68 +239,6 @@ const LogicTabPanel: React.FC<LogicTabPanelProps> = ({
 
     <AutoSchedulerOptionsCard autoOpts={autoOpts} onAutoOptsChange={onAutoOptsChange} />
 
-    {/* Karma / Debt Cap */}
-    <div className="card shadow-sm border-0 mb-4">
-      <div className="card-header bg-white py-3">
-        <h5 className="mb-0 fw-bold">
-          <i className="fas fa-shield-alt me-2"></i>Карма (ліміт боргу)
-        </h5>
-      </div>
-      <div className="card-body">
-        <div className="row">
-          <div className="col-md-4">
-            <label className="form-label fw-bold">
-              Максимальний борг
-              {debt > HIGH_DEBT_THRESHOLD && (
-                <span className="text-danger small fw-bold ms-2">(занадто високе значення!)</span>
-              )}
-            </label>
-            <input
-              type="number"
-              step={DEBT_STEP}
-              min={DEBT_MIN}
-              max={DEBT_MAX}
-              className="form-control"
-              value={debt}
-              onChange={(e) => onDebtChange(parseFloat(e.target.value) || DEBT_DEFAULT)}
-            />
-            <div className="form-text">
-              Максимальний від'ємний борг особи. Після досягнення цього ліміту борг не збільшується.
-              За замовчуванням: 4.0
-            </div>
-          </div>
-        </div>
-        <hr className="my-3" />
-        <div className="form-check form-switch">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            id="karmaOnManualChanges"
-            checked={karmaManual}
-            onChange={(e) => onKarmaManualChange(e.target.checked)}
-            style={{ cursor: 'pointer' }}
-          />
-          <label
-            className="form-check-label"
-            htmlFor="karmaOnManualChanges"
-            style={{ cursor: 'pointer' }}
-          >
-            <strong>Змінювати карму при ручних змінах</strong>
-            <div className="text-muted small">
-              Якщо вимкнено — перетягування, заміна, додавання та видалення дежурств адміністратором
-              не впливають на карму. За замовчуванням: вимкнено.
-            </div>
-          </label>
-        </div>
-        <hr className="my-3" />
-        <button type="button" className="btn btn-outline-danger btn-sm" onClick={onResetAllKarma}>
-          <i className="fas fa-eraser me-1"></i>Скинути карму у всіх
-        </button>
-        <div className="form-text mt-1">
-          Обнулить карму (борг та бонуси) та боргові дні для всіх осіб.
-        </div>
-      </div>
-    </div>
 
     {/* Birthday blocking */}
     <div className="card shadow-sm border-0 mb-4">

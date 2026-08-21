@@ -32,15 +32,14 @@
 11. [Global objective function Z](#11-global-objective-function-z)
 12. [Multi-phase swap optimization](#12-multi-phase-swap-optimization)
 13. [Vacations, trips, and statuses](#13-vacations-trips-and-statuses)
-14. [Karma system (debt / owedDays)](#14-karma-system-debt--oweddays)
-15. [Load Rate and Anti-Catch-Up](#15-load-rate-and-anti-catch-up)
-16. [Weekday weights](#16-weekday-weights)
-17. [Logic settings (AutoScheduleOptions)](#17-logic-settings-autoscheduleoptions)
-18. [Cascade recalculation](#18-cascade-recalculation)
-19. [DecisionLog - the "i" button](#19-decisionlog---the-i-button)
-20. [Multi-database (units)](#20-multi-database-units)
-21. [Export / Import](#21-export--import)
-22. [Run and build](#22-run-and-build)
+14. [Load Rate and Anti-Catch-Up](#14-load-rate-and-anti-catch-up)
+15. [Weekday weights](#15-weekday-weights)
+16. [Logic settings (AutoScheduleOptions)](#16-logic-settings-autoscheduleoptions)
+17. [Cascade recalculation](#17-cascade-recalculation)
+18. [DecisionLog - the "i" button](#18-decisionlog---the-i-button)
+19. [Multi-database (units)](#19-multi-database-units)
+20. [Export / Import](#20-export--import)
+21. [Run and build](#21-run-and-build)
 
 ---
 
@@ -51,7 +50,6 @@
 
 - user statuses (vacation, trip, sick leave, absence);
 - weekday weight coefficients (weekends are heavier than weekdays);
-- karma / debt - who missed or lost duties in the past;
 - incompatible pairs (do not place certain users on adjacent days);
 - blocked weekdays for a specific user;
 - multiple databases (units).
@@ -127,10 +125,6 @@ interface User {
   excludeFromAuto: boolean; // manual assignment only
   isExtra: boolean; // trainee/driver - manual only
 
-  // Karma
-  debt: number; // < 0 means the user "owes" duties to the system
-  owedDays: Record<string, number>; // debt for a specific weekday
-
   // Blocks
   blockedDays: number[]; // ISO DOW: 1=Mon ... 7=Sun
   blockedDaysFrom?: string;
@@ -196,9 +190,9 @@ Main screen. Includes:
 | Button                   | Action                                                          |
 | ------------------------ | --------------------------------------------------------------- |
 | `← / → / Today`          | Week navigation                                                 |
-| `Fill gaps`              | Auto-fill empty days                                            |
+| `Fill gaps`              | Auto-fill empty days (shows a pre-generation summary first)     |
 | `Fix conflicts`          | Fix unavailable assignees or explicitly keep them as exceptions |
-| `Generate week`          | Full regeneration of the current week                           |
+| `Generate week`          | Full regeneration of the current week (with pre-generation summary) |
 | `Clear week`             | Delete all assignments for the current week                     |
 | `Optimization (cascade)` | Recalculate forward starting from a change date                 |
 | `↩ / ↪`                  | Undo / Redo (up to 25 steps, Ctrl+Z / Ctrl+Y)                   |
@@ -208,7 +202,7 @@ Main screen. Includes:
   20 users, it switches to a **day-centric** mode (one column = list of users for that day).
 
 - **AssignmentModal** - assignment modal with `Replace / Swap / Remove`, a list of free users with
-  metrics (load, wait days, debts), and search filtering.
+  metrics (load, wait days), and search filtering.
 
 ### Personnel (UsersView)
 
@@ -216,7 +210,7 @@ Personnel table (active + inactive), editing, deletion, and **UserStatsModal** f
 
 ### Statistics (StatsView)
 
-All-user table: number of duties, weighted load, debt, last duty date, and availability status.
+All-user table: number of duties, weighted load, last duty date, and availability status.
 
 ### Settings (SettingsView)
 
@@ -230,7 +224,7 @@ All actions with filtering by type. Log cleanup for entries older than 90 days.
 ### Dev (DevTools)
 
 Developer tools tab (always visible). Contains: data generators, test scenarios (standard group,
-vacations, blocked days, incompatible pairs, small group, debt/karma), schedule generator with
+vacations, blocked days, incompatible pairs, small group), schedule generator with
 fairness statistics, quick user status editor, chaos mode, and database wipe.
 
 ---
@@ -282,6 +276,10 @@ User clicks "Fill gaps"
     ↓
 useScheduleActions.runFillGaps()
     ↓
+confirmGeneration() -> pre-generation summary modal: status periods,
+    auto-exclusions, blocked weekdays, low weekly pool warning.
+    Cancel aborts; skipped when confirmBeforeGeneration is off.
+    ↓
 pushHistory() -> save snapshot for undo
     ↓
 useAutoScheduler.fillGaps(dates)
@@ -332,7 +330,7 @@ After hard constraints, the candidate pool goes through soft filters:
 | ------------------ | ------------------------------ | ----------------------------------------------------------- |
 | Rest Days          | `filterByRestDays`             | Excludes users who served within `minRestDays`              |
 | Incompatible Pairs | `filterByIncompatiblePairs`    | Checks adjacent dates for incompatible pairs                |
-| Weekly Cap         | `filterByWeeklyCap`            | For >=7 users: max 1 duty per week (debt users excepted)    |
+| Weekly Cap         | `filterByWeeklyCap`            | For >=7 users: max 1 duty per week                          |
 | Force Use All      | `filterForceUseAllWhenFew`     | With a small pool, only users with 0 duties this week       |
 | Even Distribution  | `filterEvenWeeklyDistribution` | With a small pool, only users with minimum duties this week |
 | Same Weekday       | `filterBySameWeekdayLastWeek`  | Excludes users who served the same DOW in the previous week |
@@ -357,7 +355,7 @@ The comparator (`buildUserComparator`) compares two candidates across 12 feature
 | 4   | DOW Recency            | Tie-break          | More days since the last assignment on this DOW -> higher                           |
 | 5   | Remaining Availability | forceUse mode      | Fewer remaining available days -> higher urgency                                    |
 | 6   | Load Rate              | Anti-catch-up      | `Rate = assignments / daysActive` — lower rate first                                |
-| 7   | Effective Load         | Weighted balance   | `Load + debt` when `considerLoad` is enabled                                        |
+| 7   | Duty Load              | Weighted balance   | `calculateUserLoad` when `considerLoad` is enabled                                  |
 | 8   | Wait Days              | Tie-break          | More days since the last duty -> higher                                             |
 | 9   | Stable ID              | Determinism        | `a.id - b.id` for reproducibility                                                   |
 
@@ -497,39 +495,7 @@ This **compensation memory** is an emergent property of the scoring system, not 
 
 ---
 
-## 14. Karma system (debt / owedDays)
-
-**Karma** tracks user debt and restores fairness after irregular events.
-
-### Fields
-
-| Field                          | Description                                    |
-| ------------------------------ | ---------------------------------------------- |
-| `debt: number`                 | Overall debt: `< 0` means the user owes duties |
-| `owedDays: Record<DOW, count>` | Debt for a specific weekday                    |
-
-### How debt changes
-
-| Event                                  | Change                                    |
-| -------------------------------------- | ----------------------------------------- |
-| Removed from duty (`reason='request'`) | `debt -= dayWeight`, `owedDays[dayIdx]++` |
-| Removed from duty (`reason='work'`)    | Karma does not change                     |
-| Auto-assigned on the owed weekday      | `owedDays[dayIdx]--`, `debt += weight`    |
-| Moved to a heavier weekday             | `debt += (toWeight - fromWeight)`         |
-| Manual debt reset                      | `debt = 0`                                |
-
-> **Limit:** `debt` is capped from below by `-maxDebt`.
-
-### How it affects the scheduler
-
-- **Comparator priority:** debt users receive priority when `respectOwedDays = true`
-- **Extended weekly cap:** with `allowDebtUsersExtraWeeklyAssignments = true`, debt users may serve
-  more frequently (up to `debtUsersWeeklyLimit` duties per week)
-- **Faster repayment:** `prioritizeFasterDebtRepayment = true` raises their priority further
-
----
-
-## 15. Load Rate and Anti-Catch-Up
+## 14. Load Rate and Anti-Catch-Up
 
 ### Load Rate formula
 
@@ -566,7 +532,7 @@ lost time. They simply return to the normal rotation.
 
 ---
 
-## 16. Weekday weights
+## 15. Weekday weights
 
 Default weights:
 
@@ -601,7 +567,7 @@ absence).
 
 ---
 
-## 17. Logic settings (AutoScheduleOptions)
+## 16. Logic settings (AutoScheduleOptions)
 
 Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 
@@ -610,14 +576,10 @@ Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 | `avoidConsecutiveDays`                 | Avoid adjacent duties (`filterByRestDays`)                                                      |
 | `minRestDays`                          | Minimum rest in days (1 = not back-to-back, 2 = every other day)                                |
 | `dutyPattern`                          | Optional duty pattern mode: classic single duties or block rotation (`N` duty days + `M` rest) |
-| `respectOwedDays`                      | Prioritize users with `owedDays` for the current weekday                                        |
 | `considerLoad`                         | Include load in sorting                                                                         |
 | `aggressiveLoadBalancing`              | Force balancing when load gaps become too large                                                 |
 | `aggressiveLoadBalancingThreshold`     | Gap threshold for aggressive balancing (0.2 = 20%)                                              |
 | `limitOneDutyPerWeekWhenSevenPlus`     | 1 duty per week when 7+ users are available                                                     |
-| `allowDebtUsersExtraWeeklyAssignments` | Debt users may serve more often                                                                 |
-| `debtUsersWeeklyLimit`                 | Maximum weekly duties for debt users (1-4)                                                      |
-| `prioritizeFasterDebtRepayment`        | Speed up debt repayment                                                                         |
 | `forceUseAllWhenFew`                   | With <=7 users, rotate through everyone                                                         |
 | `evenWeeklyDistribution`               | With <=7 users, nobody gets N+1 duties while another has N                                      |
 | `ignoreHistoryInLogic`                 | Exclude `history` / `import` entries from load calculations                                     |
@@ -631,10 +593,12 @@ Central algorithm config used by `autoFillSchedule` and `buildUserComparator`:
 | `multiRestartStrategy`                 | Perturbation strategy: `'pair-swap'` or `'lns'`                                                 |
 | `multiRestartTimeLimitMode`            | `'fixed'` (timed) or `'unlimited'` (until user presses Stop)                                    |
 | `prioritizeAfterWeekOff`               | Give mild priority to users who missed the previous week. Scales down for groups >7, off at ≥14 |
+| `forceOverrideAccounting`              | How force-assignments on blocked/unavailable days count in fairness: `'normal'` (regular duty), `'neutral'` (invisible to fairness) |
+| `confirmBeforeGeneration`              | Show a pre-generation summary modal (status periods, auto-exclusions, blocked weekdays, low weekly pool warning) with Continue/Cancel before «Generate» / «Fill gaps» (default: on) |
 
 ---
 
-## 18. Cascade recalculation
+## 17. Cascade recalculation
 
 When a user or schedule change happens, the system stores `cascadeStartDate`. The control panel then
 shows an **Optimization** button.
@@ -650,7 +614,7 @@ Manual entries (`manual` / `replace` / `swap`) are **not affected**.
 
 ---
 
-## 19. DecisionLog - the "i" button
+## 18. DecisionLog - the "i" button
 
 Each auto-generated `ScheduleEntry` contains a `decisionLog` field that explains **why this user**
 was assigned to this date.
@@ -683,7 +647,7 @@ Assigned on Wednesday because:
 
 ---
 
-## 20. Multi-database (units)
+## 19. Multi-database (units)
 
 - Each unit is stored in a **separate IndexedDB database** with its own users, schedule, and
   settings
@@ -693,7 +657,7 @@ Assigned on Wednesday because:
 
 ---
 
-## 21. Export / Import
+## 20. Export / Import
 
 Backups are stored as JSON files. Versions `v6`, `v7`, and `v8` are supported.
 
@@ -710,7 +674,7 @@ appears if more than 3 days have passed since the last export.
 
 ---
 
-## 22. Run and build
+## 21. Run and build
 
 ### Development
 

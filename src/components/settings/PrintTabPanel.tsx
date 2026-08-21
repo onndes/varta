@@ -15,6 +15,8 @@ interface PrintTabPanelProps {
   onMaxRowsChange: (n: number) => void;
   printAllUsers: boolean;
   onPrintAllUsersChange: (value: boolean) => void;
+  skipAbsent: boolean;
+  onSkipAbsentChange: (value: boolean) => void;
   onExportExcel: (mode: ScheduleDocumentMode) => void;
 }
 
@@ -29,6 +31,8 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
   onMaxRowsChange,
   printAllUsers,
   onPrintAllUsersChange,
+  skipAbsent,
+  onSkipAbsentChange,
   onExportExcel,
 }) => (
   <>
@@ -282,6 +286,23 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
           </label>
         </div>
 
+        <div className="form-check form-switch mb-4">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="printSkipFullyAbsent"
+            checked={skipAbsent}
+            onChange={(e) => onSkipAbsentChange(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="printSkipFullyAbsent">
+            <strong>Не друкувати тих, хто весь тиждень відсутній</strong>
+            <div className="text-muted small">
+              Пропускає осіб, які всі дні тижня у відпустці / на лікуванні / у відрядженні та не
+              мають жодного наряду — так графік частіше вміщується на один аркуш.
+            </div>
+          </label>
+        </div>
+
         <div className="row">
           <div className="col-md-5">
             <label className="form-label fw-bold">Максимум осіб на сторінці</label>
@@ -301,8 +322,10 @@ const PrintTabPanel: React.FC<PrintTabPanelProps> = ({
               }
             />
             <div className="form-text">
-              Ліміт рядків для однієї сторінки. Якщо друкувати всіх, таблиця буде розбита на
-              декілька сторінок.
+              Скільки рядків вміщується на сторінці за звичайного розміру шрифту. Якщо людей трохи
+              більше — таблиця автоматично ущільниться (до ×1.6 рядків), щоб усі влізли на один
+              аркуш. Якщо і так не вміщується — люди розподіляться між сторінками рівномірно, щоб на
+              останній не залишалось 1–2 особи.
             </div>
           </div>
         </div>

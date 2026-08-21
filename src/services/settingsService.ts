@@ -14,9 +14,9 @@ import {
   DEFAULT_SIGNATORIES,
   DEFAULT_DUTIES_PER_DAY,
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
-  DEFAULT_MAX_DEBT,
   DEFAULT_PRINT_MAX_ROWS,
   DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS,
+  DEFAULT_PRINT_SKIP_FULLY_ABSENT,
   DEFAULT_DOW_HISTORY_WEEKS,
   DEFAULT_DOW_HISTORY_MODE,
   DEFAULT_BIRTHDAY_BLOCK_OPTS,
@@ -89,11 +89,13 @@ export const getPrintDutyTableShowAllUsers = async (): Promise<boolean> =>
 export const savePrintDutyTableShowAllUsers = async (value: boolean): Promise<void> =>
   saveSetting('printDutyTableShowAllUsers', value);
 
+export const getPrintSkipFullyAbsent = async (): Promise<boolean> =>
+  getJsonSetting('printSkipFullyAbsent', DEFAULT_PRINT_SKIP_FULLY_ABSENT);
+
+export const savePrintSkipFullyAbsent = async (value: boolean): Promise<void> =>
+  saveSetting('printSkipFullyAbsent', value);
+
 // ── Scalar settings ───────────────────────────────────────────────────
-
-export const getMaxDebt = async (): Promise<number> => getJsonSetting('maxDebt', DEFAULT_MAX_DEBT);
-
-export const saveMaxDebt = async (value: number): Promise<void> => saveSetting('maxDebt', value);
 
 export const getDutiesPerDay = async (): Promise<number> =>
   getJsonSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
@@ -136,14 +138,6 @@ export const getBirthdayBlockOpts = async (): Promise<BirthdayBlockOpts> =>
 
 export const saveBirthdayBlockOpts = async (opts: BirthdayBlockOpts): Promise<void> =>
   saveSetting('birthdayBlockOpts', opts);
-
-// ── Karma on manual changes ───────────────────────────────────────────────
-
-export const getKarmaOnManualChanges = async (): Promise<boolean> =>
-  getJsonSetting('karmaOnManualChanges', false);
-
-export const saveKarmaOnManualChanges = async (value: boolean): Promise<void> =>
-  saveSetting('karmaOnManualChanges', value);
 
 // ── Dev banner ────────────────────────────────────────────────────────────────
 
@@ -252,11 +246,10 @@ export const resetAllSettings = async (): Promise<void> => {
   await saveSetting('cascadeStartDate', null);
   await saveSetting('dutiesPerDay', DEFAULT_DUTIES_PER_DAY);
   await saveSetting('autoScheduleOptions', DEFAULT_AUTO_SCHEDULE_OPTIONS);
-  await saveSetting('maxDebt', DEFAULT_MAX_DEBT);
   await saveSetting('printMaxRows', DEFAULT_PRINT_MAX_ROWS);
   await saveSetting('printDutyTableShowAllUsers', DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS);
+  await saveSetting('printSkipFullyAbsent', DEFAULT_PRINT_SKIP_FULLY_ABSENT);
   await saveSetting('ignoreHistoryInLogic', false);
   await saveSetting('uiScale', 100);
-  await saveSetting('karmaOnManualChanges', false);
   // theme is intentionally NOT reset — user preference
 };

@@ -123,6 +123,13 @@
     border: 2px dashed var(--app-cell-history-border, #818cf8);
   }
 
+  // Наряд, прихований обнуленням статистики: видно в графіку, але не рахується.
+  &.stats-hidden-entry {
+    opacity: 0.45;
+    filter: grayscale(1);
+    font-style: italic;
+  }
+
   // ── Drag & Drop states ────────────────────────────────────────────────────
 
   &.can-drag {
@@ -215,6 +222,147 @@
     background: transparent;
     border: none;
     opacity: 0.42;
+  }
+}
+
+// ─── М'яка позначка «норма тижня виконана» ──────────────────────────────────
+// Не блокує клік — лише візуально відділяє тих, хто вже чергував цього тижня,
+// від тих, хто ще вільний.
+
+.compact-cell.week-cap-soft {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(108, 117, 125, 0.14) 0,
+    rgba(108, 117, 125, 0.14) 2px,
+    transparent 2px,
+    transparent 7px
+  );
+  color: color-mix(in srgb, var(--bs-body-color, #495057) 55%, transparent);
+
+  &:hover {
+    background-color: var(--app-cell-hover, #e3f2fd);
+    background-image: none;
+  }
+}
+
+.week-cap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.35rem;
+  font-size: 0.55rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--bs-secondary-color, #6c757d);
+  background: rgba(108, 117, 125, 0.12);
+  border: 1px solid rgba(108, 117, 125, 0.25);
+  cursor: help;
+
+  i {
+    font-size: 0.5rem;
+    opacity: 0.8;
+  }
+}
+
+[data-bs-theme='dark'] .compact-cell.week-cap-soft {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.09) 0,
+    rgba(255, 255, 255, 0.09) 2px,
+    transparent 2px,
+    transparent 7px
+  );
+}
+
+// ─── Навантаження (індекс: 100 = середнє по підрозділу) ─────────────────────
+
+.workload-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+  cursor: help;
+
+  i {
+    font-size: 0.55rem;
+    opacity: 0.75;
+  }
+
+  .workload-badge-detail {
+    font-weight: 400;
+    opacity: 0.7;
+    font-size: 0.55rem;
+  }
+}
+
+.workload-cell-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
+.workload-badge,
+.workload-cell-badge {
+  &.band-low {
+    color: #157347;
+  }
+
+  &.band-mid {
+    color: var(--bs-body-color, #495057);
+  }
+
+  &.band-none {
+    color: var(--bs-secondary-color, #6c757d);
+    opacity: 0.75;
+  }
+
+  &.band-high {
+    color: #b02a37;
+  }
+}
+
+.workload-badge {
+  &.band-low {
+    background: rgba(25, 135, 84, 0.12);
+    border-color: rgba(25, 135, 84, 0.3);
+  }
+
+  &.band-mid,
+  &.band-none {
+    background: rgba(108, 117, 125, 0.12);
+    border-color: rgba(108, 117, 125, 0.28);
+  }
+
+  &.band-high {
+    background: rgba(220, 53, 69, 0.12);
+    border-color: rgba(220, 53, 69, 0.32);
+  }
+}
+
+[data-bs-theme='dark'] {
+  .workload-badge.band-low,
+  .workload-cell-badge.band-low {
+    color: #75d69c;
+  }
+
+  .workload-badge.band-high,
+  .workload-cell-badge.band-high {
+    color: #ff8a95;
   }
 }
 

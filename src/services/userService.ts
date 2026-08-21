@@ -2,7 +2,7 @@
 
 import { db } from '../db/db';
 import type { User, ScheduleEntry, BirthdayBlockOpts } from '../types';
-import { DEFAULT_MAX_DEBT, DEFAULT_BIRTHDAY_BLOCK_OPTS } from '../utils/constants';
+import { DEFAULT_BIRTHDAY_BLOCK_OPTS } from '../utils/constants';
 import { toLocalISO } from '../utils/dateUtils';
 import { getStatusPeriodAtDate, getUserStatusPeriods } from '../utils/userStatus';
 import { isDateBlockedByPeriod } from '../utils/userBlockedDays';
@@ -237,87 +237,72 @@ export const deleteUser = async (id: number): Promise<string[]> => {
   return affectedDates;
 };
 
+// ─── Обнулення статистики з обраної дати ──────────────────────────────────
+
 /**
- * Reset user debt (karma) to 0
+ * М'яке обнулення: наряди до `fromDate` лишаються в базі та в сітці графіка,
+ * але зникають з усіх підрахунків. `undefined` — повернути все назад.
  */
-export const resetUserDebt = async (id: number): Promise<void> => {
-  await db.users.update(id, { debt: 0 });
+export const setStatsHiddenBefore = async (
+  id: number,
+  fromDate: string | undefined
+): Promise<void> => {
+  await db.users
+    .where('id')
+    .equals(id)
+    .modify((user: User) => {
+      if (fromDate) user.statsHiddenBefore = fromDate;
+      else delete user.statsHiddenBefore;
+    });
 };
 
 /**
- * Reset karma (debt + owedDays) for ALL users to zero.
+ * Безповоротне обнулення: усі наряди бійця до `fromDate` видаляються з бази,
+ * а датою включення в облік стає `fromDate`.
+ * Повертає дати, яких торкнулося видалення (для каскадного перерахунку).
  */
-export const resetAllKarma = async (): Promise<void> => {
-  const users = await db.users.toArray();
-  await db.transaction('rw', db.users, async () => {
-    for (const u of users) {
-      if (u.id != null && (u.debt !== 0 || (u.owedDays && Object.keys(u.owedDays).length > 0))) {
-        await db.users.update(u.id, { debt: 0, owedDays: {} });
+export const hardResetUserStats = async (id: number, fromDate: string): Promise<string[]> => {
+  const affectedDates: string[] = [];
+
+  await db.transaction('rw', db.schedule, db.users, async () => {
+    const allSchedule = await db.schedule.toArray();
+    for (const entry of allSchedule) {
+      if (entry.date >= fromDate || !entry.userId) continue;
+      const userIds = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
+      if (!userIds.includes(id)) continue;
+
+      affectedDates.push(entry.date);
+      const remaining = userIds.filter((uid) => uid !== id);
+      if (remaining.length === 0) {
+        await db.schedule.delete(entry.date);
+      } else {
+        await db.schedule.update(entry.date, {
+          userId: remaining.length === 1 ? remaining[0] : remaining,
+        });
       }
     }
+
+    await db.users
+      .where('id')
+      .equals(id)
+      .modify((user: User) => {
+        user.dateAddedToAuto = fromDate;
+        user.statsResetAt = fromDate;
+        delete user.statsHiddenBefore;
+      });
   });
+
+  return affectedDates;
 };
 
-/**
- * Update user debt/karma (capped at -MAX_DEBT..0 range for negative, uncapped for positive)
- * Negative = soldier owes system (was removed by request)
- * Positive = soldier helped out (manually assigned to harder day)
- */
-export const updateUserDebt = async (
-  id: number,
-  amount: number,
-  maxDebt?: number
-): Promise<void> => {
-  const user = await db.users.get(id);
-  if (user) {
-    const cap = maxDebt ?? DEFAULT_MAX_DEBT;
-    const rawDebt = Number(((user.debt || 0) + amount).toFixed(2));
-    const newDebt = Math.max(-cap, rawDebt);
-    await db.users.update(id, { debt: newDebt });
-  }
-};
-
-/**
- * Update owed days for user
- */
-export const updateOwedDays = async (
-  id: number,
-  dayIndex: number,
-  increment: number
-): Promise<void> => {
-  const user = await db.users.get(id);
-  if (user) {
-    const owedDays = user.owedDays || {};
-    owedDays[dayIndex] = (owedDays[dayIndex] || 0) + increment;
-    await db.users.update(id, { owedDays });
-  }
-};
-
-/**
- * Погасити борг за конкретний день тижня (owedDays[dayIdx]--)
- * та відновити карму на вагу цього дня.
- * Викликається і при авто-призначенні, і при ручному.
- * @returns true якщо борг був і погашено, false якщо нічого не було
- */
-export const repayOwedDay = async (
-  userId: number,
-  dayIdx: number,
-  weight: number
-): Promise<boolean> => {
-  const user = await db.users.get(userId);
-  if (!user || !user.owedDays || !user.owedDays[dayIdx] || user.owedDays[dayIdx] <= 0) {
-    return false;
-  }
-  // Зменшити борг за цей день тижня
-  user.owedDays[dayIdx]--;
-  await db.users.update(userId, { owedDays: user.owedDays });
-
-  // Відновити карму (наближаємо до 0, не перевищуючи)
-  if (user.debt < 0) {
-    const newDebt = Math.min(0, Number((user.debt + weight).toFixed(2)));
-    await db.users.update(userId, { debt: newDebt });
-  }
-  return true;
+/** Скільки нарядів боєць має до вказаної дати (для попередження перед обнуленням). */
+export const countDutiesBefore = async (id: number, fromDate: string): Promise<number> => {
+  const allSchedule = await db.schedule.toArray();
+  return allSchedule.filter((entry) => {
+    if (entry.date >= fromDate || !entry.userId) return false;
+    const ids = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
+    return ids.includes(id);
+  }).length;
 };
 
 /**

@@ -39,10 +39,10 @@ export interface ScheduleModalsProps {
   setSwapMode: (mode: SwapMode) => void;
   pendingAssignConfirm: PendingAssignConfirm | null;
   setPendingAssignConfirm: (val: PendingAssignConfirm | null) => void;
-  executeAssign: (userId: number, penalize?: boolean, isForced?: boolean) => void;
-  handleAssign: (userId: number, penalize: boolean) => Promise<void>;
+  executeAssign: (userId: number, isForced?: boolean) => void;
+  handleAssign: (userId: number) => Promise<void>;
   handleSwap: (swapUserId: number, swapDate: string) => Promise<void>;
-  handleRemove: (reason: 'request' | 'work') => Promise<void>;
+  handleRemove: () => Promise<void>;
   // Schedule data
   users: User[];
   schedule: Record<string, ScheduleEntry>;
@@ -52,7 +52,7 @@ export interface ScheduleModalsProps {
   getFreeUsers: (dateStr: string, includeRestDay?: boolean) => User[];
   getWeekAssignedUsers: (dateStr: string) => User[];
   daysSinceLastDuty: (userId: number, refDate: string) => number;
-  calculateEffectiveLoad: (user: User) => number;
+  calculateLoad: (user: User) => number;
   // Import modal
   showImportModal: boolean;
   setShowImportModal: (v: boolean) => void;
@@ -93,7 +93,7 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
   getFreeUsers,
   getWeekAssignedUsers,
   daysSinceLastDuty,
-  calculateEffectiveLoad,
+  calculateLoad,
   showImportModal,
   setShowImportModal,
   logAction,
@@ -122,9 +122,9 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
         weekDates={weekDates}
         swapMode={swapMode}
         onSetSwapMode={setSwapMode}
-        onAssign={(userId, penalize) => handleAssign(userId, penalize)}
+        onAssign={(userId) => void handleAssign(userId)}
         onSwap={handleSwap}
-        onRemove={handleRemove}
+        onRemove={() => void handleRemove()}
         onClose={() => {
           setPendingAssignConfirm(null);
           setSelectedCell(null);
@@ -135,7 +135,7 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
           const prevEntry = schedule[toLocalISO(prevDate)];
           return prevEntry ? toAssignedUserIds(prevEntry.userId).includes(userId) : false;
         }}
-        calculateEffectiveLoad={calculateEffectiveLoad}
+        calculateLoad={calculateLoad}
         daysSinceLastDuty={daysSinceLastDuty}
         hasEntry={!!selectedCell.entry}
         historyMode={historyMode}
@@ -157,13 +157,7 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
       pending={pendingAssignConfirm}
       targetDate={selectedCell?.date || ''}
       users={users}
-      onConfirm={(userId) =>
-        executeAssign(
-          userId,
-          pendingAssignConfirm?.penalizeReplaced,
-          pendingAssignConfirm?.isForced
-        )
-      }
+      onConfirm={(userId) => executeAssign(userId, pendingAssignConfirm?.isForced)}
       onClose={() => {
         setPendingAssignConfirm(null);
         setSelectedCell(null);
@@ -184,6 +178,8 @@ const ScheduleModals: React.FC<ScheduleModalsProps> = ({
         })()}
         firstDutyDate={editingUser.id ? getFirstDutyDate(schedule, editingUser.id) : undefined}
         allUsers={users}
+        onStatsChanged={refreshData}
+        logAction={logAction}
       />
     )}
 

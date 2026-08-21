@@ -6,8 +6,6 @@ import {
   getWeekWindow,
   getDatesInRange,
   daysSinceLastAssignment,
-  hasDebtBacklog,
-  getDebtRepaymentScore,
   computeDaysActive,
   computeUserLoadRate,
   calculateUserFairnessIndex,
@@ -21,8 +19,6 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   rank: 'Солдат',
   status: 'ACTIVE',
   isActive: true,
-  debt: 0,
-  owedDays: {},
   ...overrides,
 });
 
@@ -342,81 +338,6 @@ describe('daysSinceLastAssignment', () => {
       '2026-03-12': { date: '2026-03-12', userId: 1, type: 'auto' },
     };
     expect(daysSinceLastAssignment(1, schedule, '2026-03-10')).toBe(Infinity);
-  });
-});
-
-// ─── hasDebtBacklog ────────────────────────────────────────────────
-
-describe('hasDebtBacklog', () => {
-  it('немає боргу → false', () => {
-    const user = makeUser({ debt: 0, owedDays: {} });
-    expect(hasDebtBacklog(user)).toBe(false);
-  });
-
-  it("від'ємна карма → true", () => {
-    const user = makeUser({ debt: -2 });
-    expect(hasDebtBacklog(user)).toBe(true);
-  });
-
-  it('додатна карма, без owedDays → false', () => {
-    const user = makeUser({ debt: 1, owedDays: {} });
-    expect(hasDebtBacklog(user)).toBe(false);
-  });
-
-  it('owedDays > 0 → true', () => {
-    const user = makeUser({ debt: 0, owedDays: { 1: 2 } });
-    expect(hasDebtBacklog(user)).toBe(true);
-  });
-
-  it('owedDays = 0 для всіх днів → false', () => {
-    const user = makeUser({ debt: 0, owedDays: { 1: 0, 3: 0 } });
-    expect(hasDebtBacklog(user)).toBe(false);
-  });
-
-  it("від'ємна карма + owedDays → true", () => {
-    const user = makeUser({ debt: -1, owedDays: { 5: 1 } });
-    expect(hasDebtBacklog(user)).toBe(true);
-  });
-});
-
-// ─── getDebtRepaymentScore ─────────────────────────────────────────
-
-describe('getDebtRepaymentScore', () => {
-  it('немає боргу → 0', () => {
-    const user = makeUser({ debt: 0, owedDays: {} });
-    expect(getDebtRepaymentScore(user, 1, 1.0)).toBe(0);
-  });
-
-  it('додатній борг (карма > 0) → 0', () => {
-    const user = makeUser({ debt: 2, owedDays: { 1: 1 } });
-    expect(getDebtRepaymentScore(user, 1, 1.0)).toBe(0);
-  });
-
-  it("від'ємний борг + owedToday > 0 → повертає score", () => {
-    const user = makeUser({ debt: -3, owedDays: { 1: 2 } });
-    // debtAbs=3, owedToday=2, weight=1.0 → min(3, 2*1.0) = 2
-    expect(getDebtRepaymentScore(user, 1, 1.0)).toBe(2);
-  });
-
-  it("від'ємний борг + owedToday=0 → 0", () => {
-    const user = makeUser({ debt: -3, owedDays: { 1: 0 } });
-    expect(getDebtRepaymentScore(user, 1, 1.0)).toBe(0);
-  });
-
-  it("від'ємний борг + немає owedDays для цього дня → 0", () => {
-    const user = makeUser({ debt: -3, owedDays: { 3: 2 } });
-    // dayIdx=1, але owedDays тільки для 3
-    expect(getDebtRepaymentScore(user, 1, 1.0)).toBe(0);
-  });
-
-  it('debt:-1, owedToday:2, weight:1.5 → min(1, 2*1.5) = 1', () => {
-    const user = makeUser({ debt: -1, owedDays: { 5: 2 } });
-    expect(getDebtRepaymentScore(user, 5, 1.5)).toBe(1);
-  });
-
-  it('debt:-5, owedToday:1, weight:2.0 → min(5, 1*2.0) = 2', () => {
-    const user = makeUser({ debt: -5, owedDays: { 0: 1 } });
-    expect(getDebtRepaymentScore(user, 0, 2.0)).toBe(2);
   });
 });
 

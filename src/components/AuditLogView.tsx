@@ -28,7 +28,6 @@ const ACTION_LABELS: Record<string, { label: string; icon: string; color: string
   IMPORT_SCHEDULE: { label: 'Імпорт графіка', icon: 'fa-file-import', color: 'info' },
   DRAG_MOVE: { label: 'Переміщення', icon: 'fa-arrows-alt', color: 'info' },
   DRAG_SWAP: { label: 'Обмін (drag)', icon: 'fa-repeat', color: 'info' },
-  KARMA_RESET: { label: 'Скидання карми', icon: 'fa-undo', color: 'warning' },
   MAINTENANCE: { label: 'Обслуговування БД', icon: 'fa-database', color: 'danger' },
   THEME: { label: 'Тема', icon: 'fa-palette', color: 'secondary' },
   IMPORT_EXCEL: { label: 'Імпорт Excel', icon: 'fa-file-excel', color: 'success' },
@@ -88,7 +87,7 @@ const AuditLogView: React.FC = () => {
   const userActions = useMemo(() => new Set(['ADD', 'EDIT', 'DELETE', 'BULK_ADD']), []);
   const settingsActions = useMemo(
     () =>
-      new Set(['SETTINGS', 'THEME', 'BULK_EDIT', 'KARMA_RESET', 'MAINTENANCE', 'EXPORT', 'IMPORT']),
+      new Set(['SETTINGS', 'THEME', 'BULK_EDIT', 'MAINTENANCE', 'EXPORT', 'IMPORT']),
     []
   );
 

@@ -4,6 +4,7 @@ import { formatRank } from '../utils/helpers';
 import type { SortKey, SortDir } from '../utils/helpers';
 import type { UserStats, StatsGroupMeta } from '../hooks/useStatsData';
 import type { StatsWindowMode } from '../hooks/useStatsData';
+import { getWeeklyDutyTarget, isStaffDuty } from '../utils/staffDuty';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLASSIC (default) view — full columns, no progress bars
@@ -69,12 +70,6 @@ export const StatsTableHeaderClassic: React.FC<ClassicHeaderProps> = ({
         Навантаження
         <br />
         (бали)
-      </th>
-      <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
-        Карма
-      </th>
-      <th rowSpan={2} className="text-center" style={{ minWidth: '70px' }}>
-        Рейтинг
       </th>
       <th rowSpan={2} className="text-center border-start" style={{ minWidth: '80px' }}>
         Частота
@@ -156,14 +151,6 @@ export const StatsTableRowClassic: React.FC<ClassicRowProps> = ({ u, onSelect })
     ))}
     <td className="text-center border-start">{u.comparableLoad.toFixed(1)}</td>
     <td
-      className={
-        u.balance < 0 ? 'text-danger fw-bold' : u.balance > 0 ? 'text-success fw-bold' : ''
-      }
-    >
-      {u.balance > 0 ? `+${u.balance}` : u.balance}
-    </td>
-    <td className="text-center fw-bold">{u.effectiveComparable.toFixed(1)}</td>
-    <td
       className="text-center border-start fw-bold"
       title={`${u.totalComparableDuties} нарядів / ${u.availableDaysForDuty} доступних днів`}
     >
@@ -216,13 +203,6 @@ export const StatsLegendClassic: React.FC = () => (
       </div>
       <div className="col-md-6">
         <ul className="mb-0">
-          <li>
-            <strong>Карма</strong>: Мінус (-) коли знявся з наряду за рапортом (винен системі). Плюс
-            (+) коли виручив (поставлений вручну на важчий день).
-          </li>
-          <li>
-            <strong>Рейтинг</strong>: Навантаження + Карма. Чим менше, тим вища черга на наряд.
-          </li>
           <li>
             <strong>Частота (нар/день)</strong>: Кількість нарядів поділена на кількість днів у
             черзі. Чим менше значення, тим рідше особа чергує відносно свого часу в обліку.
@@ -306,12 +286,6 @@ export const StatsTableHeader: React.FC<StatsTableHeaderProps> = ({
         <br />
         <small className="fw-normal">(бали)</small>
       </th>
-      <th rowSpan={showDayBreakdown ? 2 : 1} className="text-center" style={{ minWidth: '60px' }}>
-        Карма
-      </th>
-      <th rowSpan={showDayBreakdown ? 2 : 1} className="text-center" style={{ minWidth: '60px' }}>
-        Рейтинг
-      </th>
       <th
         rowSpan={showDayBreakdown ? 2 : 1}
         className="text-center border-start"
@@ -387,7 +361,10 @@ export const StatsTableRow: React.FC<StatsTableRowProps> = ({
   showDayBreakdown,
   windowMode,
 }) => {
-  const hasDutyRate = u.availableDaysForDuty > 0;
+  const staffTarget = isStaffDuty(u) ? getWeeklyDutyTarget(u) : null;
+  // У штатного чергового шкала «відносно підрозділу» не має сенсу — він у
+  // середнє не входить і живе за власною тижневою нормою.
+  const hasDutyRate = u.availableDaysForDuty > 0 && staffTarget === null;
   const rateDisplay = hasDutyRate
     ? getRateDisplay(u.dutyRate, groupMeta.avgDutyRate, groupMeta.maxDutyRate)
     : null;
@@ -414,6 +391,16 @@ export const StatsTableRow: React.FC<StatsTableRowProps> = ({
           >
             {u.name.trim().split(/\s+/)[0]}
           </div>
+          {staffTarget !== null && (
+            <span
+              className="badge bg-info-subtle text-info-emphasis border border-info-subtle mt-1"
+              style={{ fontSize: '0.55rem' }}
+              title={`Штатний черговий: норма ${staffTarget} наряди(-ів) на тиждень. У середнє по підрозділу не входить.`}
+            >
+              <i className="fas fa-shield-halved me-1" style={{ fontSize: '0.5rem' }}></i>
+              ШТАТНИЙ · {staffTarget}/тиж.
+            </span>
+          )}
           {u.name.trim().split(/\s+/).length > 1 && (
             <div
               className="text-muted"
@@ -442,19 +429,13 @@ export const StatsTableRow: React.FC<StatsTableRowProps> = ({
         ))}
       <td className="text-center border-start">{u.comparableLoad.toFixed(1)}</td>
       <td
-        className={
-          u.balance < 0 ? 'text-danger fw-bold' : u.balance > 0 ? 'text-success fw-bold' : ''
-        }
-      >
-        {u.balance > 0 ? `+${u.balance}` : u.balance}
-      </td>
-      <td className="text-center fw-bold">{u.effectiveComparable.toFixed(1)}</td>
-      <td
         className="text-center border-start"
         title={
           hasDutyRate
             ? `${u.windowDuties} нарядів / ${u.availableDaysForDuty} доступних днів = ${u.dutyRate.toFixed(4)} нар/день\nСереднє по групі: ${groupMeta.avgDutyRate.toFixed(4)} нар/день`
-            : 'Немає даних для розрахунку'
+            : staffTarget !== null
+              ? `Штатний черговий: власна норма ${staffTarget} наряди(-ів) на тиждень, у середнє по підрозділу не входить`
+              : 'Немає даних для розрахунку'
         }
       >
         {rateDisplay ? (
@@ -540,17 +521,10 @@ export const StatsLegend: React.FC = () => (
           <li>
             <strong>Навант. (бали)</strong>: Зважене навантаження — сума ваг за кожен день наряду.
           </li>
-          <li>
-            <strong>Карма</strong>: Мінус (-) — знявся з наряду за рапортом. Плюс (+) — виручив,
-            поставлений вручну на важчий день.
-          </li>
         </ul>
       </div>
       <div className="col-md-6">
         <ul className="mb-0">
-          <li>
-            <strong>Рейтинг</strong>: Навантаження + Карма. Чим менше, тим вища черга на наряд.
-          </li>
           <li>
             <strong>Навантаження відносно групи</strong>: Частота нарядів на доступний день
             (лікарняні, відрядження, відпустки виключені). Полоска показує відносне навантаження в

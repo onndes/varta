@@ -29,6 +29,8 @@ import {
   getUserMaxDowCount,
   getUserMinDowCount,
 } from './helpers';
+import { toLocalISO } from '../../utils/dateUtils';
+import { getEffectiveBlockedDows } from '../../utils/userBlockedDays';
 import { ANOMALY_PHRASES, COMPARATOR_CRITERIA, getExtraDutyReason } from './decisionPhrases';
 
 // ─── Decision Log Builder (Info Button «i») ──────────────────────────────────
@@ -73,15 +75,16 @@ export const timesWord = (n: number): string => {
 /** JS DOW → ISO DOW (1=Mon…7=Sun) for blockedDays check. */
 export const toIsoDow = (jsDow: number): number => (jsDow === 0 ? 7 : jsDow);
 
-/** Check if a specific JS DOW is blocked for the user. */
+/** Check if a specific JS DOW is currently blocked for the user (period-aware). */
 export const isDowBlockedForUser = (user: User, jsDow: number): boolean =>
-  user.blockedDays?.includes(toIsoDow(jsDow)) ?? false;
+  getEffectiveBlockedDows(user, toLocalISO(new Date())).includes(toIsoDow(jsDow));
 
 // ─── Human-First reason code translator ──────────────────────────────────────
 export const REASON_UA: Record<string, string> = {
   // Hard constraints
   hard_inactive: 'Не в строю (неактивний)',
   hard_excluded: 'Виключений з автоматичного розподілу',
+  hard_excluded_from_auto: 'Виключений з автоматичного розподілу (період виключення)',
   hard_status_busy: 'Має заплановану відсутність або інше завдання',
   hard_day_blocked: 'Цей день тижня заблоковано у профілі',
   hard_birthday: 'День народження — чергування заблоковано',
@@ -257,15 +260,6 @@ export const buildDecisionLog = (
     );
   }
 
-  // Debt info
-  if (user && (user.debt || 0) < 0) {
-    const debtAbs = Math.abs(user.debt || 0);
-    whyYou.push(
-      `Також враховано борг з попередніх місяців — ${debtAbs} пропущених ` +
-        `нарядів, які система поступово відпрацьовує.`
-    );
-  }
-
   // Day weight info
   if (dayWeight != null && dayWeight !== 1) {
     const dowNomForWeight = DOW_NAMES_NOMINATIVE[dayIdx] || `день ${dayIdx}`;
@@ -416,20 +410,12 @@ export const buildDecisionLog = (
   // ─── ⚠️ Section: Warnings ──────────────────────────────────────────
   const warnings: string[] = [];
   const isWeekend = dayIdx === 0 || dayIdx === 6;
-  const hasDebt = user && (user.debt || 0) < 0;
-  const debtAmount = hasDebt ? Math.abs(user!.debt || 0) : 0;
-
   if (weeklyCount >= 2) {
     const weekLabel = weeklyCount === 2 ? 'другий' : `${weeklyCount}-й`;
     if (poolSizes.final <= 2) {
       warnings.push(
         `Це вже ${weekLabel} наряд цього тижня. Причина: мало доступних — ` +
           `лише ${poolSizes.final} кандидат(-ів) з ${poolSizes.initial}.`
-      );
-    } else if (hasDebt) {
-      warnings.push(
-        `Це ${weekLabel} наряд цього тижня. Причина: є борг з попередніх ` +
-          `місяців — система відпрацьовує ${debtAmount} пропущених нарядів.`
       );
     } else {
       warnings.push(
@@ -522,8 +508,8 @@ export const buildDecisionLog = (
     const uSameDow = daysSinceLastSameDowAssignment(u.id, schedule, dateStr);
     const uSameDowPenalty = uSameDow <= 7 ? 100 : uSameDow <= 14 ? 25 : uSameDow <= 21 ? 6.25 : 0;
 
-    const maxDow = getUserMaxDowCount(u.id, schedule, u.blockedDays);
-    const minDow = getUserMinDowCount(u.id, schedule, u.blockedDays);
+    const maxDow = getUserMaxDowCount(u.id, schedule, getEffectiveBlockedDows(u, dateStr));
+    const minDow = getUserMinDowCount(u.id, schedule, getEffectiveBlockedDows(u, dateStr));
     let crossDowGuard = 0;
     if (maxDow > minDow && uDowCount > minDow) {
       crossDowGuard = 5000 + 2500 * (uDowCount - minDow + 1);
@@ -539,7 +525,6 @@ export const buildDecisionLog = (
       loadRate: uLoadRate,
       sameDowPenalty: uSameDowPenalty,
       crossDowGuard,
-      debt: u.debt || 0,
       status,
       eliminatedByFilter: filterName,
       eliminatedReason: isHardElim
@@ -558,8 +543,9 @@ export const buildDecisionLog = (
   candidateTable.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 
   // Build assigned metrics
-  const maxDowW = getUserMaxDowCount(assignedId, schedule, user?.blockedDays);
-  const minDowW = getUserMinDowCount(assignedId, schedule, user?.blockedDays);
+  const assignedBlockedDows = user ? getEffectiveBlockedDows(user, dateStr) : undefined;
+  const maxDowW = getUserMaxDowCount(assignedId, schedule, assignedBlockedDows);
+  const minDowW = getUserMinDowCount(assignedId, schedule, assignedBlockedDows);
   let assignedCrossDowGuard = 0;
   if (maxDowW > minDowW && dowCount > minDowW) {
     assignedCrossDowGuard = 5000 + 2500 * (dowCount - minDowW + 1);
@@ -574,7 +560,6 @@ export const buildDecisionLog = (
     dowRecency: sameDow === Infinity ? -1 : sameDow,
     loadRate,
     waitDays: waitDays === Infinity ? -1 : waitDays,
-    debt: user?.debt || 0,
     avgLoadRate: avgRate,
     avgDowCount: avgDow,
     winningCriterion,
@@ -605,12 +590,7 @@ export const buildDecisionLog = (
   }
   const whyExtraDutyAllowed =
     weeklyCount >= 2
-      ? getExtraDutyReason(
-          poolSizes.final,
-          poolSizes.initial,
-          (user?.debt || 0) < 0,
-          Math.abs(user?.debt || 0)
-        )
+      ? getExtraDutyReason(poolSizes.final, poolSizes.initial)
       : null;
 
   const weekContext: WeekContext = {

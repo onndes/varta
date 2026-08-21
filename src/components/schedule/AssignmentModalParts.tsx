@@ -4,6 +4,7 @@ import type { User, ScheduleEntry } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import { formatRank, compareByRankAndName } from '../../utils/helpers';
 import { countUserDaysOfWeek } from '../../services/scheduleService';
+import { applyStatsCutoffs } from '../../utils/statsReset';
 import {
   WEEKDAY_COLUMNS,
   hasShiftNextDay,
@@ -17,29 +18,27 @@ interface UserListItemProps {
   isRest: boolean;
   hasNextDayShift: boolean;
   lastDutyWeekday?: string;
-  effectiveLoad: number;
+  dutyLoad: number;
   daysSince: number;
   weekdayCounts: Record<number, number>;
   onAction: (userId: number) => void;
   actionLabel?: string;
 }
 
-/** Single row in the user-selection list showing duty stats and karma. */
+/** Single row in the user-selection list showing duty stats. */
 export const UserListItem: React.FC<UserListItemProps> = ({
   user,
   date,
   isRest,
   hasNextDayShift,
   lastDutyWeekday,
-  effectiveLoad,
+  dutyLoad,
   daysSince,
   weekdayCounts,
   onAction,
   actionLabel,
 }) => {
   const dayIdx = new Date(date).getDay();
-  const owes = (user.owedDays && user.owedDays[dayIdx]) || 0;
-
   const daysSinceLabel =
     daysSince === Number.POSITIVE_INFINITY
       ? '—'
@@ -75,7 +74,6 @@ export const UserListItem: React.FC<UserListItemProps> = ({
           </div>
         </div>
 
-        {owes > 0 && <span className="badge bg-danger ms-2">борг: {owes}</span>}
         {isRest && (
           <span className="badge bg-warning text-dark ms-2">
             <i className="fas fa-bed me-1"></i>відсипний
@@ -88,16 +86,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
         )}
 
         <div className="small text-muted d-flex align-items-center flex-wrap">
-          <span>
-            Навант: {effectiveLoad.toFixed(1)} · Карма:{' '}
-            <span
-              className={
-                user.debt < 0 ? 'text-danger' : user.debt > 0 ? 'text-success' : 'text-muted'
-              }
-            >
-              {user.debt > 0 ? '+' + user.debt : user.debt}
-            </span>
-          </span>
+          <span>Навант: {dutyLoad.toFixed(1)}</span>
           <span className="ms-3">
             ({daysSinceLabel}
             {lastDutyWeekday ? `, ${lastDutyWeekday}` : ''})
@@ -146,7 +135,7 @@ interface UserFilteredListProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   isOnRestDay: (userId: number, date: string) => boolean;
-  calculateEffectiveLoad: (user: User) => number;
+  calculateLoad: (user: User) => number;
   daysSinceLastDuty: (userId: number, date: string) => number;
   onAction: (userId: number) => void;
   emptyMessage: string;
@@ -161,7 +150,7 @@ export const UserFilteredList: React.FC<UserFilteredListProps> = ({
   searchQuery,
   onSearchChange,
   isOnRestDay,
-  calculateEffectiveLoad,
+  calculateLoad,
   daysSinceLastDuty,
   onAction,
   emptyMessage,
@@ -199,7 +188,7 @@ export const UserFilteredList: React.FC<UserFilteredListProps> = ({
                 .replace('.', '')
                 .toUpperCase()
             : undefined;
-          const weekdayCounts = countUserDaysOfWeek(u.id!, schedule);
+          const weekdayCounts = countUserDaysOfWeek(u.id!, applyStatsCutoffs(schedule, [u]));
           return (
             <UserListItem
               key={u.id}
@@ -208,7 +197,7 @@ export const UserFilteredList: React.FC<UserFilteredListProps> = ({
               isRest={isOnRestDay(u.id!, date)}
               hasNextDayShift={hasShiftNextDay(u.id!, date, schedule)}
               lastDutyWeekday={lastDutyWeekday}
-              effectiveLoad={calculateEffectiveLoad(u)}
+              dutyLoad={calculateLoad(u)}
               daysSince={daysSinceLastDuty(u.id!, date)}
               weekdayCounts={weekdayCounts}
               onAction={onAction}

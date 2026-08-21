@@ -77,8 +77,6 @@ describe('classic-mode regression', () => {
       rank: 'Солдат',
       status: 'ACTIVE',
       isActive: true,
-      debt: 0,
-      owedDays: {},
     }));
 
     const baseDate = new Date('2099-01-06T12:00:00Z');
@@ -91,15 +89,11 @@ describe('classic-mode regression', () => {
     const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
     const options: AutoScheduleOptions = {
       avoidConsecutiveDays: true,
-      respectOwedDays: false,
       considerLoad: true,
       minRestDays: 1,
       aggressiveLoadBalancing: false,
       aggressiveLoadBalancingThreshold: 0.2,
       limitOneDutyPerWeekWhenSevenPlus: false,
-      allowDebtUsersExtraWeeklyAssignments: false,
-      debtUsersWeeklyLimit: 1,
-      prioritizeFasterDebtRepayment: false,
       forceUseAllWhenFew: true,
       evenWeeklyDistribution: false,
       useFirstDutyDateAsActiveFrom: true,
@@ -148,8 +142,6 @@ describe('block-rotation scheduling integration', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       },
       {
         id: 2,
@@ -157,8 +149,6 @@ describe('block-rotation scheduling integration', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       },
     ];
 
@@ -166,15 +156,11 @@ describe('block-rotation scheduling integration', () => {
     const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
     const options: AutoScheduleOptions = {
       avoidConsecutiveDays: true,
-      respectOwedDays: false,
       considerLoad: true,
       minRestDays: 1,
       aggressiveLoadBalancing: false,
       aggressiveLoadBalancingThreshold: 0.2,
       limitOneDutyPerWeekWhenSevenPlus: false,
-      allowDebtUsersExtraWeeklyAssignments: false,
-      debtUsersWeeklyLimit: 1,
-      prioritizeFasterDebtRepayment: false,
       forceUseAllWhenFew: false,
       evenWeeklyDistribution: false,
       useFirstDutyDateAsActiveFrom: true,

@@ -11,7 +11,10 @@ interface CompactScheduleViewProps {
   dutiesPerDay: number;
   historyMode?: boolean;
   deletedUserNames: Record<number, DeletedUserInfo>;
-  usersById: Record<number, { name: string }>;
+  usersById: Record<
+    number,
+    { name: string; isActive?: boolean; isDutyMember?: boolean; statsHiddenBefore?: string }
+  >;
   onCellClick: (date: string, entry: ScheduleEntry | null, assignedUserId?: number) => void;
 }
 
@@ -75,6 +78,11 @@ export const CompactScheduleView: React.FC<CompactScheduleViewProps> = ({
                   {slots.map((uid, slotIdx) => {
                     const user = uid != null ? usersById[uid] : null;
                     const deletedInfo = uid != null && !user ? deletedUserNames[uid] : null;
+                    // Вимкнені / виведені зі складу — показуємо приглушено, але показуємо.
+                    const isFormer =
+                      !!user &&
+                      (user.isActive === false ||
+                        (!!user.statsHiddenBefore && date < user.statsHiddenBefore));
 
                     if (uid != null && (user || deletedInfo)) {
                       const isHistory = entry?.type === 'history' || entry?.type === 'import';
@@ -99,15 +107,21 @@ export const CompactScheduleView: React.FC<CompactScheduleViewProps> = ({
                             if (isPast && !historyMode) return;
                             onCellClick(date, entry, uid);
                           }}
-                          title={isDeleted ? `Видалений: ${displayName}` : undefined}
+                          title={
+                            isDeleted
+                              ? `Видалений: ${displayName}`
+                              : isFormer
+                                ? `Не враховується у статистиці: ${displayName}`
+                                : undefined
+                          }
                         >
                           <span
                             className="no-print"
-                            style={{ fontSize: '0.78rem', opacity: isDeleted ? 0.6 : 1 }}
+                            style={{ fontSize: '0.78rem', opacity: isDeleted || isFormer ? 0.6 : 1 }}
                           >
-                            {isDeleted && (
+                            {(isDeleted || isFormer) && (
                               <i
-                                className="fas fa-user-slash me-1"
+                                className={`${isDeleted ? 'fas fa-user-slash' : 'fas fa-user-minus'} me-1`}
                                 style={{ fontSize: '0.65rem' }}
                               ></i>
                             )}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useDialog } from '../components/useDialog';
-import type { User, ScheduleEntry, DayWeights } from '../types';
+import type { User, ScheduleEntry } from '../types';
 import { toLocalISO } from '../utils/dateUtils';
 import { getAllSchedule, saveScheduleEntry } from '../services/scheduleService';
 import { isAssignedInEntry, toAssignedUserIds } from '../utils/assignment';
@@ -19,14 +19,12 @@ interface PendingAssignConfirm {
   lastDutyDate?: string;
   daysSinceLastDuty?: number;
   isRestDay: boolean;
-  penalizeReplaced?: boolean;
   isForced?: boolean;
 }
 
 interface UseAssignmentModalArgs {
   users: User[];
   schedule: Record<string, ScheduleEntry>;
-  dayWeights: DayWeights;
   dutiesPerDay: number;
   historyMode: boolean;
   forceAssignMode: boolean;
@@ -38,16 +36,11 @@ interface UseAssignmentModalArgs {
     options?: {
       maxPerDay?: number;
       replaceUserId?: number;
-      penalizeReplaced?: boolean;
       historyMode?: boolean;
       isForced?: boolean;
     }
   ) => Promise<void>;
-  removeAssignment: (
-    date: string,
-    reason: 'request' | 'work',
-    targetUserId?: number
-  ) => Promise<void>;
+  removeAssignment: (date: string, targetUserId?: number) => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
   refreshData: () => Promise<void>;
@@ -56,7 +49,6 @@ interface UseAssignmentModalArgs {
 export const useAssignmentModal = ({
   users,
   schedule,
-  dayWeights,
   dutiesPerDay,
   historyMode,
   forceAssignMode,
@@ -99,7 +91,6 @@ export const useAssignmentModal = ({
   const executeAssign = useCallback(
     async (
       userId: number,
-      penalizeReplaced = false,
       targetCell: SelectedCell | null = selectedCell,
       isForced = false
     ) => {
@@ -111,16 +102,13 @@ export const useAssignmentModal = ({
         await assignUser(targetCell.date, userId, true, {
           maxPerDay: dutiesPerDay,
           replaceUserId: targetCell.assignedUserId,
-          penalizeReplaced,
           historyMode,
           isForced,
         });
         await updateCascadeTrigger(targetCell.date);
 
         const u = users.find((user) => user.id === userId);
-        const dayIdx = new Date(targetCell.date).getDay();
-        const weight = dayWeights[dayIdx] || 1.0;
-        if (u) await logAction('MANUAL', `${u.name} (Карма +${weight})`);
+        if (u) await logAction('MANUAL', `${u.name} на ${targetCell.date}`);
 
         setPendingAssignConfirm(null);
         setSelectedCell(null);
@@ -133,7 +121,6 @@ export const useAssignmentModal = ({
       selectedCell,
       schedule,
       pushHistory,
-      dayWeights,
       assignUser,
       dutiesPerDay,
       historyMode,
@@ -146,16 +133,12 @@ export const useAssignmentModal = ({
   );
 
   const handleAssign = useCallback(
-    async (
-      userId: number | undefined,
-      penalizeReplaced = false,
-      targetCell: SelectedCell | null = selectedCell
-    ) => {
+    async (userId: number | undefined, targetCell: SelectedCell | null = selectedCell) => {
       if (!userId || !targetCell) return;
 
       // In history mode — assign directly, no confirmations
       if (historyMode) {
-        await executeAssign(userId, false, targetCell);
+        await executeAssign(userId, targetCell);
         return;
       }
 
@@ -170,7 +153,7 @@ export const useAssignmentModal = ({
           );
           if (!ok) return;
         }
-        await executeAssign(userId, penalizeReplaced, targetCell, forceAssignMode);
+        await executeAssign(userId, targetCell, forceAssignMode);
         return;
       }
 
@@ -187,7 +170,6 @@ export const useAssignmentModal = ({
         lastDutyDate,
         daysSinceLastDuty,
         isRestDay,
-        penalizeReplaced,
         isForced: forceAssignMode,
       });
     },
@@ -212,8 +194,8 @@ export const useAssignmentModal = ({
 
       pushHistory(schedule, 'Обмін');
 
-      await removeAssignment(targetDate, 'work', currentUserId);
-      await removeAssignment(swapDate, 'work', swapUserId);
+      await removeAssignment(targetDate, currentUserId);
+      await removeAssignment(swapDate, swapUserId);
 
       const freshSchedule = await getAllSchedule();
 
@@ -251,25 +233,17 @@ export const useAssignmentModal = ({
   );
 
   const handleRemove = useCallback(
-    async (reason: 'request' | 'work') => {
+    async () => {
       if (!selectedCell?.entry || !selectedCell.entry.userId || !selectedCell.assignedUserId)
         return;
       const { date } = selectedCell;
-      const dayIdx = new Date(date).getDay();
-      const weight = dayWeights[dayIdx] || 1.0;
 
       pushHistory(schedule, 'Зняття');
-      await removeAssignment(date, reason, selectedCell.assignedUserId);
+      await removeAssignment(date, selectedCell.assignedUserId);
       await updateCascadeTrigger(date);
 
       const u = users.find((user) => user.id === selectedCell.assignedUserId);
-      if (u) {
-        if (reason === 'request') {
-          await logAction('REMOVE', `${u.name} рапорт (Карма -${weight})`);
-        } else {
-          await logAction('REMOVE', `${u.name} службова`);
-        }
-      }
+      if (u) await logAction('REMOVE', `${u.name} знято з ${date}`);
 
       setSelectedCell(null);
       await refreshData();
@@ -277,7 +251,6 @@ export const useAssignmentModal = ({
     [
       selectedCell,
       schedule,
-      dayWeights,
       pushHistory,
       removeAssignment,
       updateCascadeTrigger,

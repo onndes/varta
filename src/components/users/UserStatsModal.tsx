@@ -14,6 +14,7 @@ import * as auditService from '../../services/auditService';
 import Modal from '../Modal';
 import { isAssignedInEntry } from '../../utils/assignment';
 import { getLogicSchedule } from '../../utils/assignment';
+import { applyStatsCutoffs } from '../../utils/statsReset';
 import { getUserStatusPeriods } from '../../utils/userStatus';
 import AbsenceSection from './AbsenceSection';
 import TimelineSection from './TimelineSection';
@@ -41,8 +42,8 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const currentMonth = useMemo(() => new Date().getMonth(), []);
   const logicSchedule = useMemo(
-    () => getLogicSchedule(schedule, ignoreHistoryInLogic),
-    [schedule, ignoreHistoryInLogic]
+    () => applyStatsCutoffs(getLogicSchedule(schedule, ignoreHistoryInLogic), [user]),
+    [schedule, ignoreHistoryInLogic, user]
   );
 
   const userSchedule = useMemo(
@@ -63,8 +64,6 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
     daysCount[d]++;
     totalLoad += dayWeights[d] || 1.0;
   });
-
-  const owedDays = user.owedDays || {};
 
   const statusEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
@@ -158,10 +157,11 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
   }, [dutyEvents, statusEvents, auditEvents]);
 
   const queueInsight = useMemo(() => {
+    // Наряди до дати обнулення не враховуються і в порівнянні з чергою.
+    const countedSchedule = applyStatsCutoffs(schedule, [user]);
     const dayIdx = new Date(todayStr).getDay();
     const availability = getUserAvailabilityStatus(user, todayStr);
     const fairnessFrom = getUserFairnessFrom(user, todayStr);
-    const oweToday = (user.owedDays && user.owedDays[dayIdx]) || 0;
 
     const autoPool = users.filter(
       (u) =>
@@ -170,22 +170,22 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
     const poolCommonFrom = getPoolCommonFrom(autoPool, todayStr);
 
     const dowToday = user.id
-      ? countUserDaysOfWeek(user.id, schedule, poolCommonFrom)[dayIdx] || 0
+      ? countUserDaysOfWeek(user.id, countedSchedule, poolCommonFrom)[dayIdx] || 0
       : 0;
-    const totalInPoolWindow = user.id ? countUserAssignments(user.id, schedule, poolCommonFrom) : 0;
+    const totalInPoolWindow = user.id
+      ? countUserAssignments(user.id, countedSchedule, poolCommonFrom)
+      : 0;
     const loadInPoolWindow = user.id
-      ? calculateUserLoad(user.id, schedule, dayWeights, poolCommonFrom)
+      ? calculateUserLoad(user.id, countedSchedule, dayWeights, poolCommonFrom)
       : 0;
 
     return {
       availability,
       fairnessFrom,
-      oweToday,
       poolCommonFrom,
       dowToday,
       totalInPoolWindow,
       loadInPoolWindow,
-      effectiveInPoolWindow: loadInPoolWindow + (user.debt || 0),
     };
   }, [dayWeights, schedule, todayStr, user, users]);
 
@@ -211,9 +211,9 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
             <span>
               У черзі враховується період з {queueInsight.poolCommonFrom || 'початку даних'}.
               Сьогоднішній день тижня: {DAY_NAMES_FULL[new Date(todayStr).getDay()]}. Для цього дня:
-              борг={queueInsight.oweToday}, у цьому дні вже відпрацьовано={queueInsight.dowToday},
-              всього в поточному періоді={queueInsight.totalInPoolWindow}, рейтинг=
-              {queueInsight.effectiveInPoolWindow.toFixed(1)}.
+              у цьому дні вже відпрацьовано={queueInsight.dowToday}, всього в поточному періоді=
+              {queueInsight.totalInPoolWindow}, навантаження=
+              {queueInsight.loadInPoolWindow.toFixed(1)}.
             </span>
           )}
         </div>
@@ -234,8 +234,6 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
       <UserStatsTables
         totalAssignments={totalAssignments}
         totalLoad={totalLoad}
-        debt={user.debt}
-        owedDays={owedDays}
         daysCount={daysCount}
       />
 

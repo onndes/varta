@@ -82,9 +82,6 @@ export const DAY_SHORT_NAMES: Record<number, string> = {
 /** Ваги днів тижня за замовчуванням (Пт/Нд = 1.5, Сб = 2.0, будні = 1.0) */
 export const DEFAULT_DAY_WEIGHTS = { 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.5, 6: 2.0, 0: 1.5 };
 
-/** Максимальний борг (карма) — обмежує штраф за зняття з наряду */
-export const DEFAULT_MAX_DEBT = 4.0;
-
 /** Кількість чергових на день за замовчуванням */
 export const DEFAULT_DUTIES_PER_DAY = 1;
 
@@ -95,19 +92,17 @@ const DEFAULT_MIN_REST_DAYS = 1;
 export const DEFAULT_PRINT_MAX_ROWS = 12;
 /** За замовчуванням друкувати всіх активних осіб у графіку-таблиці */
 export const DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS = true;
+/** За замовчуванням не приховувати тих, хто весь тиждень відсутній */
+export const DEFAULT_PRINT_SKIP_FULLY_ABSENT = false;
 
 /** Опції авто-розкладу за замовчуванням */
 export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   avoidConsecutiveDays: true,
-  respectOwedDays: true,
   considerLoad: true,
   minRestDays: DEFAULT_MIN_REST_DAYS,
   aggressiveLoadBalancing: false,
   aggressiveLoadBalancingThreshold: 0.2,
   limitOneDutyPerWeekWhenSevenPlus: true,
-  allowDebtUsersExtraWeeklyAssignments: true,
-  debtUsersWeeklyLimit: 3,
-  prioritizeFasterDebtRepayment: true,
   forceUseAllWhenFew: true,
   evenWeeklyDistribution: true,
   useFirstDutyDateAsActiveFrom: true,
@@ -124,6 +119,8 @@ export const DEFAULT_AUTO_SCHEDULE_OPTIONS = {
   enableSchedulerVisualization: false,
   schedulerVisSpeed: 0,
   prioritizeAfterWeekOff: true,
+  forceOverrideAccounting: 'normal' as const,
+  confirmBeforeGeneration: true,
 };
 
 /** Кількість тижнів назад для індикатора повторів DOW (за замовчуванням) */

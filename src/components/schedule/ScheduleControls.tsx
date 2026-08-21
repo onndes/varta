@@ -4,6 +4,40 @@ import { formatDate, toLocalISO } from '../../utils/dateUtils';
 import { canStopSchedulerAtProgress, getStopSchedulerTitle } from './scheduleControlsUtils';
 import type { HelperDecorationKey, HelperDecorations } from './helperDecorations';
 
+const HELPER_ITEMS: Array<{
+  key: HelperDecorationKey;
+  label: string;
+  description: string;
+}> = [
+    {
+      key: 'dowDutyCounts',
+      label: 'Верхній лічильник',
+      description: 'Сумарні наряди за цей день тижня',
+    },
+    {
+      key: 'dowHistory',
+      label: 'Історія знизу',
+      description: 'Цифри або точки минулих тижнів у комірці',
+    },
+    {
+      key: 'workload',
+      label: 'Навантаження',
+      description: 'Індекс завантаженості бійця (100 = середнє по підрозділу)',
+    },
+    {
+      key: 'assignmentIcons',
+      label: 'Іконки типу',
+      description: 'Ручне, авто, заміна, імпорт та інші позначки',
+    },
+    {
+      key: 'decisionInfo',
+      label: 'Кнопка i',
+      description: 'Відкрити пояснення призначення',
+    },
+  ];
+
+const HELPER_ITEMS_COUNT = HELPER_ITEMS.length;
+
 interface ScheduleControlsProps {
   weekDates: string[];
   cascadeStartDate: string | null;
@@ -109,32 +143,6 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
     () => Object.values(helperDecorations).filter(Boolean).length,
     [helperDecorations]
   );
-  const helperItems: Array<{
-    key: HelperDecorationKey;
-    label: string;
-    description: string;
-  }> = [
-    {
-      key: 'dowDutyCounts',
-      label: 'Верхній лічильник',
-      description: 'Сумарні наряди за цей день тижня',
-    },
-    {
-      key: 'dowHistory',
-      label: 'Історія знизу',
-      description: 'Цифри або точки минулих тижнів у комірці',
-    },
-    {
-      key: 'assignmentIcons',
-      label: 'Іконки типу',
-      description: 'Ручне, авто, заміна, імпорт та інші позначки',
-    },
-    {
-      key: 'decisionInfo',
-      label: 'Кнопка i',
-      description: 'Відкрити пояснення призначення',
-    },
-  ];
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -252,20 +260,20 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             */}
             <div ref={helpersMenuRef} className="position-relative">
               <button
-                className={`btn btn-sm ${enabledHelpersCount > 0 && enabledHelpersCount < 4 ? 'btn-outline-info' : 'btn-outline-secondary'}`}
+                className={`btn btn-sm ${enabledHelpersCount > 0 && enabledHelpersCount < HELPER_ITEMS_COUNT ? 'btn-outline-info' : 'btn-outline-secondary'}`}
                 onClick={() => setHelpersMenuOpen((open) => !open)}
                 title="Керування службовими підказками в комірках"
                 aria-expanded={helpersMenuOpen}
               >
                 <i className="fas fa-layer-group me-1"></i>
-                {`Підказки ${enabledHelpersCount}/4`}
+                {`Підказки ${enabledHelpersCount}/${HELPER_ITEMS_COUNT}`}
               </button>
               {helpersMenuOpen && (
                 <div className="dropdown-menu show p-2" style={{ minWidth: '19rem', zIndex: 1055 }}>
                   <div className="small text-muted fw-semibold px-1 pb-2">
                     Що показувати в комірках
                   </div>
-                  {helperItems.map((item) => (
+                  {HELPER_ITEMS.map((item) => (
                     <label
                       key={item.key}
                       className="dropdown-item d-flex align-items-start gap-2 py-2 px-2 rounded"

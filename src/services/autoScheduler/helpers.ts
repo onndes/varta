@@ -4,10 +4,17 @@
 import type { User, ScheduleEntry, AutoScheduleOptions, DayWeights } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
 
-import { getUserAvailabilityStatus, isUserAvailable } from '../userService';
-import { toAssignedUserIds, isAssignedInEntry } from '../../utils/assignment';
+import { getUserAvailabilityStatus, isUserAvailable, getBirthdayBlockConfig } from '../userService';
+import {
+  toAssignedUserIds,
+  isAssignedInEntry,
+  getAvailabilityOverrideUserIds,
+} from '../../utils/assignment';
 import { countUserDaysOfWeek, countUserAssignments } from '../scheduleService';
 import { getUserStatusPeriods } from '../../utils/userStatus';
+import { getBlockedDaysPeriods, getEffectiveBlockedDows } from '../../utils/userBlockedDays';
+import { isExcludedFromAutoOnDate } from '../../utils/userExcludeFromAuto';
+import { applyStatsCutoffs, clampToStatsCutoff } from '../../utils/statsReset';
 
 // ─── Константи ──────────────────────────────────────────────────────
 
@@ -16,9 +23,6 @@ export const MS_PER_DAY = 86_400_000;
 
 /** Мінімум бійців, при якому вмикається обмеження «1 наряд на тиждень» */
 export const MIN_USERS_FOR_WEEKLY_LIMIT = 7;
-
-/** Максимум нарядів на тиждень для боржників */
-export const MAX_DEBT_WEEKLY_CAP = 4;
 
 /** Максимальна кількість ітерацій пост-балансування */
 export const MAX_REBALANCE_ITERATIONS = 100;
@@ -88,53 +92,33 @@ export const countEligibleUsersForDate = (
 ): number =>
   users.filter((u) => {
     if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
+    if (isExcludedFromAutoOnDate(u, dateStr)) return false;
     return isUserAvailable(u, dateStr, schedule);
   }).length;
 
 /** Скільки бійців доступно хоча б раз протягом тижня, що містить dateStr */
-export const countEligibleUsersForWeek = (
+export const getEligibleUsersForWeek = (
   users: User[],
   schedule: Record<string, ScheduleEntry>,
   dateStr: string
-): number => {
+): User[] => {
   const week = getWeekWindow(dateStr);
   const weekDates = getDatesInRange(week.from, week.to);
   return users.filter((u) => {
     if (!u.id || !u.isActive || u.isExtra || u.excludeFromAuto) return false;
-    return weekDates.some((d) => isUserAvailable(u, d, schedule));
-  }).length;
+    return weekDates.some(
+      (d) => !isExcludedFromAutoOnDate(u, d) && isUserAvailable(u, d, schedule)
+    );
+  });
 };
 
-/** Чи має боєць неоплачений борг (карма або owedDays) */
-export const hasDebtBacklog = (user: User): boolean => {
-  const hasOwedDays = Object.values(user.owedDays || {}).some((v) => v > 0);
-  return (user.debt || 0) < 0 || hasOwedDays;
-};
-
-/** Максимум нарядів на тиждень: боржники можуть більше */
-export const getWeeklyAssignmentCap = (user: User, options: AutoScheduleOptions): number => {
-  if (options.allowDebtUsersExtraWeeklyAssignments && hasDebtBacklog(user)) {
-    return Math.min(MAX_DEBT_WEEKLY_CAP, Math.max(1, options.debtUsersWeeklyLimit || 1));
-  }
-  return 1;
-};
+export const countEligibleUsersForWeek = (
+  users: User[],
+  schedule: Record<string, ScheduleEntry>,
+  dateStr: string
+): number => getEligibleUsersForWeek(users, schedule, dateStr).length;
 
 // ─── Допоміжні функції: метрики бійця ──────────────────────────────
-
-/**
- * Очки пріоритету для повернення боргу.
- * Якщо боєць винен саме цей день тижня — повертає очки за повернення.
- */
-export const getDebtRepaymentScore = (user: User, dayIdx: number, dayWeight: number): number => {
-  const debtAbs = Math.abs(Math.min(0, user.debt || 0));
-  if (debtAbs <= 0) return 0;
-
-  const owedToday = (user.owedDays && user.owedDays[dayIdx]) || 0;
-  if (owedToday > 0) {
-    return Math.min(debtAbs, owedToday * dayWeight);
-  }
-  return 0;
-};
 
 /** Скільки нарядів у бійця в діапазоні дат */
 export const countUserAssignmentsInRange = (
@@ -306,8 +290,14 @@ export const countUnavailableDaysInRange = (
   fromDate: string,
   toDate: string
 ): number => {
+  // Fast path: nothing can make any day unavailable for this user.
+  // Blocked-day periods and birthday blocking must count as unavailable too —
+  // otherwise users with only blocked days (no status periods) would be
+  // treated as "behind" on load after their blocked stretches.
   const periods = getUserStatusPeriods(user);
-  if (periods.length === 0) return 0;
+  const blockedPeriods = getBlockedDaysPeriods(user);
+  const birthdayBlocking = !!user.birthday && getBirthdayBlockConfig().enabled;
+  if (periods.length === 0 && blockedPeriods.length === 0 && !birthdayBlocking) return 0;
 
   let count = 0;
   const cursor = new Date(fromDate);
@@ -355,6 +345,8 @@ export const computeDaysActive = (
   } else {
     from = user.dateAddedToAuto || firstDuty;
   }
+
+  from = clampToStatsCutoff(user, from);
 
   if (!from) from = dateStr; // brand-new user with no history
   if (from > dateStr) return 1;
@@ -414,6 +406,59 @@ export const calculateUserFairnessIndex = (
   return Math.max(0, 1 - deviation / Math.max(groupAvg, epsilon));
 };
 
+// ─── Force-override fairness accounting ─────────────────────────────
+
+/** Force-overridden "date:userId" pairs in a schedule (type 'force' or marked override). */
+const collectForceOverridePairs = (entry: ScheduleEntry): number[] =>
+  entry.type === 'force' ? toAssignedUserIds(entry.userId) : getAvailabilityOverrideUserIds(entry);
+
+/**
+ * 'neutral' accounting: returns the set of "date:userId" keys that must be
+ * invisible to fairness math (counts, load rate, objective). Hard constraints
+ * (rest days, incompatible pairs, weekly caps) still see these entries.
+ * Returns undefined in 'normal' / 'bonus' modes — everything counts.
+ */
+export const buildFairnessExclusionSet = (
+  schedule: Record<string, ScheduleEntry>,
+  options: AutoScheduleOptions
+): Set<string> | undefined => {
+  if ((options.forceOverrideAccounting ?? 'normal') !== 'neutral') return undefined;
+  const set = new Set<string>();
+  for (const entry of Object.values(schedule)) {
+    for (const uid of collectForceOverridePairs(entry)) {
+      set.add(`${entry.date}:${uid}`);
+    }
+  }
+  return set.size > 0 ? set : undefined;
+};
+
+/**
+ * Fairness view of the schedule for comparator counts: with 'neutral'
+ * accounting, force-override assignments are removed from the copy.
+ * Returns the original object unchanged in 'normal' / 'bonus' modes.
+ */
+export const applyForceOverrideAccounting = (
+  schedule: Record<string, ScheduleEntry>,
+  options: AutoScheduleOptions,
+  users?: User[]
+): Record<string, ScheduleEntry> => {
+  // Наряди, приховані «обнуленням статистики», не беруть участі в обліку.
+  const base = users ? applyStatsCutoffs(schedule, users) : schedule;
+  if ((options.forceOverrideAccounting ?? 'normal') !== 'neutral') return base;
+  const result: Record<string, ScheduleEntry> = {};
+  for (const [date, entry] of Object.entries(base)) {
+    const excluded = collectForceOverridePairs(entry);
+    if (excluded.length === 0) {
+      result[date] = entry;
+      continue;
+    }
+    const remaining = toAssignedUserIds(entry.userId).filter((id) => !excluded.includes(id));
+    if (remaining.length === 0) continue;
+    result[date] = { ...entry, userId: remaining.length === 1 ? remaining[0] : remaining };
+  }
+  return result;
+};
+
 // ─── Global Objective Helpers ───────────────────────────────────────
 
 /**
@@ -439,7 +484,8 @@ export const computeGlobalObjective = (
   dayWeights: DayWeights,
   users?: User[],
   enableDroughtPenalty?: boolean,
-  daysActiveCache?: Map<number, number>
+  daysActiveCache?: Map<number, number>,
+  fairnessExclusions?: Set<string>
 ): number => {
   const N = userIds.length;
   if (N === 0) return 0;
@@ -449,6 +495,25 @@ export const computeGlobalObjective = (
   const dowCountsMap = new Map<number, number[]>();
   const loadsMap = new Map<number, number>();
   const datesMap = new Map<number, string[]>();
+
+  // User lookup + effective blocked DOWs (period-aware, ISO 1=Mon…7=Sun).
+  // Uses blockedDaysPeriods (with legacy blockedDays fallback) evaluated
+  // around today — the flat `blockedDays` field no longer exists after DB v12.
+  const usersById = new Map<number, User>();
+  if (users) {
+    for (const u of users) if (u.id) usersById.set(u.id, u);
+  }
+  const todayIso = toLocalISO(new Date());
+  const blockedDowsCache = new Map<number, number[]>();
+  const getBlockedDows = (uid: number): number[] => {
+    let cached = blockedDowsCache.get(uid);
+    if (cached === undefined) {
+      const u = usersById.get(uid);
+      cached = u ? getEffectiveBlockedDows(u, todayIso) : [];
+      blockedDowsCache.set(uid, cached);
+    }
+    return cached;
+  };
 
   for (const uid of userIds) {
     dowCountsMap.set(uid, [0, 0, 0, 0, 0, 0, 0]);
@@ -475,6 +540,8 @@ export const computeGlobalObjective = (
     const weight = dayWeights[dow] || 1;
     for (const id of ids) {
       if (!uidSet.has(id)) continue;
+      // 'neutral' force-override accounting: skip excluded date:user pairs.
+      if (fairnessExclusions?.has(`${entry.date}:${id}`)) continue;
       dowCountsMap.get(id)![dow]++;
       loadsMap.set(id, loadsMap.get(id)! + weight);
       datesMap.get(id)!.push(entry.date);
@@ -526,25 +593,16 @@ export const computeGlobalObjective = (
     for (let d = 0; d < 7; d++) sum += counts[d];
     if (sum === 0) continue;
 
-    const userObj = users?.find((u) => u.id === uid);
-
-    // Count DOWs where user is not permanently blocked.
-    // blockedDays uses ISO numbering: 1=Mon … 6=Sat, 7=Sun (JS: 0=Sun).
-    let activeDows = 7;
-    if (userObj?.blockedDays && userObj.blockedDays.length > 0) {
-      let blocked = 0;
-      for (let d = 0; d < 7; d++) {
-        const isoDow = d === 0 ? 7 : d;
-        if (userObj.blockedDays.includes(isoDow)) blocked++;
-      }
-      activeDows = Math.max(1, 7 - blocked);
-    }
+    // Count DOWs where user is not currently blocked.
+    // Blocked DOWs use ISO numbering: 1=Mon … 6=Sat, 7=Sun (JS: 0=Sun).
+    const blockedDows = getBlockedDows(uid);
+    const activeDows = Math.max(1, 7 - blockedDows.length);
 
     const mean = sum / activeDows;
     for (let d = 0; d < 7; d++) {
-      // Skip permanently-blocked DOWs — they contribute 0 by definition.
+      // Skip blocked DOWs — they contribute 0 by definition.
       const isoDow = d === 0 ? 7 : d;
-      if (userObj?.blockedDays?.includes(isoDow)) continue;
+      if (blockedDows.includes(isoDow)) continue;
       withinUserVar += (counts[d] - mean) ** 2;
     }
   }
@@ -585,9 +643,9 @@ export const computeGlobalObjective = (
   let rateSSE = 0;
   if (users && users.length > 0) {
     const rates: number[] = [];
-    const todayStr = toLocalISO(new Date());
+    const todayStr = todayIso;
     for (const uid of userIds) {
-      const user = users.find((u) => u.id === uid);
+      const user = usersById.get(uid);
       if (!user) continue;
       let total = 0;
       const counts = dowCountsMap.get(uid)!;
@@ -621,7 +679,7 @@ export const computeGlobalObjective = (
   let zeroGuardPenalty = 0;
   for (const uid of userIds) {
     const counts = dowCountsMap.get(uid)!;
-    const userObj = users?.find((u) => u.id === uid);
+    const blockedDows = getBlockedDows(uid);
 
     let uMin = Infinity;
     let uMax = -Infinity;
@@ -629,7 +687,7 @@ export const computeGlobalObjective = (
     let activeDows = 0;
     for (let d = 0; d < 7; d++) {
       const isoDow = d === 0 ? 7 : d;
-      if (userObj?.blockedDays?.includes(isoDow)) continue;
+      if (blockedDows.includes(isoDow)) continue;
       activeDows++;
       total += counts[d];
       if (counts[d] < uMin) uMin = counts[d];
@@ -676,7 +734,10 @@ export const computeGlobalObjective = (
           const gapDays = Math.round((maxTime - new Date(lastDate).getTime()) / MS_PER_DAY);
           const gapWeeks = Math.floor(gapDays / 7);
           if (gapWeeks >= 1) {
-            weeklyDroughtPenalty += gapWeeks * gapWeeks * droughtScale;
+            // Cap the per-user contribution so W_DROUGHT × value stays below
+            // the zero-guard minimum (50,000): drought pressure must never
+            // outbid per-user DOW fairness (4.8 × 10,000 = 48,000 < 50,000).
+            weeklyDroughtPenalty += Math.min(4.8, gapWeeks * gapWeeks * droughtScale);
           }
         }
       }

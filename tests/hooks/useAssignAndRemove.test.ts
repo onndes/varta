@@ -2,12 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { db } from '@/db/db';
 import { useAssignAndRemove } from '@/hooks/useAssignAndRemove';
-import type { DayWeights, User } from '@/types';
-import * as settingsService from '@/services/settingsService';
+import type { User } from '@/types';
 import * as auditService from '@/services/auditService';
 
 describe('useAssignAndRemove', () => {
-  const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
   const users: User[] = [
     {
       id: 1,
@@ -15,8 +13,6 @@ describe('useAssignAndRemove', () => {
       rank: 'Солдат',
       status: 'ACTIVE',
       isActive: true,
-      debt: 0,
-      owedDays: {},
       blockedDays: [1],
     },
   ];
@@ -24,7 +20,6 @@ describe('useAssignAndRemove', () => {
   beforeEach(async () => {
     await db.delete();
     await db.open();
-    vi.spyOn(settingsService, 'getKarmaOnManualChanges').mockResolvedValue(false);
     vi.spyOn(auditService, 'logAction').mockResolvedValue();
   });
 
@@ -37,7 +32,6 @@ describe('useAssignAndRemove', () => {
     const { result } = renderHook(() =>
       useAssignAndRemove({
         users,
-        dayWeights,
         schedule: {},
       })
     );
@@ -71,8 +65,6 @@ describe('useAssignAndRemove', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       },
       {
         id: 3,
@@ -80,15 +72,12 @@ describe('useAssignAndRemove', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       },
     ];
 
     const { result } = renderHook(() =>
       useAssignAndRemove({
         users: usersWithThird,
-        dayWeights,
         schedule: {
           '2026-04-13': {
             date: '2026-04-13',

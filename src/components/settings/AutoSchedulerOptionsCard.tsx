@@ -1,7 +1,6 @@
 // src/components/settings/AutoSchedulerOptionsCard.tsx
 import React from 'react';
 import type { AutoScheduleOptions } from '../../types';
-import DebtUserOptions from './DebtUserOptions';
 
 const REST_DAYS_MIN = 1;
 const REST_DAYS_MAX = 7; // min/max rest days between duties
@@ -13,7 +12,7 @@ interface AutoSchedulerOptionsCardProps {
 
 /**
  * Card with all auto-scheduler behaviour toggles: consecutive-day avoidance,
- * owed-day priority, load balancing, weekly limits, debt-user overrides, etc.
+ * load balancing, weekly limits, etc.
  */
 const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
   autoOpts,
@@ -28,6 +27,28 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
     <div className="card-body">
       <div className="alert alert-info py-2 small">
         Ці параметри визначають, як алгоритм обирає осіб при автоматичному заповненні графіка.
+      </div>
+
+      {/* Pre-generation confirmation */}
+      <div className="form-check form-switch mb-3">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id="confirmBeforeGeneration"
+          checked={autoOpts.confirmBeforeGeneration !== false}
+          onChange={(e) =>
+            onAutoOptsChange({ ...autoOpts, confirmBeforeGeneration: e.target.checked })
+          }
+        />
+        <label className="form-check-label" htmlFor="confirmBeforeGeneration">
+          <strong>Підтвердження перед генерацією</strong>
+          <div className="text-muted small">
+            Перед запуском «Генерація» / «Заповнити» показувати зведення по періоду: статуси
+            (відпустка, відрядження, лікування, відсутність), виключені з авторозподілу,
+            заблоковані дні тижня та попередження, якщо людей на тиждень замало. Вимкніть, щоб
+            запускати генерацію одразу без перевірки.
+          </div>
+        </label>
       </div>
 
       {/* Duty rotation pattern */}
@@ -187,24 +208,6 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
         </div>
       )}
 
-      {/* Respect owed days */}
-      <div className="form-check form-switch mb-3">
-        <input
-          className="form-check-input"
-          type="checkbox"
-          id="respectOwed"
-          checked={autoOpts.respectOwedDays}
-          onChange={(e) => onAutoOptsChange({ ...autoOpts, respectOwedDays: e.target.checked })}
-        />
-        <label className="form-check-label" htmlFor="respectOwed">
-          <strong>Враховувати борги (owedDays)</strong>
-          <div className="text-muted small">
-            Особи з боргом за конкретний день тижня мають пріоритет при призначенні саме на цей
-            день.
-          </div>
-        </label>
-      </div>
-
       {/* One duty per week when 7+ people available */}
       <div className="form-check form-switch mb-3">
         <input
@@ -266,8 +269,52 @@ const AutoSchedulerOptionsCard: React.FC<AutoSchedulerOptionsCardProps> = ({
         </label>
       </div>
 
-      {/* Allow debt users / repayment options */}
-      <DebtUserOptions autoOpts={autoOpts} onAutoOptsChange={onAutoOptsChange} />
+      {/* Force-override fairness accounting */}
+      <div className="mb-3">
+        <label className="form-label fw-bold">
+          <i className="fas fa-hand-paper me-2"></i>Force-наряд у заблокований/недоступний день
+        </label>
+        <div className="text-muted small mb-2">
+          Як враховувати у справедливості наряд, призначений примусово (force) у день, коли особа
+          була заблокована або недоступна. Жорсткі правила (відпочинок, несумісні пари, тижневі
+          ліміти) діють завжди, незалежно від вибору.
+        </div>
+        <div className="d-flex flex-column gap-2">
+          <div className="form-check">
+            <input
+              className="form-check-input"
+              type="radio"
+              name="forceOverrideAccounting"
+              id="foaNormal"
+              checked={(autoOpts.forceOverrideAccounting ?? 'normal') === 'normal'}
+              onChange={() => onAutoOptsChange({ ...autoOpts, forceOverrideAccounting: 'normal' })}
+            />
+            <label className="form-check-label" htmlFor="foaNormal">
+              <strong>Як звичайний наряд</strong>
+              <div className="text-muted small">
+                Зараховується у навантаження і статистику — наступні наряди особа отримає пізніше.
+              </div>
+            </label>
+          </div>
+          <div className="form-check">
+            <input
+              className="form-check-input"
+              type="radio"
+              name="forceOverrideAccounting"
+              id="foaNeutral"
+              checked={autoOpts.forceOverrideAccounting === 'neutral'}
+              onChange={() => onAutoOptsChange({ ...autoOpts, forceOverrideAccounting: 'neutral' })}
+            />
+            <label className="form-check-label" htmlFor="foaNeutral">
+              <strong>Нейтрально</strong>
+              <div className="text-muted small">
+                Не впливає на розподіл: коли з особи знімуть статуси/блокування, генерація буде
+                чесною, ніби force-наряду не було.
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 );

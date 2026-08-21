@@ -37,8 +37,8 @@ export const useExport = () => {
       setIsProcessing(true);
       setError(null);
 
-      await exportService.downloadBackup();
       await auditService.logAction('EXPORT', 'Резервна копія (JSON)');
+      await exportService.downloadBackup();
       await checkExportStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export data');

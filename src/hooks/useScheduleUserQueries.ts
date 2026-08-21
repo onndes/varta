@@ -2,10 +2,11 @@
 
 import { useCallback, useMemo } from 'react';
 import type { User, ScheduleEntry, DayWeights } from '../types';
-import { calculateEffectiveLoad as calcEffectiveLoad } from '../services/scheduleService';
+import { calculateLoadForUser } from '../services/scheduleService';
 import { isUserAvailable } from '../services/userService';
 import { toAssignedUserIds, getLogicSchedule } from '../utils/assignment';
 import { getWeekNumber, getWeekYear } from '../utils/dateUtils';
+import { applyStatsCutoffs } from '../utils/statsReset';
 
 /** Milliseconds per day, used for daysSinceLastDuty calculation. */
 const MS_PER_DAY = 86_400_000;
@@ -28,7 +29,7 @@ interface UseScheduleUserQueriesProps {
 
 /**
  * Provides derived queries over users and schedule data:
- * calculateEffectiveLoad, daysSinceLastDuty, getFreeUsers,
+ * calculateLoad, daysSinceLastDuty, getFreeUsers,
  * getWeekAssignedUsers, shouldShowCascadeRecalc.
  */
 export const useScheduleUserQueries = ({
@@ -41,12 +42,12 @@ export const useScheduleUserQueries = ({
   todayStr,
 }: UseScheduleUserQueriesProps) => {
   const logicSchedule = useMemo(
-    () => getLogicSchedule(schedule, ignoreHistoryInLogic),
-    [schedule, ignoreHistoryInLogic]
+    () => applyStatsCutoffs(getLogicSchedule(schedule, ignoreHistoryInLogic), users),
+    [schedule, ignoreHistoryInLogic, users]
   );
 
-  const calculateEffectiveLoad = useCallback(
-    (user: User) => calcEffectiveLoad(user, logicSchedule, dayWeights),
+  const calculateLoad = useCallback(
+    (user: User) => calculateLoadForUser(user, logicSchedule, dayWeights),
     [logicSchedule, dayWeights]
   );
 
@@ -65,7 +66,6 @@ export const useScheduleUserQueries = ({
 
   const getFreeUsers = useCallback(
     (dateStr: string, includeRestDay = false) => {
-      const dayIndex = new Date(dateStr).getDay();
       const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
       return users
         .filter((u) => {
@@ -75,17 +75,13 @@ export const useScheduleUserQueries = ({
             : isUserAvailable(u, dateStr, schedule);
         })
         .sort((a, b) => {
-          const oweA = (a.owedDays && a.owedDays[dayIndex]) || 0;
-          const oweB = (b.owedDays && b.owedDays[dayIndex]) || 0;
-          if (oweA !== oweB) return oweB - oweA;
-          const loadA = calculateEffectiveLoad(a);
-          const loadB = calculateEffectiveLoad(b);
+          const loadA = calculateLoad(a);
+          const loadB = calculateLoad(b);
           if (loadA !== loadB) return loadA - loadB;
-          if (a.debt !== b.debt) return a.debt - b.debt;
           return daysSinceLastDuty(b.id!, dateStr) - daysSinceLastDuty(a.id!, dateStr);
         });
     },
-    [schedule, users, calculateEffectiveLoad, daysSinceLastDuty]
+    [schedule, users, calculateLoad, daysSinceLastDuty]
   );
 
   const getWeekAssignedUsers = useCallback(
@@ -103,14 +99,13 @@ export const useScheduleUserQueries = ({
             u.id !== undefined && u.isActive && weekUserIds.has(u.id) && !assignedOnDate.has(u.id)
         )
         .sort((a, b) => {
-          const loadA = calculateEffectiveLoad(a);
-          const loadB = calculateEffectiveLoad(b);
+          const loadA = calculateLoad(a);
+          const loadB = calculateLoad(b);
           if (loadA !== loadB) return loadA - loadB;
-          if (a.debt !== b.debt) return a.debt - b.debt;
           return daysSinceLastDuty(b.id!, dateStr) - daysSinceLastDuty(a.id!, dateStr);
         });
     },
-    [schedule, users, weekDates, calculateEffectiveLoad, daysSinceLastDuty]
+    [schedule, users, weekDates, calculateLoad, daysSinceLastDuty]
   );
 
   const shouldShowCascadeRecalc = useMemo(() => {
@@ -126,15 +121,15 @@ export const useScheduleUserQueries = ({
       const hasImprovement = assignedIds.some((assignedId) => {
         const currentUser = users.find((u) => u.id === assignedId);
         if (!currentUser) return true;
-        const currentLoad = calculateEffectiveLoad(currentUser);
+        const currentLoad = calculateLoad(currentUser);
         return freeUsers.some(
-          (u) => calculateEffectiveLoad(u) < currentLoad - CASCADE_IMPROVEMENT_THRESHOLD
+          (u) => calculateLoad(u) < currentLoad - CASCADE_IMPROVEMENT_THRESHOLD
         );
       });
       if (hasImprovement && ++improvableCount >= CASCADE_MIN_IMPROVABLE) return true;
     }
     return false;
-  }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateEffectiveLoad]);
+  }, [cascadeStartDate, schedule, todayStr, users, getFreeUsers, calculateLoad]);
 
   const scheduledWeeksMap = useMemo(() => {
     const map = new Map<number, Set<number>>();
@@ -149,7 +144,7 @@ export const useScheduleUserQueries = ({
   }, [schedule]);
 
   return {
-    calculateEffectiveLoad,
+    calculateLoad,
     daysSinceLastDuty,
     getFreeUsers,
     getWeekAssignedUsers,

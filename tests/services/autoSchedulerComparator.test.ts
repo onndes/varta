@@ -16,22 +16,16 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   rank: 'Солдат',
   status: 'ACTIVE',
   isActive: true,
-  debt: 0,
-  owedDays: {},
   ...overrides,
 });
 
 const defaultOptions: AutoScheduleOptions = {
   avoidConsecutiveDays: true,
-  respectOwedDays: true,
   considerLoad: true,
   minRestDays: 1,
   aggressiveLoadBalancing: false,
   aggressiveLoadBalancingThreshold: 0.2,
   limitOneDutyPerWeekWhenSevenPlus: true,
-  allowDebtUsersExtraWeeklyAssignments: false,
-  debtUsersWeeklyLimit: 1,
-  prioritizeFasterDebtRepayment: false,
   forceUseAllWhenFew: true,
   evenWeeklyDistribution: false,
   useFirstDutyDateAsActiveFrom: true,
@@ -222,7 +216,7 @@ describe('filterByWeeklyCap', () => {
       // User1 вже має наряд у цьому тижні
       '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
     };
-    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule, defaultOptions);
+    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule);
     expect(result.map((u) => u.id)).toEqual([2, 3]);
   });
 
@@ -230,7 +224,7 @@ describe('filterByWeeklyCap', () => {
     const allUsers = buildLargePool();
     const pool = allUsers.slice(0, 3);
     const schedule: Record<string, ScheduleEntry> = {};
-    const result = filterByWeeklyCap(pool, allUsers, '2026-03-10', schedule, defaultOptions);
+    const result = filterByWeeklyCap(pool, allUsers, '2026-03-10', schedule);
     expect(result).toHaveLength(3);
   });
 
@@ -241,7 +235,7 @@ describe('filterByWeeklyCap', () => {
       '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
     };
     // Менше 7 eligible → cap не діє
-    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule, defaultOptions);
+    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule);
     expect(result).toHaveLength(3);
   });
 
@@ -251,28 +245,11 @@ describe('filterByWeeklyCap', () => {
     const schedule: Record<string, ScheduleEntry> = {
       '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
     };
-    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule, defaultOptions);
+    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule);
     // Fallback: повертає пул
     expect(result).toEqual(pool);
   });
 
-  it('боржник з extra weekly caps → може мати більше нарядів', () => {
-    const allUsers = buildLargePool();
-    // Боржник: debt=-3
-    allUsers[0] = makeUser({ id: 1, name: 'User1', debt: -3 });
-    const pool = [allUsers[0], allUsers[1]];
-    const schedule: Record<string, ScheduleEntry> = {
-      '2026-03-09': { date: '2026-03-09', userId: 1, type: 'auto' },
-    };
-    const optionsWithDebt: AutoScheduleOptions = {
-      ...defaultOptions,
-      allowDebtUsersExtraWeeklyAssignments: true,
-      debtUsersWeeklyLimit: 2,
-    };
-    const result = filterByWeeklyCap(pool, allUsers, '2026-03-11', schedule, optionsWithDebt);
-    // User1 (боржник) ще може мати наряди (cap=2, assigned=1), User2 теж
-    expect(result.map((u) => u.id)).toEqual([1, 2]);
-  });
 });
 
 // ─── buildUserComparator ───────────────────────────────────────────
@@ -299,16 +276,6 @@ describe('buildUserComparator', () => {
     expect(sorted[0].id).toBe(2);
   });
 
-  it('боєць з owedDays для цього дня має вищий пріоритет (respectOwedDays)', () => {
-    const userA = makeUser({ id: 1, name: 'Alpha', owedDays: {} });
-    const userB = makeUser({ id: 2, name: 'Bravo', owedDays: { 2: 3 } });
-    // 2026-03-10 = вівторок, JS dayIdx=2
-    const schedule: Record<string, ScheduleEntry> = {};
-    const options: AutoScheduleOptions = { ...defaultOptions, respectOwedDays: true };
-    const compare = buildUserComparator('2026-03-10', schedule, defaultDayWeights, options);
-    const sorted = [userA, userB].sort(compare);
-    expect(sorted[0].id).toBe(2);
-  });
 
   it('боєць з більшим часом очікування має вищий пріоритет', () => {
     const userA = makeUser({ id: 1, name: 'Alpha' });

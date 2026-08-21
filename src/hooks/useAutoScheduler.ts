@@ -309,7 +309,7 @@ export const useAutoScheduler = (
           createVisCallback()
         );
 
-        await autoScheduler.saveAutoSchedule(updates, dayWeights);
+        await autoScheduler.saveAutoSchedule(updates);
 
         if (onComplete) onComplete();
       } catch (err) {
@@ -439,7 +439,7 @@ export const useAutoScheduler = (
           createVisCallback()
         );
 
-        await autoScheduler.saveAutoSchedule(updates, dayWeights);
+        await autoScheduler.saveAutoSchedule(updates);
 
         if (onComplete) onComplete();
       } catch (err) {

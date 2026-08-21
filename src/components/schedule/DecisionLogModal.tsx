@@ -182,7 +182,6 @@ const CandidateTable: React.FC<{ rows: CandidateRow[] }> = ({ rows }) => {
             {renderSortHeader('sameDowPenalty', 'Повт.', 'Штраф повтору дня тижня')}
             {renderSortHeader('loadRate', 'Навант.', 'Частота нарядів')}
             {renderSortHeader('waitDays', 'Черга', 'Днів від останнього наряду')}
-            {renderSortHeader('debt', 'Борг')}
             <th>Статус</th>
           </tr>
         </thead>
@@ -221,7 +220,6 @@ const CandidateTable: React.FC<{ rows: CandidateRow[] }> = ({ rows }) => {
                     ? '∞'
                     : `${row.waitDays}д`}
               </td>
-              <td>{row.status === 'hard-eliminated' ? '—' : row.debt}</td>
               <td>
                 <small>{statusLabel(row)}</small>
               </td>
@@ -532,14 +530,6 @@ const SCORING_ITEMS: {
       v === -1
         ? 'Ще жодного наряду — максимальна черга'
         : `${v} днів з останнього наряду — чим більше, тим вищий пріоритет`,
-  },
-  {
-    key: 'debt',
-    label: 'Борг',
-    icon: '💰',
-    format: (v) => `${v}`,
-    explain: (v) =>
-      v > 0 ? `Боржник: ${v} нарядів переносяться з попередніх місяців` : 'Немає боргу',
   },
 ];
 
