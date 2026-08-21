@@ -84,21 +84,7 @@ export const useUsers = () => {
     [loadUsers]
   );
 
-  // Reset user debt
-  const resetUserDebt = useCallback(
-    async (id: number) => {
-      try {
-        const user = await userService.getUserById(id);
-        await userService.resetUserDebt(id);
-        await auditService.logAction('EDIT', `Скинуто борг: ${user?.name ?? id}`);
-        await loadUsers();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to reset debt');
-        throw err;
-      }
-    },
-    [loadUsers]
-  );
+
 
   // Bulk create users
   const bulkCreateUsers = useCallback(
@@ -149,7 +135,6 @@ export const useUsers = () => {
     createUser,
     updateUser,
     deleteUser,
-    resetUserDebt,
     bulkCreateUsers,
     getUserById,
     getActiveUsers,

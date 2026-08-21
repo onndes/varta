@@ -45,7 +45,7 @@ pair/single swap optimization (Pass 2) that minimizes a weighted global objectiv
 | File                              | Responsibility                                                                                                                                                                                                           | Do NOT put here                         |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
 | `src/utils/assignment.ts`         | Pure helpers for `ScheduleEntry.userId` (single `number` or `number[]` or `null`): `toAssignedUserIds`, `isAssignedInEntry`, `getAssignedCount`, `isManualType`, `isHistoryType`, `getLogicSchedule`, `getFirstDutyDate` | Business logic, DB calls, any state     |
-| `src/services/userService.ts`     | User CRUD (Dexie), **`getUserAvailabilityStatus`** (the canonical availability oracle), `isUserAvailable`, `repayOwedDay`, debt/karma mutation, `syncUserIncompatibility`                                                | Schedule manipulation, comparator logic |
+| `src/services/userService.ts`     | User CRUD (Dexie), **`getUserAvailabilityStatus`** (the canonical availability oracle), `isUserAvailable`, `syncUserIncompatibility`                                                                                     | Schedule manipulation, comparator logic |
 | `src/services/scheduleService.ts` | Schedule CRUD (Dexie), `countUserDaysOfWeek`, `calculateUserLoad`, `countUserAssignments`, `findScheduleConflicts`, `findScheduleGaps`                                                                                   | User mutation, comparator logic         |
 
 ---
@@ -101,7 +101,8 @@ Dates are processed in **ascending sorted order** (deterministic). For each date
 ```
 allAutoUsers  ← users where isAutoParticipant(u) && not already selectedIds
 hardPool      ← allAutoUsers where isHardEligible(u, date)
-            (checks isActive + getUserAvailabilityStatus === 'AVAILABLE')
+            (checks isActive + NOT isExcludedFromAutoOnDate(u, date)
+             + getUserAvailabilityStatus === 'AVAILABLE')
 
 pool ← hardPool
 
@@ -147,6 +148,26 @@ selectedIds.push(selected.id)
 
 If `selectedIds` is empty after processing all slots, a `critical` entry is written to
 `tempSchedule` (unassigned date flagged for the operator).
+
+**Exclude-from-auto periods are date-aware.** `isHardEligible` consults
+`isExcludedFromAutoOnDate` (src/utils/userExcludeFromAuto.ts) — the legacy boolean
+`u.excludeFromAuto` was deleted by DB migration v12 and must never be the only check. The
+fairness population for a run is `isAutoParticipantInWindow(u, dates)`: users excluded for the
+entire target window are removed from the objective so they cannot distort cross-user fairness
+terms.
+
+**Blocked DOWs are period-aware.** All fairness math (`computeGlobalObjective` within-user
+variance and zero guard, comparator `getCrossDowGuard`, decision-log metrics) uses
+`getEffectiveBlockedDows(user, refDate)` from src/utils/userBlockedDays.ts, which reads
+`blockedDaysPeriods` (with legacy `blockedDays` fallback). Reading the flat `user.blockedDays`
+field directly re-introduces a bug: that field is deleted by DB v12.
+
+**Force-override accounting (`forceOverrideAccounting` option).** 'normal' (default) counts
+force-assignments on blocked/unavailable days like any duty. 'neutral' makes them invisible to
+fairness only: `buildFairnessExclusionSet` feeds `computeGlobalObjective` (7th parameter) and
+`applyForceOverrideAccounting` strips them from the comparator's fairness schedule. Hard
+constraints (rest days, incompatible pairs, weekly caps) always see these entries — do not
+"simplify" by deleting them from tempSchedule.
 
 ### Pass 2 — Swap Optimization (`performSwapOptimization`)
 
@@ -226,7 +247,7 @@ All weights live inside `computeGlobalObjective` in `helpers.ts`.
 | `MIN_USERS_FOR_WEEKLY_LIMIT` | `7`     | Threshold at which `filterByWeeklyCap` and `forceUseAllWhenFew` activate. Below 7 active users, strict weekly limits would leave dates unassigned.                                                                                                                                                                                                            |
 | `BASE_SWAP_ITERATIONS`       | `1500`  | Default cap for `getAdaptiveMaxIterations`. Scaled by `min(1500, max(200, userCount × dateCount × 2))`, capped at 3000. Empirically: groups of 3–10 users converge well before 500 iterations; 1500 gives safety margin for 30-user groups.                                                                                                                   |
 | `FLOAT_EPSILON`              | `1e-9`  | Prevents infinite swap loops where floating-point noise creates illusory improvements. Without this guard, Phase 1 can cycle indefinitely on schedules that are already globally optimal.                                                                                                                                                                     |
-| `W_DROUGHT`                  | `3000`  | Weekly drought penalty: penalizes consecutive weeks without assignment. Only active when `prioritizeAfterWeekOff === true`. Scaled by group size (full at N≤7, zero at N≥14). Penalty per user = `gapWeeks² × droughtScale`. At weight 3,000 a 4-week gap contributes 48,000 — safely below zero-guard minimum (50,000) so DOW fairness is never overridden.  |
+| `W_DROUGHT`                  | `10000` | Weekly drought penalty: penalizes consecutive weeks without assignment. Only active when `prioritizeAfterWeekOff === true`. Scaled by group size (full at N≤7, zero at N≥14). Penalty per user = `min(4.8, gapWeeks² × droughtScale)` — the 4.8 cap keeps the contribution at ≤48,000, safely below zero-guard minimum (50,000) so DOW fairness is never overridden. |
 
 ### Zero-guard penalty math
 
@@ -281,8 +302,7 @@ the scheduler always makes some assignment rather than producing a `critical` ga
 
 ### `filterByWeeklyCap`
 
-- **What it does:** Removes users who have already reached their weekly assignment cap
-  (`getWeeklyAssignmentCap`, normally 1, higher for debt users).
+- **What it does:** Removes users who already have a duty this week (cap is a flat 1).
 - **Critical:** Uses **`countEligibleUsersForWeek`** to decide whether the cap is active (threshold
   `< MIN_USERS_FOR_WEEKLY_LIMIT`). Must NOT use `countEligibleUsersForDate`. A low-availability
   Friday (e.g., 3 people available that day) must not disable the weekly cap for the whole week —
@@ -329,7 +349,7 @@ the scheduler always makes some assignment rather than producing a `critical` ga
 | **4**    | DOW recency            | `daysSinceLastSameDowAssignment`, descending (longer gap first)  | Rotates users through the same DOW over longer time horizons.                                                                                                                                                                                                                                                                                                                           |
 | **5**    | Remaining availability | `getForceUseRemainingAvailability`, ascending                    | Only active in forceUse mode. Users with fewer remaining available days get assigned sooner (avoids stranding them).                                                                                                                                                                                                                                                                    |
 | **6**    | Load Rate              | `computeUserLoadRate = total / daysActive`, ascending            | Normalized by days active — prevents newcomers being overloaded by comparison to veterans.                                                                                                                                                                                                                                                                                              |
-| **7**    | Load balancing         | `calculateUserLoad + debt`, ascending                            | Only active when `options.considerLoad`.                                                                                                                                                                                                                                                                                                                                                |
+| **7**    | Load balancing         | `calculateUserLoad`, ascending                                   | Only active when `options.considerLoad`.                                                                                                                                                                                                                                                                                                                                                |
 | **8**    | Wait days              | `daysSinceLastAssignment`, descending (longer wait first)        | Classic round-robin tiebreak.                                                                                                                                                                                                                                                                                                                                                           |
 | **9**    | Stable tie-break       | `a.id - b.id`, ascending                                         | Deterministic; prevents non-reproducible output across identical inputs.                                                                                                                                                                                                                                                                                                                |
 

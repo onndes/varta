@@ -1,23 +1,19 @@
 // src/hooks/useAssignAndRemove.ts
 
 import { useCallback } from 'react';
-import type { User, ScheduleEntry, DayWeights } from '../types';
-import { removeAssignmentWithDebt, bulkDeleteSchedule } from '../services/scheduleService';
-import { getKarmaOnManualChanges } from '../services/settingsService';
-import * as userService from '../services/userService';
+import type { User, ScheduleEntry } from '../types';
+import { removeAssignment as removeAssignmentEntry, bulkDeleteSchedule } from '../services/scheduleService';
 import * as auditService from '../services/auditService';
 import { toAssignedUserIds, getAvailabilityOverrideUserIds } from '../utils/assignment';
 
 interface UseAssignAndRemoveProps {
   users: User[];
-  dayWeights: DayWeights;
   schedule: Record<string, ScheduleEntry>;
 }
 
 interface AssignOptions {
   maxPerDay?: number;
   replaceUserId?: number;
-  penalizeReplaced?: boolean;
   historyMode?: boolean;
   isForced?: boolean; // Force-assign: bypass availability, saved as type 'force'
 }
@@ -26,7 +22,7 @@ interface AssignOptions {
  * Provides core schedule mutation callbacks:
  * assignUser, removeAssignment, bulkDelete.
  */
-export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAndRemoveProps) => {
+export const useAssignAndRemove = ({ users, schedule }: UseAssignAndRemoveProps) => {
   const assignUser = useCallback(
     async (
       date: string,
@@ -44,18 +40,7 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
         nextIds = nextIds.filter((id) => id !== replaceUserId);
         const prevUser = users.find((u) => u.id === replaceUserId);
         if (prevUser) {
-          if (options?.penalizeReplaced && (await getKarmaOnManualChanges())) {
-            const dayIdx = new Date(date).getDay();
-            const weight = dayWeights[dayIdx] || 1.0;
-            await userService.updateUserDebt(replaceUserId, -weight);
-            await userService.updateOwedDays(replaceUserId, dayIdx, 1);
-            await auditService.logAction(
-              'REMOVE',
-              `${prevUser.name} замінено на ${date} (Карма -${weight})`
-            );
-          } else {
-            await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
-          }
+          await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
         }
       }
 
@@ -91,32 +76,20 @@ export const useAssignAndRemove = ({ users, dayWeights, schedule }: UseAssignAnd
       };
       await saveScheduleEntry(entry);
 
-      const user = assignedUser;
-      if (user && isManual) {
-        if (await getKarmaOnManualChanges()) {
-          const dayIdx = new Date(date).getDay();
-          const weight = dayWeights[dayIdx] || 1.0;
-          await userService.repayOwedDay(userId, dayIdx, weight);
-        }
-        await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
-      } else if (user) {
-        await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
+      if (assignedUser) {
+        await auditService.logAction('ASSIGN', `${assignedUser.name} на ${date}`);
       }
     },
-    [users, dayWeights, schedule]
+    [users, schedule]
   );
 
   const removeAssignment = useCallback(
-    async (
-      date: string,
-      reason: 'request' | 'work' = 'work',
-      targetUserId?: number
-    ): Promise<void> => {
+    async (date: string, targetUserId?: number): Promise<void> => {
       const entry = schedule[date];
       if (!entry || !entry.userId) return;
-      await removeAssignmentWithDebt(date, reason, dayWeights, targetUserId);
+      await removeAssignmentEntry(date, targetUserId);
     },
-    [schedule, dayWeights]
+    [schedule]
   );
 
   const bulkDelete = useCallback(async (dates: string[]): Promise<void> => {

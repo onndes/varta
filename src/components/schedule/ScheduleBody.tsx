@@ -29,12 +29,8 @@ interface SelectedCell {
 // ─── Props (extends ScheduleModalsProps with visual-content additions) ───────
 
 export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssign'> {
-  /** Full 3-arg handleAssign so onQuickAssignClick can pass an explicit targetCell. */
-  handleAssign: (
-    userId: number | undefined,
-    penalize?: boolean,
-    targetCell?: SelectedCell | null
-  ) => Promise<void>;
+  /** 2-arg handleAssign so onQuickAssignClick can pass an explicit targetCell. */
+  handleAssign: (userId: number | undefined, targetCell?: SelectedCell | null) => Promise<void>;
   // Week view
   todayStr: string;
   scheduledWeeksMap: Map<number, Set<number>>;
@@ -53,6 +49,8 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   cascadeStartDate: string | null;
   // Table data
   dutiesPerDay: number;
+  /** Опція «не більше 1 чергування на тиждень» — вмикає м'яке підсвічування рядка. */
+  weeklyCapEnabled: boolean;
   deletedUserNames: Record<number, DeletedUserInfo>;
   handleStartEdit: (user: User) => void;
   // Toolbar
@@ -79,6 +77,7 @@ export interface ScheduleBodyProps extends Omit<ScheduleModalsProps, 'handleAssi
   printMode: PrintMode;
   printMaxRows: number;
   printDutyTableShowAllUsers: boolean;
+  printSkipFullyAbsent: boolean;
   printWeekRange: PrintWeekRange | null;
   dowHistoryWeeks: number;
   dowHistoryMode: 'numbers' | 'dots';
@@ -137,6 +136,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   users,
   schedule,
   dutiesPerDay,
+  weeklyCapEnabled,
   deletedUserNames,
   handleStartEdit,
   selectedCell,
@@ -151,6 +151,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   printMode,
   printMaxRows,
   printDutyTableShowAllUsers,
+  printSkipFullyAbsent,
   printWeekRange,
   dowHistoryWeeks,
   dowHistoryMode,
@@ -173,7 +174,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
   getFreeUsers,
   getWeekAssignedUsers,
   daysSinceLastDuty,
-  calculateEffectiveLoad,
+  calculateLoad,
   logAction,
   refreshData,
   editingUser,
@@ -264,6 +265,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           schedule={schedule}
           todayStr={todayStr}
           dutiesPerDay={dutiesPerDay}
+          weeklyCapEnabled={weeklyCapEnabled}
           rowFilter={rowFilter}
           historyMode={historyMode}
           deletedUserNames={deletedUserNames}
@@ -284,7 +286,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
             setSwapMode('replace');
             const targetCell = { date, entry: null, assignedUserId: undefined };
             setSelectedCell(targetCell);
-            void handleAssign(user.id, false, targetCell);
+            void handleAssign(user.id, targetCell);
           }}
         />
       </div>
@@ -299,6 +301,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
           users={users}
           maxRowsPerPage={printMaxRows}
           showAllUsers={printDutyTableShowAllUsers}
+          skipFullyAbsent={printSkipFullyAbsent}
           showStats={printMode === 'duty-table-with-stats'}
           dowHistoryWeeks={dowHistoryWeeks}
           footer={
@@ -331,10 +334,8 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
         setSwapMode={setSwapMode}
         pendingAssignConfirm={pendingAssignConfirm}
         setPendingAssignConfirm={setPendingAssignConfirm}
-        executeAssign={(userId, penalize, isForced) =>
-          void executeAssign(userId, penalize, isForced)
-        }
-        handleAssign={(userId, penalize) => handleAssign(userId, penalize)}
+        executeAssign={(userId, isForced) => void executeAssign(userId, isForced)}
+        handleAssign={(userId) => handleAssign(userId)}
         handleSwap={handleSwap}
         handleRemove={handleRemove}
         users={users}
@@ -344,7 +345,7 @@ const ScheduleBody: React.FC<ScheduleBodyProps> = ({
         getFreeUsers={getFreeUsers}
         getWeekAssignedUsers={getWeekAssignedUsers}
         daysSinceLastDuty={daysSinceLastDuty}
-        calculateEffectiveLoad={calculateEffectiveLoad}
+        calculateLoad={calculateLoad}
         showImportModal={showImportModal}
         setShowImportModal={setShowImportModal}
         logAction={logAction}

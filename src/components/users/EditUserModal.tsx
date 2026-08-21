@@ -13,6 +13,13 @@ import {
 import { StatusPeriodsSection } from './UserStatusPeriodsSection';
 import { BlockedDaysPeriodsSection } from './BlockedDaysPeriodsSection';
 import { ExcludeFromAutoPeriodsSection } from './ExcludeFromAutoPeriodsSection';
+import { StatsResetSection } from './StatsResetSection';
+import {
+  DEFAULT_STAFF_WEEKLY_TARGET,
+  getWeeklyDutyTarget,
+  STAFF_WEEKLY_TARGET_MAX,
+  STAFF_WEEKLY_TARGET_MIN,
+} from '../../utils/staffDuty';
 
 interface EditUserModalProps {
   user: User;
@@ -27,12 +34,20 @@ interface EditUserModalProps {
   firstDutyDate?: string;
   /** All users (needed for incompatible pairs picker) */
   allUsers?: User[];
+  /** Перечитати дані після обнулення статистики (наряди міняються в базі напряму) */
+  onStatsChanged?: () => Promise<void>;
+  logAction?: (action: string, details: string) => Promise<void>;
 }
 
 /**
  * Modal for editing a user's profile: status periods, availability flags,
  * blocked days, incompatible pairs, and advanced identity fields.
  */
+const STAFF_WEEKLY_TARGET_OPTIONS = Array.from(
+  { length: STAFF_WEEKLY_TARGET_MAX - STAFF_WEEKLY_TARGET_MIN + 1 },
+  (_, i) => STAFF_WEEKLY_TARGET_MIN + i
+);
+
 const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
   baseUser = null,
@@ -43,6 +58,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   computedFairnessDate,
   firstDutyDate,
   allUsers = [],
+  onStatsChanged,
+  logAction,
 }) => {
   const [incompatibleSearch, setIncompatibleSearch] = useState('');
   const todayStr = toLocalISO(new Date());
@@ -228,6 +245,69 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         </div>
       </div>
 
+      {/* Штатний черговий */}
+      <div className="card border-info mb-3">
+        <div className="card-body">
+          <div className="form-check form-switch">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="isStaffDuty"
+              checked={!!user.isStaffDuty}
+              onChange={(e) =>
+                onChange({
+                  ...user,
+                  isStaffDuty: e.target.checked,
+                  staffWeeklyTarget: e.target.checked
+                    ? (user.staffWeeklyTarget ?? DEFAULT_STAFF_WEEKLY_TARGET)
+                    : undefined,
+                })
+              }
+              style={{ cursor: 'pointer' }}
+            />
+            <label
+              className="form-check-label fw-bold"
+              htmlFor="isStaffDuty"
+              style={{ cursor: 'pointer' }}
+            >
+              <i className="fas fa-shield-halved me-2 text-info"></i>Штатний черговий
+            </label>
+            <div className="small text-muted mt-1">
+              Чергування — основна задача бійця. Ліміт «1 наряд на тиждень» на нього не діє: авто
+              ставить його, доки не вибрана власна норма, і порівнює не із загальним
+              навантаженням підрозділу, а з цією нормою. У статистику підрозділу не входить.
+            </div>
+          </div>
+
+          {user.isStaffDuty && (
+            <div className="mt-3">
+              <label className="form-label small fw-semibold mb-1" htmlFor="staffWeeklyTarget">
+                Норма нарядів на тиждень
+              </label>
+              <select
+                id="staffWeeklyTarget"
+                className="form-select form-select-sm"
+                style={{ maxWidth: '18rem' }}
+                value={getWeeklyDutyTarget(user)}
+                onChange={(e) =>
+                  onChange({ ...user, staffWeeklyTarget: Number(e.target.value) })
+                }
+              >
+                {STAFF_WEEKLY_TARGET_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n} на тиждень
+                  </option>
+                ))}
+              </select>
+              <div className="small text-muted mt-1">
+                Мінімальний відпочинок для штатного — 1 день (можливе чергування через добу), два
+                наряди поспіль система не поставить.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <ExcludeFromAutoPeriodsSection
         periods={excludeFromAutoPeriods2}
         onUpdate={updateExcludeFromAutoPeriod}
@@ -260,6 +340,15 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         computedFairnessDate={computedFairnessDate}
         firstDutyDate={firstDutyDate}
       />
+
+      {user.id && (
+        <StatsResetSection
+          user={user}
+          onChange={onChange}
+          onStatsChanged={onStatsChanged}
+          logAction={logAction}
+        />
+      )}
     </Modal>
   );
 };

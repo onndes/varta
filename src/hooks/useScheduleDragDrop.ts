@@ -1,9 +1,8 @@
 // src/hooks/useScheduleDragDrop.ts
 import { useState, useCallback, useRef } from 'react';
-import type { ScheduleEntry, User, DayWeights, AutoScheduleOptions } from '../types';
+import type { ScheduleEntry, User, AutoScheduleOptions } from '../types';
 import { getUserAvailabilityStatus } from '../services/userService';
-import { applyKarmaForTransfer, saveScheduleEntry } from '../services/scheduleService';
-import { getKarmaOnManualChanges } from '../services/settingsService';
+import { saveScheduleEntry } from '../services/scheduleService';
 import { useDialog } from '../components/useDialog';
 import { toAssignedUserIds, isAssignedInEntry } from '../utils/assignment';
 import { toLocalISO } from '../utils/dateUtils';
@@ -39,7 +38,6 @@ export interface DragDropHandlers {
 interface UseScheduleDragDropArgs {
   schedule: Record<string, ScheduleEntry>;
   users: User[];
-  dayWeights: DayWeights;
   todayStr: string;
   historyMode: boolean;
   forceAssignMode: boolean;
@@ -54,11 +52,7 @@ interface UseScheduleDragDropArgs {
       maxPerDay?: number;
     }
   ) => Promise<void>;
-  removeAssignment: (
-    date: string,
-    reason?: 'request' | 'work',
-    targetUserId?: number
-  ) => Promise<void>;
+  removeAssignment: (date: string, targetUserId?: number) => Promise<void>;
   pushHistory: (snapshot: Record<string, ScheduleEntry>, label: string) => void;
   logAction: (action: string, details: string) => Promise<void>;
   refreshData: () => Promise<void>;
@@ -70,7 +64,6 @@ interface UseScheduleDragDropArgs {
 export const useScheduleDragDrop = ({
   schedule,
   users,
-  dayWeights,
   todayStr,
   historyMode,
   forceAssignMode,
@@ -298,16 +291,12 @@ export const useScheduleDragDrop = ({
               type: 'swap',
               isLocked: false,
             });
-            if (await getKarmaOnManualChanges()) {
-              await applyKarmaForTransfer(sourceUserId, sourceDate, targetDate, dayWeights);
-              await applyKarmaForTransfer(targetUserId, targetDate, sourceDate, dayWeights);
-            }
             await logAction('DRAG_SWAP', `${srcName} ↔ ${tgtName}: ${sourceDate} ↔ ${targetDate}`);
             await updateCascadeTrigger(sourceDate);
             await updateCascadeTrigger(targetDate);
           } else {
             // ── Move: source duty transfers to target cell ──────────────────
-            await removeAssignment(sourceDate, 'work', sourceUserId);
+            await removeAssignment(sourceDate, sourceUserId);
             await assignUser(targetDate, targetUserId, true, {
               historyMode,
               isForced: forceAssignMode,
@@ -327,7 +316,6 @@ export const useScheduleDragDrop = ({
       validateDrop,
       schedule,
       users,
-      dayWeights,
       historyMode,
       forceAssignMode,
       assignUser,

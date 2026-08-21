@@ -188,9 +188,6 @@ describe('settingsService', () => {
     it('повинен повертати нову опцію увімкненою за замовчуванням', async () => {
       const opts = await getAutoScheduleOptions();
       expect(opts.limitOneDutyPerWeekWhenSevenPlus).toBe(true);
-      expect(opts.allowDebtUsersExtraWeeklyAssignments).toBe(true);
-      expect(opts.debtUsersWeeklyLimit).toBe(3);
-      expect(opts.prioritizeFasterDebtRepayment).toBe(true);
       expect(opts.aggressiveLoadBalancing).toBe(false);
       expect(opts.aggressiveLoadBalancingThreshold).toBe(0.2);
     });
@@ -200,7 +197,6 @@ describe('settingsService', () => {
         key: 'autoScheduleOptions',
         value: JSON.stringify({
           avoidConsecutiveDays: true,
-          respectOwedDays: true,
           considerLoad: true,
           minRestDays: 1,
         }),
@@ -208,9 +204,6 @@ describe('settingsService', () => {
 
       const opts = await getAutoScheduleOptions();
       expect(opts.limitOneDutyPerWeekWhenSevenPlus).toBe(true);
-      expect(opts.allowDebtUsersExtraWeeklyAssignments).toBe(true);
-      expect(opts.debtUsersWeeklyLimit).toBe(3);
-      expect(opts.prioritizeFasterDebtRepayment).toBe(true);
       expect(opts.aggressiveLoadBalancing).toBe(false);
       expect(opts.aggressiveLoadBalancingThreshold).toBe(0.2);
     });

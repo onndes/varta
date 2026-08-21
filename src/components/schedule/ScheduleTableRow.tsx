@@ -12,6 +12,9 @@ import { toLocalISO } from '../../utils/dateUtils';
 import { buildStaticLog } from './scheduleTableUtils';
 import DecisionLogModal from './DecisionLogModal';
 import { DEFAULT_HELPER_DECORATIONS, type HelperDecorations } from './helperDecorations';
+import { getWorkloadBand, type UserWorkload, type WorkloadPoint } from '../../utils/workload';
+import { getWeeklyDutyTarget, isStaffDuty } from '../../utils/staffDuty';
+import { getStatsCutoff } from '../../utils/statsReset';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +82,25 @@ const getDowWeeksAgo = (
   return result;
 };
 
+/** Людський опис навантаження для підказки */
+const NO_WORKLOAD_REASON: Record<NonNullable<UserWorkload['noDataReason']>, string> = {
+  'not-started': 'Облік навантаження ще не почався — дата включення пізніша за цей тиждень',
+  excluded: 'Виключений(-а) з авто-розподілу, тому доступних днів для чергування немає',
+  'all-blocked':
+    'Увесь період обліку закритий статусом (відпустка / відрядження / лікарняний) або блокуваннями',
+};
+
+const describeWorkload = (point: WorkloadPoint, asOf: string): string => {
+  if (point.availableDays === 0) return 'Немає доступних днів для обліку навантаження';
+  const perDuty =
+    point.daysPerDuty > 0 ? `1 наряд на ${point.daysPerDuty.toFixed(1)} дн.` : 'нарядів ще не було';
+  return (
+    `Навантаження на ${asOf}: ${point.index}% від середнього по підрозділу\n` +
+    `${point.duties} нарядів / ${point.availableDays} доступних днів (${perDuty})\n` +
+    'Доступні дні = усі дні обліку мінус відпустки, відрядження, лікарняні, блокування'
+  );
+};
+
 interface ScheduleTableRowProps {
   user: User;
   index: number;
@@ -97,6 +119,17 @@ interface ScheduleTableRowProps {
   dragDropHandlers?: DragDropHandlers;
   /** Preview-mode entries (never saved to DB). Keyed by date. */
   previewSchedule?: Record<string, ScheduleEntry>;
+  /** Показник навантаження бійця (підсумок + зріз на кожну дату тижня). */
+  workload?: UserWorkload;
+  /** Тижнева норма бійця вичерпана при увімкненому ліміті нарядів на тиждень. */
+  weekCapReached?: boolean;
+  /** Скільки нарядів у бійця в межах відображеного тижня. */
+  weekDutyCount?: number;
+  /**
+   * Розклад для підрахунків: без нарядів, прихованих обнуленням статистики.
+   * Сітка малюється з `schedule`, а всі цифри рахуються звідси.
+   */
+  statsSchedule?: Record<string, ScheduleEntry>;
 }
 
 /**
@@ -119,13 +152,21 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   helperDecorations = DEFAULT_HELPER_DECORATIONS,
   dragDropHandlers,
   previewSchedule,
+  workload,
+  weekCapReached = false,
+  weekDutyCount = 0,
+  statsSchedule,
 }) => {
   const [activeLog, setActiveLog] = useState<DecisionLog | null>(null);
   const [activeLogDate, setActiveLogDate] = useState<string>('');
   const [activeLogEntry, setActiveLogEntry] = useState<ScheduleEntry | null>(null);
+  const countedSchedule = statsSchedule || schedule;
   const dowAssignmentCounts = user.id
-    ? countUserDaysOfWeek(user.id, schedule)
+    ? countUserDaysOfWeek(user.id, countedSchedule)
     : { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+  // Штатний черговий: власна тижнева норма замість індексу навантаження
+  const staffTarget = isStaffDuty(user) ? getWeeklyDutyTarget(user) : null;
 
   // Split name: surname (CAPS) + first/middle (dimmer)
   const nameParts = user.name.trim().split(/\s+/);
@@ -174,6 +215,49 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             </div>
           )}
           <div className="d-flex flex-wrap gap-1 mt-1">
+            {helperDecorations.workload && staffTarget !== null && (
+              <span
+                className="workload-badge no-print band-none"
+                title={
+                  `Штатний черговий: норма ${staffTarget} наряди(-ів) на тиждень, ` +
+                  `цього тижня ${weekDutyCount}.\n` +
+                  'У середнє навантаження підрозділу не входить — порівнюється лише з власною нормою.'
+                }
+              >
+                <i className="fas fa-shield-halved" />
+                {weekDutyCount}/{staffTarget}
+                <span className="workload-badge-detail">тиж.</span>
+              </span>
+            )}
+            {helperDecorations.workload && staffTarget === null && workload && workload.availableDays === 0 && (
+              <span
+                className="workload-badge no-print band-none"
+                title={NO_WORKLOAD_REASON[workload.noDataReason ?? 'all-blocked']}
+              >
+                <i className="fas fa-gauge-high" />—
+              </span>
+            )}
+            {helperDecorations.workload && staffTarget === null && workload && workload.availableDays > 0 && (
+              <span
+                className={`workload-badge no-print band-${getWorkloadBand(workload)}`}
+                title={describeWorkload(workload, weekDates[weekDates.length - 1])}
+              >
+                <i className="fas fa-gauge-high" />
+                {workload.index}%
+                <span className="workload-badge-detail">
+                  {workload.duties}/{workload.availableDays}
+                </span>
+              </span>
+            )}
+            {weekCapReached && (
+              <span
+                className="week-cap-badge no-print"
+                title="Уже чергував цього тижня — за налаштуванням «не більше 1 чергування на тиждень» авто його більше не візьме. Вручну поставити все ще можна."
+              >
+                <i className="fas fa-check" />
+                1/тиждень
+              </span>
+            )}
             {!user.isActive && (
               <span
                 className="badge bg-secondary text-white no-print"
@@ -206,8 +290,23 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             prevDate.getDay() === 0 && isAssignedInEntry(schedule[toLocalISO(prevDate)], user.id!);
           const isPast = new Date(date) < new Date(todayStr);
           const dayOfWeek = new Date(date).getDay();
-          const dowWeeksAgo = getDowWeeksAgo(date, user.id!, schedule, dowHistoryWeeks);
+          const dowWeeksAgo = getDowWeeksAgo(date, user.id!, countedSchedule, dowHistoryWeeks);
           const totalDutiesForDow = dowAssignmentCounts[dayOfWeek] || 0;
+          // Зріз навантаження станом на цей день (включно з нарядом цього дня).
+          // Для штатного чергового у комірці корисніше бачити виконання тижневої
+          // норми на цей день, а не індекс відносно підрозділу.
+          const staffWeekProgress =
+            staffTarget === null
+              ? null
+              : weekDates.filter((d) => d <= date && isAssignedInEntry(schedule[d], user.id!))
+                  .length;
+          const cellWorkloadPoint = workload?.byDate[date];
+          const cellWorkload =
+            cellWorkloadPoint && cellWorkloadPoint.availableDays > 0 && (available || isAssigned)
+              ? cellWorkloadPoint
+              : null;
+
+          const statsCutoff = getStatsCutoff(user);
 
           let cellClass = 'compact-cell';
           let screenContent: React.ReactNode = '';
@@ -230,6 +329,10 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             }
           }
 
+          // М'яке підсвічування: квота тижня вичерпана, але клік не блокуємо.
+          const softWeekCap = weekCapReached && !isAssigned && available && !isPast;
+          if (softWeekCap) cellClass += ' week-cap-soft';
+
           if (isAssigned) {
             if (entry.type === 'history' || entry.type === 'import') {
               cellClass += ' history-entry';
@@ -241,6 +344,9 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
                   ? ' assigned-past'
                   : ' assigned' + (entry.isLocked ? ' locked' : '');
             }
+
+            // Наряд до дати обнулення статистики: лишається в графіку, але не рахується.
+            if (statsCutoff && date < statsCutoff) cellClass += ' stats-hidden-entry';
 
             const icon = helperDecorations.assignmentIcons ? getEntryIcon(entry) : '';
             const log = helperDecorations.decisionInfo
@@ -291,7 +397,14 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               data-date={date}
               data-user-id={user.id}
               className={cellClass + (canDrag ? ' can-drag' : '')}
-              title={dropHoverTitle}
+              title={
+                dropHoverTitle ??
+                (isAssigned && statsCutoff && date < statsCutoff
+                  ? `Наряд не враховується у статистиці: облік починається з ${new Date(statsCutoff).toLocaleDateString('uk-UA')}`
+                  : softWeekCap
+                    ? 'Норма тижня вже виконана (1 чергування). Можна поставити другий раз вручну.'
+                    : undefined)
+              }
               draggable={canDrag}
               onDragStart={
                 canDrag
@@ -340,6 +453,24 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               {user.excludeFromAuto && (
                 <span className="exclude-auto-marker no-print" aria-hidden="true">
                   <i className="fas fa-ban" />
+                </span>
+              )}
+              {helperDecorations.workload && staffWeekProgress !== null && (available || isAssigned) && (
+                <span
+                  className="workload-cell-badge no-print band-none"
+                  title={`Штатний черговий: ${staffWeekProgress} з ${staffTarget} нарядів тижня станом на ${date}`}
+                  aria-hidden="true"
+                >
+                  {staffWeekProgress}/{staffTarget}
+                </span>
+              )}
+              {helperDecorations.workload && staffTarget === null && cellWorkload && (
+                <span
+                  className={`workload-cell-badge no-print band-${getWorkloadBand(cellWorkload)}`}
+                  title={describeWorkload(cellWorkload, date)}
+                  aria-hidden="true"
+                >
+                  {cellWorkload.index}
                 </span>
               )}
               {helperDecorations.dowDutyCounts && (

@@ -308,8 +308,6 @@ export function parsedRowToUser(row: ParsedPersonRow): Omit<User, 'id'> {
     isActive: false,
     isPersonnel: true,
     excludeFromAuto: false,
-    debt: 0,
-    owedDays: {},
     statusPeriods: [],
     restAfterStatus: false,
     dateAddedToAuto: undefined,

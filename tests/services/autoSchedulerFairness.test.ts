@@ -33,8 +33,6 @@ describe('autoScheduler fairness', () => {
     rank: 'Солдат',
     status: 'ACTIVE',
     isActive: true,
-    debt: 0,
-    owedDays: {},
     ...extra,
   });
 

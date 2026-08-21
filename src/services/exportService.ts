@@ -26,7 +26,6 @@ export interface ExportData {
   dayWeights?: { key: string; value: DayWeights };
   signatories?: { key: string; value: Signatories };
   autoScheduleOptions?: { key: string; value: AutoScheduleOptions };
-  maxDebt?: number;
   dutiesPerDay?: number;
   printMaxRows?: number;
   printDutyTableShowAllUsers?: boolean;
@@ -38,7 +37,6 @@ export interface ExportData {
   dowHistoryWeeks?: number;
   dowHistoryMode?: 'numbers' | 'dots';
   birthdayBlockOpts?: BirthdayBlockOpts;
-  karmaOnManualChanges?: boolean;
 }
 
 export interface MultiWorkspaceExportData {
@@ -100,7 +98,6 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dayWeightsRec,
     signatoriesRec,
     autoOptsRec,
-    maxDebtRec,
     dutiesPerDayRec,
     printMaxRowsRec,
     printDutyTableShowAllUsersRec,
@@ -112,7 +109,6 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dowHistoryWeeksRec,
     dowHistoryModeRec,
     birthdayBlockOptsRec,
-    karmaOnManualChangesRec,
   ] = await Promise.all([
     targetDb.users.toArray(),
     targetDb.schedule.toArray(),
@@ -120,7 +116,6 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('dayWeights'),
     targetDb.appState.get('signatories'),
     targetDb.appState.get('autoScheduleOptions'),
-    targetDb.appState.get('maxDebt'),
     targetDb.appState.get('dutiesPerDay'),
     targetDb.appState.get('printMaxRows'),
     targetDb.appState.get('printDutyTableShowAllUsers'),
@@ -132,7 +127,6 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     targetDb.appState.get('dowHistoryWeeks'),
     targetDb.appState.get('dowHistoryMode'),
     targetDb.appState.get('birthdayBlockOpts'),
-    targetDb.appState.get('karmaOnManualChanges'),
   ]);
   return {
     version: CURRENT_BACKUP_VERSION,
@@ -143,7 +137,6 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dayWeights: dayWeightsRec as ExportData['dayWeights'],
     signatories: signatoriesRec as ExportData['signatories'],
     autoScheduleOptions: autoOptsRec as ExportData['autoScheduleOptions'],
-    maxDebt: maxDebtRec ? (maxDebtRec.value as number) : undefined,
     dutiesPerDay: dutiesPerDayRec ? (dutiesPerDayRec.value as number) : undefined,
     printMaxRows: printMaxRowsRec ? (printMaxRowsRec.value as number) : undefined,
     printDutyTableShowAllUsers: printDutyTableShowAllUsersRec
@@ -160,9 +153,6 @@ const readDataFromDb = async (targetDb: typeof db): Promise<ExportData> => {
     dowHistoryMode: dowHistoryModeRec ? (dowHistoryModeRec.value as 'numbers' | 'dots') : undefined,
     birthdayBlockOpts: birthdayBlockOptsRec
       ? (birthdayBlockOptsRec.value as BirthdayBlockOpts)
-      : undefined,
-    karmaOnManualChanges: karmaOnManualChangesRec
-      ? (karmaOnManualChangesRec.value as boolean)
       : undefined,
   };
 };
@@ -182,8 +172,14 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
       await targetDb.auditLog.clear();
       await targetDb.appState.clear();
 
-      // Записати дані
-      await targetDb.users.bulkAdd(data.users as never[]);
+      // Записати дані (легасі-поля карми з давніх бекапів відкидаються)
+      const cleanUsers = (data.users as Record<string, unknown>[]).map((u) => {
+        const rest = { ...u };
+        delete rest.debt;
+        delete rest.owedDays;
+        return rest;
+      });
+      await targetDb.users.bulkAdd(cleanUsers as never[]);
       await targetDb.schedule.bulkAdd(data.schedule as never[]);
       if (Array.isArray(data.auditLog)) {
         await targetDb.auditLog.bulkAdd(data.auditLog as never[]);
@@ -199,8 +195,6 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
           key: 'autoScheduleOptions',
           value: data.autoScheduleOptions.value,
         });
-      if (data.maxDebt != null)
-        await targetDb.appState.put({ key: 'maxDebt', value: data.maxDebt });
       if (data.dutiesPerDay != null)
         await targetDb.appState.put({ key: 'dutiesPerDay', value: data.dutiesPerDay });
       if (data.printMaxRows != null)
@@ -228,12 +222,6 @@ const restoreDataToDb = async (targetDb: typeof db, data: ExportData): Promise<v
         await targetDb.appState.put({ key: 'dowHistoryMode', value: data.dowHistoryMode });
       if (data.birthdayBlockOpts)
         await targetDb.appState.put({ key: 'birthdayBlockOpts', value: data.birthdayBlockOpts });
-      if (data.karmaOnManualChanges != null)
-        await targetDb.appState.put({
-          key: 'karmaOnManualChanges',
-          value: data.karmaOnManualChanges,
-        });
-
       // Прапорці
       await targetDb.appState.put({ key: 'needsExport', value: false });
       await targetDb.appState.put({

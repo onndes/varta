@@ -14,7 +14,16 @@ $print-page-margin:     5mm 8mm;        // поля: верх/низ  ліво/�
 
 // ── 2. МАСШТАБ ТАБЛИЦІ ────────────────────────────────────────────────────────
 $print-table-font-size: 8.5pt;          // базовий шрифт (↑ крупніше, менше рядків на сторінці)
-$print-cell-padding:    1px 3px;        // відступи у клітинках (↑ перше число = рядки вищі)
+$print-cell-padding-y:  1px;            // вертикальний відступ (↑ рядки вищі)
+$print-cell-padding-x:  3px;            // горизонтальний відступ у клітинках
+
+// Автоматичне ущільнення: якщо людей більше за ліміт сторінки, PrintDutyTable
+// виставляє --print-density (від 1 до ~0.62) і всі розміри нижче пропорційно
+// зменшуються — пропорції та відступи зберігаються.
+// Межу ущільнення задає PRINT_MAX_STRETCH у printDutyLayout.ts.
+@function pd($value) {
+  @return calc(#{$value} * var(--print-density, 1));
+}
 
 // ── 3. ШИРИНИ КОЛОНОК ─────────────────────────────────────────────────────────
 $print-col-num-width:   22px;           // колонка «№»
@@ -372,19 +381,19 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;          // фіксована розкладка: ширини колонок строго дотримуються
-    font-size: $print-table-font-size;
+    font-size: pd($print-table-font-size);
 
     th,
     td {
       border: 1px solid #000;
-      padding: $print-cell-padding;
+      padding: pd($print-cell-padding-y) pd($print-cell-padding-x);
       text-align: center;
       vertical-align: middle;
     }
 
     th {
       font-weight: bold;
-      font-size: $print-th-font-size;
+      font-size: pd($print-th-font-size);
       background-color: $print-th-bg !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -396,6 +405,8 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
 
     .col-rank {
       width: $print-col-rank-width;
+      overflow: hidden;
+      text-overflow: ellipsis;
       text-align: left;
       white-space: nowrap;
     }
@@ -409,7 +420,7 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
 
     .col-day {
       width: $print-col-day-width;
-      font-size: $print-th-font-size;
+      font-size: pd($print-th-font-size);
     }
 
     .duty-highlight {
@@ -425,20 +436,20 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
     }
 
     .duty-status-highlight .print-cell-main-text {
-      font-size: $print-vacation-size;
+      font-size: pd($print-vacation-size);
       font-style: normal;
       font-weight: 400;
       line-height: 1.05;
     }
 
     .print-cell-main-text {
-      font-size: 12pt;
+      font-size: pd(12pt);
       font-weight: bold;
       line-height: 1;
     }
 
     .duty-highlight .print-cell-main-text {
-      font-size: $print-duty-mark-size;
+      font-size: pd($print-duty-mark-size);
       line-height: 1;
     }
 
@@ -456,7 +467,7 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
     // Рядок 1: Н/Відпустка по центру; значок кількості — абсолютно справа
     .print-cell-main-row {
       flex: 1 !important;
-      min-height: 13px !important;
+      min-height: pd(13px) !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -468,7 +479,7 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
       display: flex !important;
       align-items: flex-end !important;
       justify-content: flex-end !important;
-      min-height: 8px !important;
+      min-height: pd(8px) !important;
     }
 
     // Значок кількості нарядів — на рівні Н, абсолютно справа у рядку 1
@@ -477,7 +488,7 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
       right: 1px !important;
       top: 50% !important;
       transform: translateY(-50%) !important;
-      font-size: $print-badge-size !important;
+      font-size: pd($print-badge-size) !important;
       font-weight: normal !important;
       color: #000000 !important;
       opacity: $print-badge-opacity !important;
@@ -488,7 +499,7 @@ $print-badge-opacity:   0.7;            // прозорість: 0.0 = неви�
     .print-cell-badge-bottom-right {
       text-align: right !important;
       word-break: break-all !important;
-      font-size: $print-badge-size !important;
+      font-size: pd($print-badge-size) !important;
       font-weight: normal !important;
       color: #000000 !important;
       opacity: $print-badge-opacity !important;

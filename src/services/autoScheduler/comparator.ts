@@ -7,6 +7,8 @@ import { calculateUserLoad, countUserDaysOfWeek } from '../scheduleService';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
 import { compareByRankAndName } from '../../utils/helpers';
+import { getEffectiveBlockedDows } from '../../utils/userBlockedDays';
+import { getWeeklyDutyTarget, getEffectiveMinRestDays, isStaffDuty } from '../../utils/staffDuty';
 import { isEligibleBlockRotation } from './dutyPatternService';
 import {
   countEligibleUsersForWeek,
@@ -14,14 +16,12 @@ import {
   getDatesInRange,
   getDateMinusDays,
   getWeekWindow,
-  getWeeklyAssignmentCap,
   MIN_USERS_FOR_WEEKLY_LIMIT,
   daysSinceLastSameDowAssignment,
   daysSinceLastAssignment,
   computeDowFairnessObjective,
   didUserServeSameWeekdayLastWeek,
   floatEq,
-  getDebtRepaymentScore,
   getUserMaxDowCount,
   getUserMinDowCount,
   computeUserLoadRate,
@@ -31,6 +31,8 @@ import {
  * Comparator for candidate ranking on a specific date.
  *
  * Priority order:
+ * -3. Staff duty quota: коли в парі є «штатний черговий», першим іде той, кому
+ *     більше бракує до ВЛАСНОЇ тижневої норми (штатний 2–4, звичайний 1).
  * -2. Cross-DOW zero guard: penalizes adding duties to a non-minimum DOW
  *     when imbalance exists (maxDow > minDow). Respects blockedDays.
  * -1. forceUseAllWhenFew: absolute priority for zero-assignment users (hard switch).
@@ -116,10 +118,10 @@ export const buildUserComparator = (
     return val;
   };
 
-  const getEffectiveLoad = (user: User): number => {
+  const getLoad = (user: User): number => {
     const userId = user.id!;
     if (loadCache.has(userId)) return loadCache.get(userId)!;
-    const val = calculateUserLoad(userId, fs, dayWeights) + (user.debt || 0);
+    const val = calculateUserLoad(userId, fs, dayWeights);
     loadCache.set(userId, val);
     return val;
   };
@@ -172,7 +174,9 @@ export const buildUserComparator = (
     const user = (fairnessUsers?.length ? fairnessUsers : candidatePool || []).find(
       (u) => u.id === userId
     );
-    const blocked = user?.blockedDays;
+    // Period-aware blocked DOWs around the date being filled (legacy
+    // blockedDays is handled inside getEffectiveBlockedDows).
+    const blocked = user ? getEffectiveBlockedDows(user, dateStr) : undefined;
     const maxDow = getUserMaxDowCount(userId, fs, blocked);
     const minDow = getUserMinDowCount(userId, fs, blocked);
     const thisDowCount = getDowCount(userId);
@@ -185,8 +189,22 @@ export const buildUserComparator = (
     return penalty;
   };
 
+  /** Скільки нарядів бійцю ще бракує до ВЛАСНОЇ тижневої норми. */
+  const getWeeklyDeficit = (user: User): number =>
+    getWeeklyDutyTarget(user) - getWeekCount(user.id!);
+
   return (a: User, b: User): number => {
     if (!a.id || !b.id) return 0;
+
+    // -3. Штатний черговий: порівнюємо не абсолютне навантаження, а виконання
+    //     ВЛАСНОЇ тижневої норми (штатний 2–4, звичайний 1). Той, хто далі від
+    //     своєї норми, іде першим. Правило вмикається лише коли в парі є штатний,
+    //     тож для звичайних складів поведінка планувальника не змінюється.
+    if (isStaffDuty(a) || isStaffDuty(b)) {
+      const deficitA = getWeeklyDeficit(a);
+      const deficitB = getWeeklyDeficit(b);
+      if (deficitA !== deficitB) return deficitB - deficitA;
+    }
 
     const isForceUseFew =
       options.forceUseAllWhenFew &&
@@ -214,29 +232,6 @@ export const buildUserComparator = (
     const dowA = getDowCount(a.id);
     const dowB = getDowCount(b.id);
     if (dowA !== dowB) return dowA - dowB;
-
-    if (options.prioritizeFasterDebtRepayment) {
-      const dayWeight = dayWeights[dayIdx] || 1.0;
-      const debtAfterOneShift = (u: User): number => {
-        const debtAbs = Math.abs(Math.min(0, u.debt || 0));
-        const owedToday = (u.owedDays && u.owedDays[dayIdx]) || 0;
-        if (debtAbs <= 0 || owedToday <= 0) return Number.POSITIVE_INFINITY;
-        return Math.max(0, debtAbs - dayWeight);
-      };
-      const remA = debtAfterOneShift(a);
-      const remB = debtAfterOneShift(b);
-      if (remA !== remB) return remA - remB;
-
-      const repayA = getDebtRepaymentScore(a, dayIdx, dayWeight);
-      const repayB = getDebtRepaymentScore(b, dayIdx, dayWeight);
-      if (repayA !== repayB) return repayB - repayA;
-    }
-
-    if (options.respectOwedDays) {
-      const owedA = (a.owedDays && a.owedDays[dayIdx]) || 0;
-      const owedB = (b.owedDays && b.owedDays[dayIdx]) || 0;
-      if (owedA !== owedB) return owedB - owedA;
-    }
 
     // 1. Lower post-assignment SSE for this DOW.
     const objectiveA = getObjective(a.id);
@@ -292,10 +287,10 @@ export const buildUserComparator = (
       if (remainingAvailA !== remainingAvailB) return remainingAvailA - remainingAvailB;
     }
 
-    // 6. Load balancing (weighted points + karma).
+    // 6. Load balancing (weighted points).
     if (options.considerLoad) {
-      const loadA = getEffectiveLoad(a);
-      const loadB = getEffectiveLoad(b);
+      const loadA = getLoad(a);
+      const loadB = getLoad(b);
       if (!floatEq(loadA, loadB)) return loadA - loadB;
     }
 
@@ -373,14 +368,19 @@ export const filterByRestDays = (
   minRest: number,
   tempSchedule: Record<string, ScheduleEntry>
 ): User[] => {
-  const recentUserIds = new Set<number>();
+  // Відстань (у днях) до найближчого наряду бійця навколо dateStr.
+  const nearestDistance = new Map<number, number>();
+  const remember = (id: number, distance: number) => {
+    const prev = nearestDistance.get(id);
+    if (prev === undefined || distance < prev) nearestDistance.set(id, distance);
+  };
   for (let i = 1; i <= minRest; i++) {
     const checkBefore = new Date(dateStr);
     checkBefore.setDate(checkBefore.getDate() - i);
     const rawBefore = tempSchedule[toLocalISO(checkBefore)]?.userId;
     if (rawBefore) {
       const ids = Array.isArray(rawBefore) ? rawBefore : [rawBefore];
-      ids.forEach((id) => recentUserIds.add(id));
+      ids.forEach((id) => remember(id, i));
     }
 
     const checkAfter = new Date(dateStr);
@@ -388,11 +388,17 @@ export const filterByRestDays = (
     const rawAfter = tempSchedule[toLocalISO(checkAfter)]?.userId;
     if (rawAfter) {
       const ids = Array.isArray(rawAfter) ? rawAfter : [rawAfter];
-      ids.forEach((id) => recentUserIds.add(id));
+      ids.forEach((id) => remember(id, i));
     }
   }
-  if (recentUserIds.size === 0) return pool;
-  const filtered = pool.filter((u) => !recentUserIds.has(u.id!));
+  if (nearestDistance.size === 0) return pool;
+  // Штатний черговий має власний мінімум відпочинку (1 день — «через добу»),
+  // решта — загальний minRest із налаштувань.
+  const filtered = pool.filter((u) => {
+    const distance = nearestDistance.get(u.id!);
+    if (distance === undefined) return true;
+    return distance > getEffectiveMinRestDays(u, minRest);
+  });
   return filtered.length > 0 ? filtered : pool;
 };
 
@@ -447,8 +453,7 @@ export const filterByWeeklyCap = (
   pool: User[],
   allUsers: User[],
   dateStr: string,
-  schedule: Record<string, ScheduleEntry>,
-  options: AutoScheduleOptions
+  schedule: Record<string, ScheduleEntry>
 ): User[] => {
   // Gate by week-level eligibility so that a low-availability Friday
   // doesn't silently disable the cap for the whole week.
@@ -456,10 +461,11 @@ export const filterByWeeklyCap = (
   if (weekEligibleCount < MIN_USERS_FOR_WEEKLY_LIMIT) return pool;
 
   const week = getWeekWindow(dateStr);
+  // Кожен має власну тижневу норму: у штатного чергового 2–4, у решти 1.
   const filtered = pool.filter((u) => {
     if (!u.id) return false;
     const assignedInWeek = countUserAssignmentsInRange(u.id, schedule, week.from, week.to);
-    return assignedInWeek < getWeeklyAssignmentCap(u, options);
+    return assignedInWeek < getWeeklyDutyTarget(u);
   });
   if (filtered.length >= 1) return filtered;
 
@@ -472,11 +478,15 @@ export const filterByWeeklyCap = (
     .filter((u) => u.id != null)
     .map((u) => ({
       user: u,
-      count: countUserAssignmentsInRange(u.id!, schedule, week2.from, week2.to),
+      // Частка виконаної тижневої норми — щоб штатний з 3/3 не виглядав
+      // «завантаженішим» за звичайного з 1/1.
+      count:
+        countUserAssignmentsInRange(u.id!, schedule, week2.from, week2.to) /
+        getWeeklyDutyTarget(u),
     }));
   if (withCounts.length === 0) return pool;
   const minCount = Math.min(...withCounts.map((x) => x.count));
-  const minPool = withCounts.filter((x) => x.count === minCount).map((x) => x.user);
+  const minPool = withCounts.filter((x) => floatEq(x.count, minCount)).map((x) => x.user);
   return minPool.length > 0 ? minPool : pool;
 };
 

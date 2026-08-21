@@ -22,8 +22,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -33,8 +31,6 @@ describe('autoScheduler', () => {
           statusFrom: '2026-02-20',
           statusTo: '2026-02-28',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
 
@@ -70,8 +66,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -79,8 +73,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 3,
@@ -88,8 +80,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
 
@@ -109,8 +99,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -118,8 +106,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 3,
@@ -127,8 +113,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 4,
@@ -136,8 +120,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 5,
@@ -145,8 +127,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 6,
@@ -154,8 +134,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [1, 2, 3, 4, 7], // available only Fri/Sat
         },
         {
@@ -164,8 +142,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [1, 2, 3, 4, 7], // available only Fri/Sat
         },
       ];
@@ -182,15 +158,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -215,8 +187,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -224,8 +194,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       const schedule: Record<string, ScheduleEntry> = {
@@ -245,8 +213,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -254,8 +220,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       const schedule: Record<string, ScheduleEntry> = {
@@ -275,8 +239,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE' as const,
         isActive: true,
-        debt: 0,
-        owedDays: {},
       }));
 
       const schedule: Record<string, ScheduleEntry> = {
@@ -295,8 +257,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE' as const,
         isActive: true,
-        debt: 0,
-        owedDays: {},
       }));
 
       const schedule: Record<string, ScheduleEntry> = {
@@ -337,15 +297,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -353,52 +309,6 @@ describe('autoScheduler', () => {
 
       const selected = calculateOptimalAssignment('2026-03-15', users, schedule, dayWeights, opts);
       expect(selected?.id).toBe(1);
-    });
-
-    it('за пріоритету погашення карми обирає того, кому вигідніше гасити борг', () => {
-      const users: User[] = [
-        {
-          id: 1,
-          name: 'Debt Heavy',
-          rank: 'Солдат',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: -3,
-          owedDays: { 6: 2 },
-        },
-        {
-          id: 2,
-          name: 'Debt Light',
-          rank: 'Солдат',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: -1,
-          owedDays: { 6: 1 },
-        },
-      ];
-
-      const schedule: Record<string, ScheduleEntry> = {
-        '2026-03-10': { date: '2026-03-10', userId: 1, type: 'auto' },
-      };
-      const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
-      const opts: AutoScheduleOptions = {
-        avoidConsecutiveDays: true,
-        respectOwedDays: true,
-        considerLoad: true,
-        minRestDays: 1,
-        aggressiveLoadBalancing: false,
-        aggressiveLoadBalancingThreshold: 0.2,
-        limitOneDutyPerWeekWhenSevenPlus: false,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
-        forceUseAllWhenFew: true,
-        evenWeeklyDistribution: false,
-        useFirstDutyDateAsActiveFrom: true,
-      };
-
-      const selected = calculateOptimalAssignment('2026-03-14', users, schedule, dayWeights, opts);
-      expect(selected?.id).toBe(2);
     });
 
     it('жорсткий баланс ON/OFF реально міняє вибір при великій різниці навантаження', () => {
@@ -409,8 +319,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -418,8 +326,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       const schedule: Record<string, ScheduleEntry> = {
@@ -432,15 +338,11 @@ describe('autoScheduler', () => {
 
       const optsOff: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: false,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -476,8 +378,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -485,8 +385,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
 
@@ -514,8 +412,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           isExtra: true,
         },
         {
@@ -524,8 +420,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
@@ -542,8 +436,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           excludeFromAuto: true,
         },
         {
@@ -552,8 +444,6 @@ describe('autoScheduler', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
@@ -571,8 +461,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
 
@@ -587,15 +475,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -629,8 +513,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
         ...(blockedDays ? { blockedDays } : {}),
       });
       // User 5 blocked on Mon(1)+Tue(2)+Wed(3)+Thu(4)+Sun(7) — only Fri(5)+Sat(6) available
@@ -646,15 +528,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -686,8 +564,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
 
@@ -702,15 +578,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -751,8 +623,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
         ...overrides,
       });
 
@@ -788,15 +658,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -830,8 +696,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
 
@@ -846,15 +710,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -899,8 +759,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
 
       // 7 users. User 7 ("Хлівнюк") served Sunday last week (pre-existing entry).
@@ -931,15 +789,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -989,8 +843,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
 
@@ -1004,15 +856,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -1059,8 +907,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
         ...overrides,
       });
 
@@ -1095,15 +941,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -1149,8 +991,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = Array.from({ length: 7 }, (_, i) => mkUser(i + 1));
 
@@ -1164,15 +1004,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: true,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: true,
-        debtUsersWeeklyLimit: 3,
-        prioritizeFasterDebtRepayment: true,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -1214,8 +1050,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = [mkUser(1), mkUser(2), mkUser(3)];
 
@@ -1229,15 +1063,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: false,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: false,
-        allowDebtUsersExtraWeeklyAssignments: false,
-        debtUsersWeeklyLimit: 1,
-        prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -1277,8 +1107,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
       const users = Array.from({ length: 33 }, (_, i) => mkUser(i + 1));
 
@@ -1292,15 +1120,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: false,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: true,
-        allowDebtUsersExtraWeeklyAssignments: false,
-        debtUsersWeeklyLimit: 1,
-        prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: false,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,
@@ -1346,8 +1170,6 @@ describe('autoScheduler', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
         dateAddedToAuto: dateAdded,
       });
 
@@ -1384,15 +1206,11 @@ describe('autoScheduler', () => {
       const dayWeights: DayWeights = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
       const opts: AutoScheduleOptions = {
         avoidConsecutiveDays: true,
-        respectOwedDays: false,
         considerLoad: true,
         minRestDays: 1,
         aggressiveLoadBalancing: false,
         aggressiveLoadBalancingThreshold: 0.2,
         limitOneDutyPerWeekWhenSevenPlus: false,
-        allowDebtUsersExtraWeeklyAssignments: false,
-        debtUsersWeeklyLimit: 1,
-        prioritizeFasterDebtRepayment: false,
         forceUseAllWhenFew: true,
         evenWeeklyDistribution: false,
         useFirstDutyDateAsActiveFrom: true,

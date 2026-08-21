@@ -3,7 +3,6 @@
 import { db } from '../db/db';
 import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as userService from './userService';
-import * as settingsService from './settingsService';
 import {
   toAssignedUserIds,
   isAssignedInEntry,
@@ -47,17 +46,9 @@ export const deleteScheduleEntry = async (date: string): Promise<void> => {
 };
 
 /**
- * Remove assignment with optional karma handling.
- * reason='request' → karma decreases + owedDays for that day-of-week incremented
- * reason='work' → no karma change (official reason)
+ * Remove an assignment from a date. For multi-duty days the concrete user must be given.
  */
-export const removeAssignmentWithDebt = async (
-  date: string,
-  reason: 'request' | 'work',
-  dayWeights: DayWeights,
-  targetUserId?: number
-): Promise<void> => {
-  const karmaEnabled = await settingsService.getKarmaOnManualChanges();
+export const removeAssignment = async (date: string, targetUserId?: number): Promise<void> => {
   await db.transaction('rw', db.schedule, db.users, async () => {
     const entry = await db.schedule.get(date);
     if (!entry || !entry.userId) return;
@@ -72,17 +63,6 @@ export const removeAssignmentWithDebt = async (
         ? assignedIds.filter((id) => id === targetUserId)
         : [assignedIds[0]];
     if (removedIds.length === 0) return;
-
-    if (reason === 'request' && karmaEnabled) {
-      const dayIdx = new Date(date).getDay();
-      const weight = dayWeights[dayIdx] || 1.0;
-      for (const userId of removedIds) {
-        // Karma goes negative (general fairness)
-        await userService.updateUserDebt(userId, -weight);
-        // Must repay THIS specific day of week
-        await userService.updateOwedDays(userId, dayIdx, 1);
-      }
-    }
 
     const remaining = assignedIds.filter((id) => !removedIds.includes(id));
     if (remaining.length === 0) {
@@ -212,16 +192,15 @@ export const countUserAssignments = (
 };
 
 /**
- * Calculate effective load (real load + debt/karma)
+ * Calculate weighted duty load for a user.
  */
-export const calculateEffectiveLoad = (
+export const calculateLoadForUser = (
   user: User,
   schedule: Record<string, ScheduleEntry>,
   dayWeights: DayWeights
 ): number => {
   if (!user.id) return 0;
-  const realLoad = calculateUserLoad(user.id, schedule, dayWeights);
-  return realLoad + (user.debt || 0);
+  return calculateUserLoad(user.id, schedule, dayWeights);
 };
 
 /**
@@ -327,42 +306,4 @@ export const toggleScheduleLock = async (date: string, locked: boolean): Promise
 export const getLockedDates = async (): Promise<string[]> => {
   const all = await db.schedule.toArray();
   return all.filter((e) => e.isLocked).map((e) => e.date);
-};
-
-/**
- * Calculate karma change when manually moving assignment from one day to another.
- * If moved to a harder day (higher weight) → positive karma (reward).
- * If moved to an easier day → negative karma (penalty).
- * Returns the karma delta to add to user's debt.
- */
-const calculateKarmaForTransfer = (
-  fromDate: string,
-  toDate: string,
-  dayWeights: DayWeights
-): number => {
-  const fromDay = new Date(fromDate).getDay();
-  const toDay = new Date(toDate).getDay();
-
-  const fromWeight = dayWeights[fromDay] || 1.0;
-  const toWeight = dayWeights[toDay] || 1.0;
-
-  // Positive karma if taking on harder duty, negative if easier
-  return Number((toWeight - fromWeight).toFixed(2));
-};
-
-/**
- * Apply karma when manually transferring a user from one date to another.
- * This should be called from UI when drag-and-drop or manual reassignment happens.
- */
-export const applyKarmaForTransfer = async (
-  userId: number,
-  fromDate: string,
-  toDate: string,
-  dayWeights: DayWeights
-): Promise<void> => {
-  const karma = calculateKarmaForTransfer(fromDate, toDate, dayWeights);
-
-  if (karma !== 0) {
-    await userService.updateUserDebt(userId, karma);
-  }
 };

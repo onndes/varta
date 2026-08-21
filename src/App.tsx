@@ -59,15 +59,14 @@ const App = () => {
     cascadeStartDate,
     dutiesPerDay,
     autoScheduleOptions,
-    maxDebt,
     printMaxRows,
     printDutyTableShowAllUsers,
+    printSkipFullyAbsent,
     ignoreHistoryInLogic,
     uiScale,
     dowHistoryWeeks,
     dowHistoryMode,
     birthdayBlockOpts,
-    karmaOnManualChanges,
     showDevBanner,
     devBannerDismissedOn,
     devBannerSnoozeUntil,
@@ -79,15 +78,14 @@ const App = () => {
     saveSignatories,
     saveDutiesPerDay,
     saveAutoScheduleOptions,
-    saveMaxDebt,
     savePrintMaxRows,
+    savePrintSkipFullyAbsent,
     savePrintDutyTableShowAllUsers,
     saveIgnoreHistoryInLogic,
     saveUiScale,
     saveDowHistoryWeeks,
     saveDowHistoryMode,
     saveBirthdayBlockOpts,
-    saveKarmaOnManualChanges,
     saveShowDevBanner,
     saveDevBannerDismissedOn,
     saveDevBannerSnoozeUntil,
@@ -420,6 +418,7 @@ const App = () => {
               printWeekRange={printWeekRange}
               printMaxRows={printMaxRows}
               printDutyTableShowAllUsers={printDutyTableShowAllUsers}
+              printSkipFullyAbsent={printSkipFullyAbsent}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
               dowHistoryWeeks={dowHistoryWeeks}
               dowHistoryMode={dowHistoryMode}
@@ -468,9 +467,9 @@ const App = () => {
               signatories={signatories}
               dutiesPerDay={dutiesPerDay}
               autoScheduleOptions={autoScheduleOptions}
-              maxDebt={maxDebt}
               printMaxRows={printMaxRows}
               printDutyTableShowAllUsers={printDutyTableShowAllUsers}
+              printSkipFullyAbsent={printSkipFullyAbsent}
               ignoreHistoryInLogic={ignoreHistoryInLogic}
               uiScale={uiScale}
               dowHistoryWeeks={dowHistoryWeeks}
@@ -479,8 +478,8 @@ const App = () => {
               onSaveSignatories={saveSignatories}
               onSaveDutiesPerDay={saveDutiesPerDay}
               onSaveAutoScheduleOptions={saveAutoScheduleOptions}
-              onSaveMaxDebt={saveMaxDebt}
               onSavePrintMaxRows={savePrintMaxRows}
+              onSavePrintSkipFullyAbsent={savePrintSkipFullyAbsent}
               onSavePrintDutyTableShowAllUsers={savePrintDutyTableShowAllUsers}
               onSaveIgnoreHistoryInLogic={saveIgnoreHistoryInLogic}
               onSaveUiScale={saveUiScale}
@@ -488,8 +487,6 @@ const App = () => {
               onSaveDowHistoryMode={saveDowHistoryMode}
               birthdayBlockOpts={birthdayBlockOpts}
               onSaveBirthdayBlockOpts={saveBirthdayBlockOpts}
-              karmaOnManualChanges={karmaOnManualChanges}
-              onSaveKarmaOnManualChanges={saveKarmaOnManualChanges}
               showDevBanner={showDevBanner}
               onSaveShowDevBanner={saveShowDevBanner}
               devBannerSnoozeUntil={devBannerSnoozeUntil}

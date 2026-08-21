@@ -1,16 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { db } from '@/db/db';
 import {
-  applyKarmaForTransfer,
   acknowledgeScheduleConflicts,
   findScheduleConflicts,
   findScheduleGaps,
   getAllSchedule,
   getScheduleByDate,
-  removeAssignmentWithDebt,
+  removeAssignment,
   saveScheduleEntry,
   deleteScheduleEntry,
-  calculateEffectiveLoad,
+  calculateLoadForUser,
 } from '@/services/scheduleService';
 import type { ScheduleEntry, DayWeights, User } from '@/types';
 
@@ -107,7 +106,7 @@ describe('scheduleService', () => {
     });
   });
 
-  describe('calculateEffectiveLoad', () => {
+  describe('calculateLoadForUser', () => {
     beforeEach(async () => {
       await db.users.add({
         id: 1,
@@ -115,8 +114,6 @@ describe('scheduleService', () => {
         rank: 'Солдат',
         status: 'ACTIVE',
         isActive: true,
-        debt: 0,
-        owedDays: {},
       });
     });
 
@@ -139,35 +136,12 @@ describe('scheduleService', () => {
         6: 2.0, // СБ
       };
 
-      const load = calculateEffectiveLoad(user, schedule, dayWeights);
+      const load = calculateLoadForUser(user, schedule, dayWeights);
 
       // 1.0 (ПН) + 1.5 (ПТ) + 2.0 (СБ) = 4.5
       expect(load).toBe(4.5);
     });
 
-    it('повинен враховувати борг користувача', async () => {
-      await db.users.update(1, { debt: -1.5 });
-      const user = (await db.users.get(1))!;
-
-      const schedule: Record<string, ScheduleEntry> = {
-        '2026-02-17': { date: '2026-02-17', userId: 1, type: 'auto' }, // ПН = 1.0
-      };
-
-      const dayWeights: DayWeights = {
-        0: 1.5,
-        1: 1.0,
-        2: 1.0,
-        3: 1.0,
-        4: 1.0,
-        5: 1.5,
-        6: 2.0,
-      };
-
-      const load = calculateEffectiveLoad(user, schedule, dayWeights);
-
-      // 1.0 (дежурство) + (-1.5) (борг) = -0.5
-      expect(load).toBe(-0.5);
-    });
 
     it('повинен повертати 0 якщо немає дежурств', async () => {
       const user = (await db.users.get(1))!;
@@ -182,7 +156,7 @@ describe('scheduleService', () => {
         6: 2.0,
       };
 
-      const load = calculateEffectiveLoad(user, schedule, dayWeights);
+      const load = calculateLoadForUser(user, schedule, dayWeights);
       expect(load).toBe(0);
     });
   });
@@ -196,8 +170,6 @@ describe('scheduleService', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -205,8 +177,6 @@ describe('scheduleService', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ]);
 
@@ -216,8 +186,7 @@ describe('scheduleService', () => {
         type: 'manual',
       });
 
-      const weights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
-      await removeAssignmentWithDebt('2026-03-10', 'work', weights, 2);
+      await removeAssignment('2026-03-10', 2);
 
       const entry = await db.schedule.get('2026-03-10');
       expect(entry).toBeDefined();
@@ -230,9 +199,7 @@ describe('scheduleService', () => {
         userId: [1, 2],
         type: 'manual',
       });
-      const weights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
-
-      await expect(removeAssignmentWithDebt('2026-03-10', 'work', weights)).rejects.toThrow();
+      await expect(removeAssignment('2026-03-10')).rejects.toThrow();
     });
 
     it('повинен знаходити конфлікт, якщо один з userId недоступний', () => {
@@ -247,8 +214,6 @@ describe('scheduleService', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -258,8 +223,6 @@ describe('scheduleService', () => {
           statusFrom: '2026-03-01',
           statusTo: '2026-03-20',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
 
@@ -283,8 +246,6 @@ describe('scheduleService', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -292,8 +253,6 @@ describe('scheduleService', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [2],
         },
       ];
@@ -327,8 +286,6 @@ describe('scheduleService', () => {
           statusFrom: '2026-03-01',
           statusTo: '2026-03-20',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           id: 2,
@@ -336,8 +293,6 @@ describe('scheduleService', () => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [2],
         },
       ];
@@ -355,23 +310,4 @@ describe('scheduleService', () => {
     });
   });
 
-  describe('transfer karma', () => {
-    it('повинен застосовувати карму за перенос на важчий день', async () => {
-      await db.users.add({
-        id: 1,
-        name: 'Mover',
-        rank: 'Солдат',
-        status: 'ACTIVE',
-        isActive: true,
-        debt: 0,
-        owedDays: {},
-      });
-
-      const weights: DayWeights = { 0: 1.5, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1.5, 6: 2 };
-      // Thu -> Sat => +1.0
-      await applyKarmaForTransfer(1, '2026-03-12', '2026-03-14', weights);
-      const user = await db.users.get(1);
-      expect(user?.debt).toBe(1);
-    });
-  });
 });

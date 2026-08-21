@@ -111,7 +111,7 @@ const ExperimentalTabPanel: React.FC<ExperimentalTabPanelProps> = ({
             )}
             <div className="text-muted small">
               Спочатку по кількості чергувань на день тижня (драбинка), потім по загальній
-              кількості, потім по вазі + карма. Вимкніть лише для тестування.
+              кількості, потім по вазі. Вимкніть лише для тестування.
             </div>
           </label>
         </div>

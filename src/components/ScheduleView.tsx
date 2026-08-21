@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type {
   User,
   ScheduleEntry,
@@ -23,11 +23,16 @@ import { useScheduleKeyboard } from '../hooks/useScheduleKeyboard';
 import { useScheduleDragDrop } from '../hooks/useScheduleDragDrop';
 import { useSchedulePreview } from '../hooks/useSchedulePreview';
 import ScheduleBody from './schedule/ScheduleBody';
+import PreGenerationConfirmModal from './schedule/PreGenerationConfirmModal';
 import {
   DEFAULT_HELPER_DECORATIONS,
   type HelperDecorationKey,
 } from './schedule/helperDecorations';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../utils/constants';
+import {
+  buildPreGenerationSummary,
+  type PreGenerationSummary,
+} from '../utils/preGenerationSummary';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +53,7 @@ interface ScheduleViewProps {
   printWeekRange: PrintWeekRange | null;
   printMaxRows: number;
   printDutyTableShowAllUsers: boolean;
+  printSkipFullyAbsent: boolean;
   ignoreHistoryInLogic: boolean;
   dowHistoryWeeks: number;
   dowHistoryMode: 'numbers' | 'dots';
@@ -76,6 +82,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   printWeekRange,
   printMaxRows,
   printDutyTableShowAllUsers,
+  printSkipFullyAbsent,
   ignoreHistoryInLogic,
   dowHistoryWeeks,
   dowHistoryMode,
@@ -113,7 +120,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   // ── Core schedule mutations ───────────────────────────────────────────────
   const { assignUser, removeAssignment, bulkDelete } = useAssignAndRemove({
     users,
-    dayWeights,
     schedule,
   });
 
@@ -158,7 +164,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
   } = useAssignmentModal({
     users,
     schedule,
-    dayWeights,
     dutiesPerDay,
     historyMode,
     forceAssignMode,
@@ -189,7 +194,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   // ── User/load queries + cascade check ────────────────────────────────────
   const {
-    calculateEffectiveLoad,
+    calculateLoad,
     daysSinceLastDuty,
     getFreeUsers,
     getWeekAssignedUsers,
@@ -204,6 +209,29 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     cascadeStartDate,
     todayStr,
   });
+
+  // ── Pre-generation confirmation gate ─────────────────────────────────────
+  const [pendingGenConfirm, setPendingGenConfirm] = useState<{
+    summary: PreGenerationSummary;
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
+
+  const confirmGeneration = useCallback(
+    (dates: string[]): Promise<boolean> => {
+      if (autoScheduleOptions.confirmBeforeGeneration === false) return Promise.resolve(true);
+      const summary = buildPreGenerationSummary(users, schedule, dates, dutiesPerDay);
+      return new Promise<boolean>((resolve) => setPendingGenConfirm({ summary, resolve }));
+    },
+    [autoScheduleOptions.confirmBeforeGeneration, users, schedule, dutiesPerDay]
+  );
+
+  const resolveGenConfirm = useCallback(
+    (proceed: boolean) => {
+      pendingGenConfirm?.resolve(proceed);
+      setPendingGenConfirm(null);
+    },
+    [pendingGenConfirm]
+  );
 
   // ── Toolbar actions ───────────────────────────────────────────────────────
   const {
@@ -229,7 +257,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     fillGaps,
     recalculateFrom,
     generateWeekSchedule,
-    removeAssignment,
     bulkDelete,
     updateCascadeTrigger,
     clearCascadeTrigger,
@@ -237,13 +264,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
     refreshData,
     undoHistory,
     redoHistory,
+    confirmGeneration,
   });
 
   // ── Drag & drop ───────────────────────────────────────────────────────────
   const dragDropHandlers = useScheduleDragDrop({
     schedule,
     users,
-    dayWeights,
     todayStr,
     historyMode,
     forceAssignMode,
@@ -290,92 +317,99 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <ScheduleBody
-      weekDates={weekDates}
-      todayStr={todayStr}
-      scheduledWeeksMap={scheduledWeeksMap}
-      shiftWeek={shiftWeek}
-      jumpToWeek={jumpToWeek}
-      goToToday={goToToday}
-      handleDatePick={handleDatePick}
-      scheduleIssues={scheduleIssues}
-      shouldShowCascadeRecalc={shouldShowCascadeRecalc}
-      cascadeStartDate={cascadeStartDate}
-      historyMode={historyMode}
-      setHistoryMode={setHistoryMode}
-      forceAssignMode={forceAssignMode}
-      onToggleForceAssignMode={() => setForceAssignMode((v) => !v)}
-      helperDecorations={helperDecorations}
-      onToggleHelperDecoration={(key: HelperDecorationKey) =>
-        setHelperDecorations((prev) => ({ ...prev, [key]: !prev[key] }))
-      }
-      showImportModal={showImportModal}
-      setShowImportModal={setShowImportModal}
-      canUndo={canUndo}
-      canRedo={canRedo}
-      undoLabel={undoLabel}
-      redoLabel={redoLabel}
-      runFillGaps={runFillGaps}
-      runFixConflicts={runFixConflicts}
-      runFullAutoSchedule={runFullAutoSchedule}
-      runClearWeek={runClearWeek}
-      runCascadeRecalc={runCascadeRecalc}
-      runDismissCascade={runDismissCascade}
-      runUndo={runUndo}
-      runRedo={runRedo}
-      users={users}
-      schedule={schedule}
-      dutiesPerDay={dutiesPerDay}
-      deletedUserNames={deletedUserNames}
-      handleStartEdit={handleStartEdit}
-      selectedCell={selectedCell}
-      setSelectedCell={setSelectedCell}
-      swapMode={swapMode}
-      setSwapMode={setSwapMode}
-      pendingAssignConfirm={pendingAssignConfirm}
-      setPendingAssignConfirm={setPendingAssignConfirm}
-      executeAssign={(userId, penalize, isForced) =>
-        void executeAssign(userId, penalize, undefined, isForced)
-      }
-      handleAssign={handleAssign}
-      handleSwap={handleSwap}
-      handleRemove={handleRemove}
-      getFreeUsers={getFreeUsers}
-      getWeekAssignedUsers={getWeekAssignedUsers}
-      daysSinceLastDuty={daysSinceLastDuty}
-      calculateEffectiveLoad={calculateEffectiveLoad}
-      logAction={logAction}
-      refreshData={refreshData}
-      editingUser={editingUser}
-      editBaseUser={editBaseUser}
-      pendingEditReview={pendingEditReview}
-      isApplyingEdit={isApplyingEdit}
-      setEditingUser={setEditingUser}
-      handleCloseEditModal={handleCloseEditModal}
-      handleApplyEditChanges={handleApplyEditChanges}
-      handleDiscardEditChanges={handleDiscardEditChanges}
-      handleCancelEditReview={handleCancelEditReview}
-      handleSaveDirectly={handleSaveDirectly}
-      signatories={signatories}
-      printMode={printMode}
-      printWeekRange={printWeekRange}
-      printMaxRows={printMaxRows}
-      printDutyTableShowAllUsers={printDutyTableShowAllUsers}
-      dowHistoryWeeks={dowHistoryWeeks}
-      dowHistoryMode={dowHistoryMode}
-      violationsCount={violationsCount}
-      onPrint={onPrint}
-      zenMode={zenMode}
-      onZenToggle={onZenToggle}
-      previewMode={previewMode}
-      isPreviewComputing={isPreviewComputing}
-      isPreviewPrefetching={isPreviewPrefetching}
-      previewSchedule={previewSchedule}
-      onPreviewToggle={togglePreviewMode}
-      dragDropHandlers={dragDropHandlers}
-      schedulerProgress={schedulerProgress}
-      onStopScheduler={stopScheduler}
-    />
+    <>
+      <PreGenerationConfirmModal
+        summary={pendingGenConfirm?.summary ?? null}
+        onConfirm={() => resolveGenConfirm(true)}
+        onCancel={() => resolveGenConfirm(false)}
+      />
+      <ScheduleBody
+        weekDates={weekDates}
+        todayStr={todayStr}
+        scheduledWeeksMap={scheduledWeeksMap}
+        shiftWeek={shiftWeek}
+        jumpToWeek={jumpToWeek}
+        goToToday={goToToday}
+        handleDatePick={handleDatePick}
+        scheduleIssues={scheduleIssues}
+        shouldShowCascadeRecalc={shouldShowCascadeRecalc}
+        cascadeStartDate={cascadeStartDate}
+        historyMode={historyMode}
+        setHistoryMode={setHistoryMode}
+        forceAssignMode={forceAssignMode}
+        onToggleForceAssignMode={() => setForceAssignMode((v) => !v)}
+        helperDecorations={helperDecorations}
+        onToggleHelperDecoration={(key: HelperDecorationKey) =>
+          setHelperDecorations((prev) => ({ ...prev, [key]: !prev[key] }))
+        }
+        showImportModal={showImportModal}
+        setShowImportModal={setShowImportModal}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        undoLabel={undoLabel}
+        redoLabel={redoLabel}
+        runFillGaps={runFillGaps}
+        runFixConflicts={runFixConflicts}
+        runFullAutoSchedule={runFullAutoSchedule}
+        runClearWeek={runClearWeek}
+        runCascadeRecalc={runCascadeRecalc}
+        runDismissCascade={runDismissCascade}
+        runUndo={runUndo}
+        runRedo={runRedo}
+        users={users}
+        schedule={schedule}
+        dutiesPerDay={dutiesPerDay}
+        weeklyCapEnabled={autoScheduleOptions.limitOneDutyPerWeekWhenSevenPlus}
+        deletedUserNames={deletedUserNames}
+        handleStartEdit={handleStartEdit}
+        selectedCell={selectedCell}
+        setSelectedCell={setSelectedCell}
+        swapMode={swapMode}
+        setSwapMode={setSwapMode}
+        pendingAssignConfirm={pendingAssignConfirm}
+        setPendingAssignConfirm={setPendingAssignConfirm}
+        executeAssign={(userId, isForced) => void executeAssign(userId, undefined, isForced)}
+        handleAssign={handleAssign}
+        handleSwap={handleSwap}
+        handleRemove={handleRemove}
+        getFreeUsers={getFreeUsers}
+        getWeekAssignedUsers={getWeekAssignedUsers}
+        daysSinceLastDuty={daysSinceLastDuty}
+        calculateLoad={calculateLoad}
+        logAction={logAction}
+        refreshData={refreshData}
+        editingUser={editingUser}
+        editBaseUser={editBaseUser}
+        pendingEditReview={pendingEditReview}
+        isApplyingEdit={isApplyingEdit}
+        setEditingUser={setEditingUser}
+        handleCloseEditModal={handleCloseEditModal}
+        handleApplyEditChanges={handleApplyEditChanges}
+        handleDiscardEditChanges={handleDiscardEditChanges}
+        handleCancelEditReview={handleCancelEditReview}
+        handleSaveDirectly={handleSaveDirectly}
+        signatories={signatories}
+        printMode={printMode}
+        printWeekRange={printWeekRange}
+        printMaxRows={printMaxRows}
+        printDutyTableShowAllUsers={printDutyTableShowAllUsers}
+        printSkipFullyAbsent={printSkipFullyAbsent}
+        dowHistoryWeeks={dowHistoryWeeks}
+        dowHistoryMode={dowHistoryMode}
+        violationsCount={violationsCount}
+        onPrint={onPrint}
+        zenMode={zenMode}
+        onZenToggle={onZenToggle}
+        previewMode={previewMode}
+        isPreviewComputing={isPreviewComputing}
+        isPreviewPrefetching={isPreviewPrefetching}
+        previewSchedule={previewSchedule}
+        onPreviewToggle={togglePreviewMode}
+        dragDropHandlers={dragDropHandlers}
+        schedulerProgress={schedulerProgress}
+        onStopScheduler={stopScheduler}
+      />
+    </>
   );
 };
 

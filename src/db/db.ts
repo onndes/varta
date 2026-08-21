@@ -27,6 +27,22 @@ const STORES_V12 = {
   appState: 'key, value',
 };
 
+const STORES_V13 = {
+  users:
+    '++id, name, rank, status, statusFrom, statusTo, isActive, note, restBeforeStatus, restAfterStatus, blockedDays, isExtra, dateAddedToAuto, excludeFromAuto, isPersonnel, isDutyMember, blockedDaysPeriods, excludeFromAutoPeriods2',
+  schedule: 'date, userId, type, isLocked',
+  auditLog: '++id, timestamp, action',
+  appState: 'key, value',
+};
+
+const STORES_V14 = {
+  users:
+    '++id, name, rank, status, statusFrom, statusTo, isActive, note, restBeforeStatus, restAfterStatus, blockedDays, isExtra, dateAddedToAuto, excludeFromAuto, isPersonnel, isDutyMember, blockedDaysPeriods, excludeFromAutoPeriods2, statsHiddenBefore',
+  schedule: 'date, userId, type, isLocked',
+  auditLog: '++id, timestamp, action',
+  appState: 'key, value',
+};
+
 export function createDatabase(name: string): VartaDB {
   const d = new Dexie(name) as VartaDB;
 
@@ -68,6 +84,22 @@ export function createDatabase(name: string): VartaDB {
           delete user.excludedFromAutoPeriods;
         });
     });
+
+  // v13 — karma/debt system removed: drop the debt and owedDays fields
+  d.version(13)
+    .stores(STORES_V13)
+    .upgrade(async (tx) => {
+      await tx
+        .table('users')
+        .toCollection()
+        .modify((user: Record<string, unknown>) => {
+          delete user.debt;
+          delete user.owedDays;
+        });
+    });
+
+  // v14 — per-user stats reset: soft cutoff date for duty accounting
+  d.version(14).stores(STORES_V14);
 
   return d;
 }

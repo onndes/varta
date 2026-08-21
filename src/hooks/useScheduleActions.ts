@@ -6,7 +6,7 @@ import type { User, ScheduleEntry, DayWeights, AutoScheduleOptions } from '../ty
 import { formatDate, toLocalISO } from '../utils/dateUtils';
 import {
   getAllSchedule,
-  removeAssignmentWithDebt,
+  removeAssignment,
   acknowledgeScheduleConflicts,
 } from '../services/scheduleService';
 import * as autoSchedulerService from '../services/autoScheduler';
@@ -34,11 +34,6 @@ interface UseScheduleActionsArgs {
   fillGaps: (dates: string[]) => Promise<void>;
   recalculateFrom: (startDate: string) => Promise<void>;
   generateWeekSchedule: (dates: string[]) => Promise<void>;
-  removeAssignment: (
-    date: string,
-    reason: 'request' | 'work',
-    targetUserId?: number
-  ) => Promise<void>;
   bulkDelete: (dates: string[]) => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   clearCascadeTrigger: () => Promise<void>;
@@ -46,6 +41,8 @@ interface UseScheduleActionsArgs {
   refreshData: () => Promise<void>;
   undoHistory: (snapshot: Record<string, ScheduleEntry>) => Promise<void>;
   redoHistory: (snapshot: Record<string, ScheduleEntry>) => Promise<void>;
+  /** Pre-generation confirmation gate; resolves false to abort generation. */
+  confirmGeneration?: (dates: string[]) => Promise<boolean>;
 }
 
 export const useScheduleActions = ({
@@ -69,6 +66,7 @@ export const useScheduleActions = ({
   refreshData,
   undoHistory,
   redoHistory,
+  confirmGeneration,
 }: UseScheduleActionsArgs) => {
   const { showAlert, showConfirm, showChoice, showDatePick } = useDialog();
 
@@ -92,6 +90,8 @@ export const useScheduleActions = ({
     const datesToFill = scheduleIssues.gaps.filter((d) => d >= todayStr).sort();
     if (datesToFill.length === 0) return;
 
+    if (confirmGeneration && !(await confirmGeneration(datesToFill))) return;
+
     pushHistory(schedule, 'Заповнення прогалин');
     await fillGaps(datesToFill);
     await logAction('AUTO_FILL', `Заповнено ${datesToFill.length} днів`);
@@ -105,6 +105,7 @@ export const useScheduleActions = ({
     fillGaps,
     logAction,
     refreshData,
+    confirmGeneration,
   ]);
 
   const runFixConflicts = useCallback(async () => {
@@ -143,7 +144,7 @@ export const useScheduleActions = ({
     for (const date of scheduleIssues.conflicts) {
       const badIds = scheduleIssues.conflictByDate[date] || [];
       for (const userId of badIds) {
-        await removeAssignmentWithDebt(date, 'work', dayWeights, userId);
+        await removeAssignment(date, userId);
       }
     }
 
@@ -160,7 +161,7 @@ export const useScheduleActions = ({
         dutiesPerDay,
         autoScheduleOptions
       );
-      await autoSchedulerService.saveAutoSchedule(updates, dayWeights);
+      await autoSchedulerService.saveAutoSchedule(updates);
     }
 
     await logAction('AUTO_FIX', `Замінено ${scheduleIssues.conflicts.length} конфліктів`);
@@ -197,6 +198,8 @@ export const useScheduleActions = ({
     ) {
       return;
     }
+    if (confirmGeneration && !(await confirmGeneration(validTargets))) return;
+
     pushHistory(schedule, 'Генерація тижня');
     await generateWeekSchedule(validTargets);
     // A freshly generated week is already the most up-to-date schedule.
@@ -220,6 +223,7 @@ export const useScheduleActions = ({
     refreshData,
     showAlert,
     showConfirm,
+    confirmGeneration,
   ]);
 
   const runClearWeek = useCallback(async () => {

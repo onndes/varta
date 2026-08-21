@@ -54,9 +54,9 @@ export const WEEKDAY_COLUMNS = [
 
 /** Pending action discriminated union used in confirmation flow. */
 export type PendingAction =
-  | { type: 'replace'; userId: number; penalize: boolean }
+  | { type: 'replace'; userId: number }
   | { type: 'swap'; userId: number; swapDate: string }
-  | { type: 'remove'; reason: 'request' | 'work' };
+  | { type: 'remove' };
 
 /** Swap mode selected in the toolbar. */
 export type SwapMode = 'replace' | 'swap' | 'remove';

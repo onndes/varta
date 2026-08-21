@@ -161,7 +161,7 @@ const StatusPeriodEditForm: React.FC<{
         />
         <small className="text-info d-block mt-1">
           <i className="fas fa-info-circle me-1"></i>
-          Статус "Відсутній" не впливає на карму / лічильник доступних днів.
+          Статус "Відсутній" не впливає на лічильник доступних днів.
         </small>
       </div>
     )}

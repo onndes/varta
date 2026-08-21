@@ -74,6 +74,8 @@ export const useUserEditFlow = ({
         birthday: safeUser.birthday,
         blockedDaysPeriods: safeUser.blockedDaysPeriods,
         excludeFromAutoPeriods2: safeUser.excludeFromAutoPeriods2,
+        isStaffDuty: safeUser.isStaffDuty,
+        staffWeeklyTarget: safeUser.isStaffDuty ? safeUser.staffWeeklyTarget : undefined,
       });
       await userService.syncUserIncompatibility(userId, safeUser.incompatibleWith);
 

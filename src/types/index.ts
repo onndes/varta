@@ -62,15 +62,15 @@ export interface User {
   excludeFromAuto?: boolean; // Exclude from automatic scheduling (manual assignment only)
   note?: string;
   incompatibleWith?: number[]; // IDs of users who can't be on duty on consecutive days
-  debt: number;
   restBeforeStatus?: boolean;
   restAfterStatus?: boolean;
   blockedDays?: number[]; // Array of day indices (1=Mon, 7=Sun)
   blockedDaysFrom?: string; // Початок періоду блокування (ISO date)
   blockedDaysTo?: string; // Кінець періоду блокування (ISO date)
   blockedDaysComment?: string; // Коментар до заблокованих днів
-  owedDays?: Record<number, number>;
   isExtra?: boolean; // Special participant (trainee, driver) - manual assignment only
+  isStaffDuty?: boolean; // «Штатний черговий» — чергування є основною задачею (2–4 наряди на тиждень)
+  staffWeeklyTarget?: number; // Тижнева норма нарядів штатного чергового (2–4, за замовчуванням 3)
   dateAddedToAuto?: string; // Date when isExtra was disabled (included in auto schedule)
   statusComment?: string; // Legacy comment field (migrated into statusPeriods[].comment)
   statusPeriods?: UserStatusPeriod[]; // Planned/current status periods (multiple intervals)
@@ -79,6 +79,14 @@ export interface User {
   excludedFromAutoPeriods?: { from: string; to?: string }[]; // Auto-tracked periods when excludeFromAuto was true (legacy)
   blockedDaysPeriods?: BlockedDaysPeriod[]; // Period-based blocked days (new system)
   excludeFromAutoPeriods2?: ExcludeFromAutoPeriod[]; // Explicitly managed exclude-from-auto periods (new system)
+  /**
+   * Soft stats reset: duties earlier than this date are kept in the DB and shown
+   * in the schedule grid, but excluded from every count (stats, load, fairness,
+   * distribution). Clearing the field restores them everywhere.
+   */
+  statsHiddenBefore?: string;
+  /** Date of the last irreversible («hard») stats reset — informational only. */
+  statsResetAt?: string;
 }
 
 export interface BirthdayBlockOpts {
@@ -185,7 +193,6 @@ export interface CandidateRow {
   loadRate: number;
   sameDowPenalty: number;
   crossDowGuard: number;
-  debt: number;
   status: 'winner' | 'soft-eliminated' | 'hard-eliminated' | 'filter-eliminated';
   eliminatedByFilter?: string;
   eliminatedReason?: string;
@@ -201,7 +208,6 @@ export interface UserMetricsFull {
   dowRecency: number;
   loadRate: number;
   waitDays: number;
-  debt: number;
   avgLoadRate: number;
   avgDowCount: number;
   winningCriterion: string;
@@ -332,15 +338,11 @@ export interface ScheduleEntry {
 
 export interface AutoScheduleOptions {
   avoidConsecutiveDays: boolean;
-  respectOwedDays: boolean;
   considerLoad: boolean;
   minRestDays: number; // Minimum rest days between duties (1 = no consecutive, 2 = one day gap, etc.)
   aggressiveLoadBalancing: boolean;
   aggressiveLoadBalancingThreshold: number;
   limitOneDutyPerWeekWhenSevenPlus: boolean;
-  allowDebtUsersExtraWeeklyAssignments: boolean;
-  debtUsersWeeklyLimit: number;
-  prioritizeFasterDebtRepayment: boolean;
   forceUseAllWhenFew: boolean; // When few users available (<=7), force cyclic use of ALL users regardless of load
   evenWeeklyDistribution: boolean; // Extend forceUseAllWhenFew to all rounds: nobody gets N+1 duties while anyone has N
   useFirstDutyDateAsActiveFrom: boolean; // Use first duty date (not date added to list) as fairness tracking start
@@ -363,7 +365,19 @@ export interface AutoScheduleOptions {
   schedulerVisShowAttempts?: boolean; // show all attempted swaps, not just accepted (default: false)
   // Weekly drought: boost users who missed the previous week so they rotate back in
   prioritizeAfterWeekOff?: boolean; // default: true
+  // Pre-generation confirmation modal: summarize status periods, exclusions,
+  // blocked weekdays and low weekly pool warnings before auto-filling
+  confirmBeforeGeneration?: boolean; // default: true
   dutyPattern?: DutyPattern;
+  /**
+   * How force-assignments on blocked/unavailable days count in fairness math:
+   * 'normal'  — counts as a regular duty (default, current behavior);
+   * 'neutral' — invisible to fairness (counts/load/objective), so the duty
+   *             neither reduces future load nor distorts distribution.
+   * Hard constraints (rest days, incompatible pairs, weekly caps) always see
+   * these assignments regardless of the mode.
+   */
+  forceOverrideAccounting?: 'normal' | 'neutral';
 }
 
 /** Progress callback for long-running scheduler operations. */

@@ -12,9 +12,9 @@ import * as settingsService from '../services/settingsService';
 import { setBirthdayBlockConfig } from '../services/userService';
 import {
   DEFAULT_AUTO_SCHEDULE_OPTIONS,
-  DEFAULT_MAX_DEBT,
   DEFAULT_PRINT_MAX_ROWS,
   DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS,
+  DEFAULT_PRINT_SKIP_FULLY_ABSENT,
   DEFAULT_SIGNATORIES,
   DEFAULT_DOW_HISTORY_WEEKS,
   DEFAULT_DOW_HISTORY_MODE,
@@ -32,10 +32,12 @@ export const useSettings = () => {
   const [autoScheduleOptions, setAutoScheduleOptions] = useState<AutoScheduleOptions>(
     DEFAULT_AUTO_SCHEDULE_OPTIONS
   );
-  const [maxDebt, setMaxDebt] = useState<number>(DEFAULT_MAX_DEBT);
   const [printMaxRows, setPrintMaxRows] = useState<number>(DEFAULT_PRINT_MAX_ROWS);
   const [printDutyTableShowAllUsers, setPrintDutyTableShowAllUsers] = useState<boolean>(
     DEFAULT_PRINT_DUTY_TABLE_SHOW_ALL_USERS
+  );
+  const [printSkipFullyAbsent, setPrintSkipFullyAbsent] = useState<boolean>(
+    DEFAULT_PRINT_SKIP_FULLY_ABSENT
   );
   const [ignoreHistoryInLogic, setIgnoreHistoryInLogic] = useState(false);
   const [uiScale, setUiScale] = useState(100);
@@ -46,7 +48,6 @@ export const useSettings = () => {
   const [birthdayBlockOpts, setBirthdayBlockOpts] = useState<BirthdayBlockOpts>(
     DEFAULT_BIRTHDAY_BLOCK_OPTS
   );
-  const [karmaOnManualChanges, setKarmaOnManualChanges] = useState(false);
   const [showDevBanner, setShowDevBanner] = useState(true);
   const [devBannerDismissedOn, setDevBannerDismissedOn] = useState<string | null>(null);
   const [devBannerSnoozeUntil, setDevBannerSnoozeUntil] = useState<string | null>(null);
@@ -87,15 +88,14 @@ export const useSettings = () => {
         cascadeDate,
         perDay,
         autoOpts,
-        debt,
         maxRows,
         printAllUsers,
+        printSkipAbsent,
         ignoreHistory,
         savedUiScale,
         savedDowHistoryWeeks,
         savedDowHistoryMode,
         savedBirthdayBlockOpts,
-        savedKarmaOnManualChanges,
         savedTheme,
         savedShowDevBanner,
         savedDevBannerDismissedOn,
@@ -108,15 +108,14 @@ export const useSettings = () => {
         settingsService.getCascadeStartDate(),
         settingsService.getDutiesPerDay(),
         settingsService.getAutoScheduleOptions(),
-        settingsService.getMaxDebt(),
         settingsService.getPrintMaxRows(),
         settingsService.getPrintDutyTableShowAllUsers(),
+        settingsService.getPrintSkipFullyAbsent(),
         settingsService.getIgnoreHistoryInLogic(),
         settingsService.getUiScale(),
         settingsService.getDowHistoryWeeks(),
         settingsService.getDowHistoryMode(),
         settingsService.getBirthdayBlockOpts(),
-        settingsService.getKarmaOnManualChanges(),
         settingsService.getTheme(),
         settingsService.getShowDevBanner(),
         settingsService.getDevBannerDismissedOn(),
@@ -130,16 +129,15 @@ export const useSettings = () => {
       setCascadeStartDate(cascadeDate);
       setDutiesPerDay(perDay);
       setAutoScheduleOptions(autoOpts);
-      setMaxDebt(debt);
       setPrintMaxRows(maxRows);
       setPrintDutyTableShowAllUsers(printAllUsers);
+      setPrintSkipFullyAbsent(printSkipAbsent);
       setIgnoreHistoryInLogic(ignoreHistory);
       setUiScale(savedUiScale);
       setDowHistoryWeeks(savedDowHistoryWeeks);
       setDowHistoryMode(savedDowHistoryMode);
       setBirthdayBlockOpts(savedBirthdayBlockOpts);
       setBirthdayBlockConfig(savedBirthdayBlockOpts);
-      setKarmaOnManualChanges(savedKarmaOnManualChanges);
       const validThemes: AppTheme[] = ['light', 'dark'];
       setTheme(validThemes.includes(savedTheme as AppTheme) ? (savedTheme as AppTheme) : 'dark');
       setShowDevBanner(savedShowDevBanner);
@@ -171,7 +169,6 @@ export const useSettings = () => {
     setAutoScheduleOptions,
     'Failed to save auto-schedule options'
   );
-  const saveMaxDebt = makeSaver(settingsService.saveMaxDebt, setMaxDebt, 'Failed to save max debt');
   const saveDutiesPerDay = makeSaver(
     settingsService.saveDutiesPerDay,
     setDutiesPerDay,
@@ -186,6 +183,11 @@ export const useSettings = () => {
     settingsService.savePrintDutyTableShowAllUsers,
     setPrintDutyTableShowAllUsers,
     'Failed to save print duty-table mode'
+  );
+  const savePrintSkipFullyAbsent = makeSaver(
+    settingsService.savePrintSkipFullyAbsent,
+    setPrintSkipFullyAbsent,
+    'Failed to save print skip-absent mode'
   );
   const saveIgnoreHistoryInLogic = makeSaver(
     settingsService.saveIgnoreHistoryInLogic,
@@ -209,11 +211,6 @@ export const useSettings = () => {
     setBirthdayBlockOpts,
     'Failed to save birthday block opts',
     setBirthdayBlockConfig
-  );
-  const saveKarmaOnManualChanges = makeSaver(
-    settingsService.saveKarmaOnManualChanges,
-    setKarmaOnManualChanges,
-    'Failed to save karma setting'
   );
   const saveShowDevBanner = async (value: boolean) => {
     try {
@@ -300,15 +297,14 @@ export const useSettings = () => {
     cascadeStartDate,
     dutiesPerDay,
     autoScheduleOptions,
-    maxDebt,
     printMaxRows,
     printDutyTableShowAllUsers,
+    printSkipFullyAbsent,
     ignoreHistoryInLogic,
     uiScale,
     dowHistoryWeeks,
     dowHistoryMode,
     birthdayBlockOpts,
-    karmaOnManualChanges,
     showDevBanner,
     devBannerDismissedOn,
     devBannerSnoozeUntil,
@@ -323,12 +319,12 @@ export const useSettings = () => {
     saveDutiesPerDay,
     savePrintMaxRows,
     savePrintDutyTableShowAllUsers,
+    savePrintSkipFullyAbsent,
     saveIgnoreHistoryInLogic,
     saveUiScale,
     saveDowHistoryWeeks,
     saveDowHistoryMode,
     saveBirthdayBlockOpts,
-    saveKarmaOnManualChanges,
     saveShowDevBanner,
     saveDevBannerDismissedOn,
     saveDevBannerSnoozeUntil,
@@ -336,7 +332,6 @@ export const useSettings = () => {
     saveShowExperimentalSettings,
     saveTheme,
     saveAutoScheduleOptions,
-    saveMaxDebt,
     updateCascadeTrigger,
     clearCascadeTrigger,
     resetAllSettings,

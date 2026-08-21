@@ -35,8 +35,6 @@ describe('useAutoScheduler.generateWeekSchedule', () => {
       rank: 'Солдат',
       status: 'ACTIVE',
       isActive: true,
-      debt: 0,
-      owedDays: {},
     },
   ];
 
@@ -79,9 +77,8 @@ describe('useAutoScheduler.generateWeekSchedule', () => {
       expect.any(AbortSignal),
       undefined
     );
-    expect(autoScheduler.saveAutoSchedule).toHaveBeenCalledWith(
-      [{ date: '2026-07-14', userId: 1, type: 'auto' }],
-      dayWeights
-    );
+    expect(autoScheduler.saveAutoSchedule).toHaveBeenCalledWith([
+      { date: '2026-07-14', userId: 1, type: 'auto' },
+    ]);
   });
 });

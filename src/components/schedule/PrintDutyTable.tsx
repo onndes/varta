@@ -6,11 +6,13 @@ import { getStatusPeriodAtDate } from '../../utils/userStatus';
 import { DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS, STATUSES } from '../../utils/constants';
 import { toLocalISO } from '../../utils/dateUtils';
 import { countUserDaysOfWeek } from '../../services/scheduleService';
+import { applyStatsCutoffs } from '../../utils/statsReset';
 import {
   PRINT_DUTY_MARK,
   PRINT_SHOW_STATUS_LABELS,
   PRINT_DOW_HISTORY_WEEKS,
 } from '../../utils/printConfig';
+import { balancePages, computeDensity, isFullyAbsentForWeek } from './printDutyLayout';
 
 /** Символ наряду — змінюється у src/utils/printConfig.ts → PRINT_DUTY_MARK */
 const DUTY_MARK = PRINT_DUTY_MARK;
@@ -26,6 +28,8 @@ interface PrintDutyTableProps {
   showAllUsers?: boolean;
   /** Показувати статистику нарядів у комірках */
   showStats?: boolean;
+  /** Не друкувати тих, хто весь тиждень відсутній і без нарядів */
+  skipFullyAbsent?: boolean;
   /** Глибина історії (тижнів) */
   dowHistoryWeeks?: number;
   /** Блок, який має бути надрукований разом з останньою сторінкою таблиці */
@@ -36,16 +40,6 @@ interface PrintDutyTableProps {
 
 /** Сортувати бійців за званням та ПІБ */
 const sortByRank = (list: User[]): User[] => [...list].sort(compareByRankAndName);
-
-const paginateUsers = (list: User[], maxRowsPerPage: number): User[][] => {
-  if (list.length === 0) return [[]];
-
-  const pages: User[][] = [];
-  for (let index = 0; index < list.length; index += maxRowsPerPage) {
-    pages.push(list.slice(index, index + maxRowsPerPage));
-  }
-  return pages;
-};
 
 /** Зібрати ID всіх бійців, призначених на тиждень */
 const collectScheduledIds = (
@@ -148,7 +142,9 @@ const DutyTable: React.FC<TablePageProps> = ({
           const { surname, firstName, middleName } = splitFormattedName(user.name);
           const fullName = [surname, firstName, middleName].filter(Boolean).join(' ');
           const dowAssignmentCounts =
-            showStats && user.id ? countUserDaysOfWeek(user.id, schedule) : null;
+            showStats && user.id
+              ? countUserDaysOfWeek(user.id, applyStatsCutoffs(schedule, [user]))
+              : null;
 
           return (
             <tr key={user.id}>
@@ -203,8 +199,12 @@ const DutyTable: React.FC<TablePageProps> = ({
  * Друк: таблиця чергувань з пагінацією.
  *
  * - За замовчуванням друкує всіх активних осіб;
- * - За потреби може друкувати тільки тих, хто призначений на поточний тиждень;
- * - Якщо рядків більше за ліміт, продовжує таблицю на наступних сторінках.
+ * - За потреби може друкувати тільки тих, хто призначений на поточний тиждень,
+ *   або пропускати тих, хто весь тиждень відсутній і без нарядів;
+ * - Якщо людей трохи більше за ліміт — таблиця ущільнюється (шрифт і відступи
+ *   пропорційно зменшуються), щоб усі влізли на один аркуш;
+ * - Якщо не вміщується навіть так — рядки діляться між сторінками рівномірно,
+ *   щоб на останній сторінці не залишався 1–2 рядки.
  */
 const PrintDutyTable: React.FC<PrintDutyTableProps> = ({
   weekDates,
@@ -213,16 +213,25 @@ const PrintDutyTable: React.FC<PrintDutyTableProps> = ({
   maxRowsPerPage = DEFAULT_PRINT_MAX_ROWS,
   showAllUsers = true,
   showStats = false,
+  skipFullyAbsent = false,
   dowHistoryWeeks = PRINT_DOW_HISTORY_WEEKS,
   footer = null,
 }) => {
   const activeUsers = sortByRank(users.filter((u) => u.isActive));
   const scheduledIds = collectScheduledIds(weekDates, schedule);
-  const printableUsers = showAllUsers
+  const selectedUsers = showAllUsers
     ? activeUsers
     : sortByRank(activeUsers.filter((u) => scheduledIds.has(u.id!)));
+  const printableUsers = skipFullyAbsent
+    ? selectedUsers.filter((u) => !isFullyAbsentForWeek(u, weekDates, schedule))
+    : selectedUsers;
   const safeMaxRows = Math.max(1, footer ? maxRowsPerPage - FOOTER_RESERVED_ROWS : maxRowsPerPage);
-  const pages = paginateUsers(printableUsers, safeMaxRows);
+  const pages = balancePages(printableUsers, safeMaxRows);
+  const density = computeDensity(pages, safeMaxRows);
+  const pageStartIndexes = pages.reduce<number[]>((acc, _page, index) => {
+    acc.push(index === 0 ? 0 : acc[index - 1] + pages[index - 1].length);
+    return acc;
+  }, []);
 
   return (
     <>
@@ -230,12 +239,13 @@ const PrintDutyTable: React.FC<PrintDutyTableProps> = ({
         <div
           key={`print-duty-page-${pageIndex + 1}`}
           className={`print-only print-duty-table-wrapper${pageIndex > 0 ? ' print-overflow-page' : ''}`}
+          style={{ '--print-density': density } as React.CSSProperties}
         >
           <DutyTable
             users={pageUsers}
             weekDates={weekDates}
             schedule={schedule}
-            startIndex={pageIndex * safeMaxRows}
+            startIndex={pageStartIndexes[pageIndex]}
             showStats={showStats}
             dowHistoryWeeks={dowHistoryWeeks}
           />

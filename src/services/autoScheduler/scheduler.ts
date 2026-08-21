@@ -26,6 +26,8 @@ import {
   countUserAssignmentsInRange,
   getWeekWindow,
   computeGlobalObjective,
+  buildFairnessExclusionSet,
+  applyForceOverrideAccounting,
 } from './helpers';
 import { countUserDaysOfWeek } from '../scheduleService';
 import {
@@ -41,12 +43,14 @@ import {
 import { getBlockRotationPhase, isBlockContinuation } from './dutyPatternService';
 import {
   isAutoParticipant,
+  isAutoParticipantInWindow,
   isHardEligible,
   isLookAheadSafe,
   performSwapOptimization,
   performTabuSearch,
   performMultiRestartOptimization,
 } from './swapOptimizer';
+import { isExcludedFromAutoOnDate } from '../../utils/userExcludeFromAuto';
 import { buildDecisionLog } from './decisionLog';
 import { FILTER_PHRASES } from './decisionPhrases';
 
@@ -81,7 +85,8 @@ const simulateForwardScore = (
   dayWeights: DayWeights,
   options: AutoScheduleOptions,
   depth: number,
-  fairnessUsers: User[]
+  fairnessUsers: User[],
+  fairnessExclusions?: Set<string>
 ): number => {
   const sim = { ...tempSchedule };
   sim[dateStr] = { date: dateStr, userId: candidate.id!, type: 'auto' as const };
@@ -96,7 +101,7 @@ const simulateForwardScore = (
   // Simulate the next `depth` unfilled future dates
   const futureDates = dates.filter((d) => d > dateStr).slice(0, depth);
   // Compute fairnessSchedule once before the loop — re-built only after each assignment.
-  let fairSim = getLogicSchedule(sim, false);
+  let fairSim = applyForceOverrideAccounting(getLogicSchedule(sim, false), options, users);
   for (const futDate of futureDates) {
     const existing = sim[futDate];
     if (existing && toAssignedUserIds(existing.userId).length > 0) continue;
@@ -150,7 +155,7 @@ const simulateForwardScore = (
     // Without this, lookahead scores a path where one person serves twice
     // (lower rateSSE) as better than a path where everyone serves once.
     if (options.limitOneDutyPerWeekWhenSevenPlus) {
-      const filtered = filterByWeeklyCap(pool, users, futDate, sim, options);
+      const filtered = filterByWeeklyCap(pool, users, futDate, sim);
       if (filtered.length > 0) pool = filtered;
     }
 
@@ -187,7 +192,7 @@ const simulateForwardScore = (
     if (pool.length > 0 && pool[0].id) {
       sim[futDate] = { date: futDate, userId: pool[0].id, type: 'auto' as const };
       // Rebuild fairSim so subsequent dates see this assignment in their DOW counts.
-      fairSim = getLogicSchedule(sim, false);
+      fairSim = applyForceOverrideAccounting(getLogicSchedule(sim, false), options, users);
     }
   }
 
@@ -196,7 +201,9 @@ const simulateForwardScore = (
     sim,
     dayWeights,
     users,
-    options.prioritizeAfterWeekOff === true
+    options.prioritizeAfterWeekOff === true,
+    undefined,
+    fairnessExclusions
   );
 };
 
@@ -236,13 +243,19 @@ export const autoFillSchedule = async (
   const tempSchedule = { ...schedule };
   const todayStr = toLocalISO(new Date());
   const slotsPerDay = Math.max(1, dutiesPerDay);
-  const fairnessUsers = users.filter(isAutoParticipant);
   const tempLoadOffset: Record<number, number> = {};
   // Track which dates were auto-filled by THIS run (needed for swap opt).
   const autoFilledDateSet = new Set<string>();
 
   // Deterministic order is important for reproducibility.
   const dates = [...targetDates].sort();
+  // Fairness population: exclude users whose exclude-from-auto periods cover
+  // the entire target window — they can never be assigned, so they must not
+  // distort cross-user fairness terms in the objective.
+  const fairnessUsers = users.filter((u) => isAutoParticipantInWindow(u, dates));
+  // 'neutral' force-override accounting: force entries are static during the
+  // run, so the exclusion set is computed once.
+  const fairnessExclusions = buildFairnessExclusionSet(tempSchedule, options);
   const minRest =
     options.dutyPattern?.mode === 'block-rotation'
       ? 0
@@ -299,7 +312,8 @@ export const autoFillSchedule = async (
       for (const u of hardRejected) {
         const status = getUserAvailabilityStatus(u, dateStr);
         let reason: string = 'hard_inactive';
-        if (status === 'STATUS_BUSY') reason = 'hard_status_busy';
+        if (isExcludedFromAutoOnDate(u, dateStr)) reason = 'hard_excluded_from_auto';
+        else if (status === 'STATUS_BUSY') reason = 'hard_status_busy';
         else if (status === 'DAY_BLOCKED') reason = 'hard_day_blocked';
         else if (status === 'BIRTHDAY') reason = 'hard_birthday';
         else if (status === 'REST_DAY' || status === 'PRE_STATUS_DAY') reason = 'hard_rest_day';
@@ -406,7 +420,7 @@ export const autoFillSchedule = async (
       const totalEligibleCount = countEligibleUsersForWeek(users, tempSchedule, dateStr);
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
         const preCapPool = [...pool];
-        pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule, options);
+        pool = filterByWeeklyCap(pool, users, dateStr, tempSchedule);
         const step = trackFilterStep('weeklyCap', preCapPool, pool);
         step.wasFallback =
           step.eliminated.length === 0 &&
@@ -490,7 +504,11 @@ export const autoFillSchedule = async (
 
       if (pool.length === 0) break;
 
-      const fairnessSchedule = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+      const fairnessSchedule = applyForceOverrideAccounting(
+        getLogicSchedule(tempSchedule, ignoreHistoryInLogic),
+        options,
+        users
+      );
       const compare = buildUserComparator(
         dateStr,
         tempSchedule,
@@ -541,7 +559,8 @@ export const autoFillSchedule = async (
             dayWeights,
             options,
             lookaheadDepth,
-            fairnessUsers
+            fairnessUsers,
+            fairnessExclusions
           );
           if (score < bestScore) {
             bestScore = score;
@@ -620,7 +639,11 @@ export const autoFillSchedule = async (
 
     // Build decision log for this entry
     const assignedId = selectedIds[selectedIds.length - 1]; // last assigned by this slot
-    const fairnessSchedule = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+    const fairnessSchedule = applyForceOverrideAccounting(
+      getLogicSchedule(tempSchedule, ignoreHistoryInLogic),
+      options,
+      users
+    );
     const dayIdx = new Date(dateStr).getDay();
     const week = getWeekWindow(dateStr);
     const pop = fairnessUsers.map((u) => u.id!);
@@ -726,7 +749,8 @@ export const autoFillSchedule = async (
         onProgress,
         abortSignal,
         slotsPerDay,
-        onVis
+        onVis,
+        ignoreHistoryInLogic
       );
       if (onVis) await onVis({ type: 'phase-end', phase: 'multi-restart' });
     }
@@ -734,7 +758,11 @@ export const autoFillSchedule = async (
     // Reconcile: collect final state for any date touched by swap optimizer.
     // Rebuild decision logs for entries whose assignment changed during swaps,
     // so the info button shows metrics for the ACTUAL assigned user.
-    const fairnessScheduleFinal = getLogicSchedule(tempSchedule, ignoreHistoryInLogic);
+    const fairnessScheduleFinal = applyForceOverrideAccounting(
+      getLogicSchedule(tempSchedule, ignoreHistoryInLogic),
+      options,
+      users
+    );
     const pop = fairnessUsers.map((u) => u.id!);
 
     for (const dateStr of autoFilledDateSet) {

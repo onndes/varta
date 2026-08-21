@@ -46,12 +46,10 @@ export const useUsersActions = ({
         isActive: true,
         excludeFromAuto: false,
         note,
-        debt: 0.0,
         statusFrom: '',
         statusTo: '',
         statusPeriods: [],
         restAfterStatus: false,
-        owedDays: {},
         dateAddedToAuto,
         birthday,
       });

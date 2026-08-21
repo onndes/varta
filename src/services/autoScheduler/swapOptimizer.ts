@@ -14,6 +14,7 @@ import type {
 import { toLocalISO } from '../../utils/dateUtils';
 import { toAssignedUserIds } from '../../utils/assignment';
 import { getUserAvailabilityStatus } from '../userService';
+import { isExcludedFromAutoOnDate } from '../../utils/userExcludeFromAuto';
 import {
   FLOAT_EPSILON,
   MS_PER_DAY,
@@ -23,6 +24,8 @@ import {
   getWeekWindow,
   countUserAssignmentsInRange,
   computeDaysActive,
+  buildFairnessExclusionSet,
+  applyForceOverrideAccounting,
 } from './helpers';
 import {
   buildUserComparator,
@@ -36,20 +39,39 @@ import {
 } from './comparator';
 import { getLogicSchedule } from '../../utils/assignment';
 import { getBlockRotationPhase, isBlockContinuation } from './dutyPatternService';
+import { isStaffDuty } from '../../utils/staffDuty';
 
 export const isAutoParticipant = (u: User): boolean =>
   Boolean(u.id && u.isActive && !u.isExtra && !u.excludeFromAuto);
 
 /**
+ * Window-aware participation: a user counts as an auto participant for a run
+ * only if at least one target date is NOT covered by an exclude-from-auto
+ * period. Users excluded for the whole window must not enter the fairness
+ * population — otherwise the optimizer tries to equalize totals against
+ * someone it can never assign.
+ */
+export const isAutoParticipantInWindow = (u: User, dates: string[]): boolean =>
+  isAutoParticipant(u) &&
+  // Штатний черговий живе за власною тижневою нормою, а не за спільною
+  // справедливістю: він не входить у популяцію вирівнювання, інакше
+  // оптимізатор «розмазував» би його наряди по підрозділу.
+  !isStaffDuty(u) &&
+  dates.some((d) => !isExcludedFromAutoOnDate(u, d));
+
+/**
  * Hard availability on date:
  * - active non-extra non-excluded users only
  * - blocked days / status periods are respected via availability status
+ * - exclude-from-auto periods are respected per date (manual assignment
+ *   remains possible — this guard applies to the auto pipeline only)
  * NOTE: same-weekday-last-week is intentionally NOT a hard block here;
  *       it is handled as a heavy soft penalty in the comparator so the
  *       scheduler can still assign someone who would otherwise starve.
  */
 export const isHardEligible = (user: User, dateStr: string): boolean => {
   if (!user.isActive) return false;
+  if (isExcludedFromAutoOnDate(user, dateStr)) return false;
   if (getUserAvailabilityStatus(user, dateStr) !== 'AVAILABLE') return false;
   return true;
 };
@@ -239,6 +261,24 @@ export const wouldBreakBlockRotation = (
  *
  * Iterates until no improvement found or MAX_SWAP_ITERATIONS.
  */
+
+/**
+ * Дати, зайняті штатним черговим, оптимізатор не чіпає: його наряди стоять
+ * за власною тижневою нормою, а не за спільною справедливістю. Інакше фази
+ * вирівнювання «розмазали» б їх по підрозділу.
+ */
+const excludeStaffDutyDates = (
+  autoFilledDates: string[],
+  schedule: Record<string, ScheduleEntry>,
+  users: User[]
+): string[] => {
+  const staffIds = new Set(users.filter(isStaffDuty).map((u) => u.id));
+  if (staffIds.size === 0) return autoFilledDates;
+  return autoFilledDates.filter(
+    (d) => !toAssignedUserIds(schedule[d]?.userId).some((id) => staffIds.has(id))
+  );
+};
+
 export const performSwapOptimization = async (
   dates: string[],
   users: User[],
@@ -251,7 +291,7 @@ export const performSwapOptimization = async (
   optimizerLog?: Map<string, OptimizerHistoryEntry[]>,
   onVis?: SchedulerVisCallback
 ): Promise<void> => {
-  const participants = users.filter(isAutoParticipant);
+  const participants = users.filter((u) => isAutoParticipantInWindow(u, dates));
   const userIds = participants.map((u) => u.id!);
   const participantsMap = new Map<number, User>(participants.map((u) => [u.id!, u]));
   const minRest =
@@ -262,7 +302,11 @@ export const performSwapOptimization = async (
         : 0;
 
   // Work with a stable, sorted list of auto-filled dates.
-  const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
+  const autoFilledDates = excludeStaffDutyDates(
+    dates.filter((d) => autoFilledDateSet.has(d)),
+    tempSchedule,
+    users
+  );
   const maxIter = getAdaptiveMaxIterations(participants.length, autoFilledDates.length);
 
   // Pre-compute daysActive per participant once — reused by every computeGlobalObjective call.
@@ -271,6 +315,11 @@ export const performSwapOptimization = async (
   for (const u of participants) {
     daysActiveCache.set(u.id!, computeDaysActive(u, todayStrSwap, tempSchedule));
   }
+
+  // 'neutral' force-override accounting: these date:user pairs are invisible
+  // to the objective. Constant for the whole run — force entries are never
+  // touched by the optimizer (only auto-filled dates are).
+  const fairnessExclusions = buildFairnessExclusionSet(tempSchedule, options);
 
   // Helper for optimizer history logging
   const userName = (uid: number): string => participantsMap.get(uid)?.name || `#${uid}`;
@@ -338,7 +387,8 @@ export const performSwapOptimization = async (
       dayWeights,
       users,
       options.prioritizeAfterWeekOff === true,
-      daysActiveCache
+      daysActiveCache,
+      fairnessExclusions
     );
 
     // Build weekly count cache for Phase 2 balance guard (O(S) instead of O(S×U) per candidate).
@@ -443,7 +493,8 @@ export const performSwapOptimization = async (
               dayWeights,
               users,
               options.prioritizeAfterWeekOff === true,
-              daysActiveCache
+              daysActiveCache,
+              fairnessExclusions
             );
 
             if (newObj < iterBaseObj - FLOAT_EPSILON) {
@@ -540,7 +591,8 @@ export const performSwapOptimization = async (
             dayWeights,
             users,
             options.prioritizeAfterWeekOff === true,
-            daysActiveCache
+            daysActiveCache,
+            fairnessExclusions
           );
 
           if (newObj < iterBaseObj - FLOAT_EPSILON) {
@@ -710,7 +762,8 @@ export const performSwapOptimization = async (
                 dayWeights,
                 users,
                 options.prioritizeAfterWeekOff === true,
-                daysActiveCache
+                daysActiveCache,
+                fairnessExclusions
               );
               // For small groups, allow slightly worse objective if it resolves a same-DOW repeat
               const sameDowTolerance = participants.length <= MIN_USERS_FOR_WEEKLY_LIMIT ? 25.0 : 0;
@@ -893,7 +946,8 @@ export const performSwapOptimization = async (
                       dayWeights,
                       users,
                       options.prioritizeAfterWeekOff === true,
-                      daysActiveCache
+                      daysActiveCache,
+                      fairnessExclusions
                     );
                     if (newObj4 < iterBaseObj - FLOAT_EPSILON) {
                       // Visualization: show accepted 3-way swap
@@ -1003,7 +1057,7 @@ export const performTabuSearch = async (
 ): Promise<void> => {
   const tenure = options.tabuTenure || 7;
   const maxIter = options.tabuMaxIterations || 50;
-  const participants = users.filter(isAutoParticipant);
+  const participants = users.filter((u) => isAutoParticipantInWindow(u, dates));
   const userIds = participants.map((u) => u.id!);
   const participantsMap = new Map<number, User>(participants.map((u) => [u.id!, u]));
   const minRest =
@@ -1012,7 +1066,11 @@ export const performTabuSearch = async (
       : options.avoidConsecutiveDays
         ? options.minRestDays || 1
         : 0;
-  const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d));
+  const autoFilledDates = excludeStaffDutyDates(
+    dates.filter((d) => autoFilledDateSet.has(d)),
+    tempSchedule,
+    users
+  );
   const enforceWeeklyBalance = !!(options.forceUseAllWhenFew || options.evenWeeklyDistribution);
 
   // Pre-compute eligible IDs for weekly cap enforcement.
@@ -1037,6 +1095,9 @@ export const performTabuSearch = async (
   for (const u of participants) {
     daysActiveCache.set(u.id!, computeDaysActive(u, todayStrTabu, tempSchedule));
   }
+
+  // 'neutral' force-override accounting (constant for the run).
+  const fairnessExclusions = buildFairnessExclusionSet(tempSchedule, options);
 
   // Pre-build weeklyCountCache for wouldViolateWeeklyBalance.
   // weekKey = Monday ISO string of that week; value = Map<userId, count>
@@ -1098,7 +1159,8 @@ export const performTabuSearch = async (
     dayWeights,
     users,
     options.prioritizeAfterWeekOff === true,
-    daysActiveCache
+    daysActiveCache,
+    fairnessExclusions
   );
   const bestAssignment = new Map<string, number | number[]>();
   for (const d of autoFilledDates) {
@@ -1136,7 +1198,8 @@ export const performTabuSearch = async (
       dayWeights,
       users,
       options.prioritizeAfterWeekOff === true,
-      daysActiveCache
+      daysActiveCache,
+      fairnessExclusions
     );
 
     // Evaluate all neighbor moves, pick the best non-tabu (or aspiration)
@@ -1217,7 +1280,8 @@ export const performTabuSearch = async (
                 dayWeights,
                 users,
                 options.prioritizeAfterWeekOff === true,
-                daysActiveCache
+                daysActiveCache,
+                fairnessExclusions
               );
               const key = swapKey(d1, u1, d2, u2);
               const isTabu = (tabuMap.get(key) ?? -1) > iter;
@@ -1316,7 +1380,8 @@ export const performTabuSearch = async (
             dayWeights,
             users,
             options.prioritizeAfterWeekOff === true,
-            daysActiveCache
+            daysActiveCache,
+            fairnessExclusions
           );
           const key = replaceKey(dateStr, assignedId, candidate.id);
           const isTabu = (tabuMap.get(key) ?? -1) > iter;
@@ -1523,7 +1588,8 @@ const syncMiniOptimize = (
   minRest: number,
   maxIter: number,
   options?: AutoScheduleOptions,
-  daysActiveCache?: Map<number, number>
+  daysActiveCache?: Map<number, number>,
+  fairnessExclusions?: Set<string>
 ): void => {
   const enforceWeeklyBalance = !!(options?.forceUseAllWhenFew || options?.evenWeeklyDistribution);
 
@@ -1567,7 +1633,8 @@ const syncMiniOptimize = (
       dayWeights,
       users,
       options?.prioritizeAfterWeekOff === true,
-      daysActiveCache
+      daysActiveCache,
+      fairnessExclusions
     );
 
     // Phase 1: Pair-exchange swaps
@@ -1627,7 +1694,8 @@ const syncMiniOptimize = (
               dayWeights,
               users,
               options?.prioritizeAfterWeekOff === true,
-              daysActiveCache
+              daysActiveCache,
+              fairnessExclusions
             );
             if (newObj < baseObj - FLOAT_EPSILON) {
               baseObj = newObj;
@@ -1671,7 +1739,8 @@ const syncMiniOptimize = (
       dayWeights,
       users,
       options?.prioritizeAfterWeekOff === true,
-      daysActiveCache
+      daysActiveCache,
+      fairnessExclusions
     );
     for (const dateStr of autoFilledDates) {
       const entry = schedule[dateStr];
@@ -1738,7 +1807,8 @@ const syncMiniOptimize = (
             dayWeights,
             users,
             options?.prioritizeAfterWeekOff === true,
-            daysActiveCache
+            daysActiveCache,
+            fairnessExclusions
           );
           if (newObj < baseObj - FLOAT_EPSILON) {
             baseObj = newObj;
@@ -1827,7 +1897,8 @@ const lnsRepair = (
   dayWeights: DayWeights,
   options: AutoScheduleOptions,
   fairnessUsers: User[],
-  slotsPerDay: number
+  slotsPerDay: number,
+  ignoreHistoryInLogic = false
 ): void => {
   const minRest =
     options.dutyPattern?.mode === 'block-rotation'
@@ -1839,7 +1910,12 @@ const lnsRepair = (
   // Pre-compute once: fairness schedule and eligible-count cache.
   // Previously getLogicSchedule was called inside the inner loop for every
   // destroyed date, and countEligibleUsersForWeek was recomputed per date.
-  const cachedFairnessSchedule = getLogicSchedule(schedule, false);
+  // Force-override accounting and history mode must mirror the main greedy pass.
+  const cachedFairnessSchedule = applyForceOverrideAccounting(
+    getLogicSchedule(schedule, ignoreHistoryInLogic),
+    options,
+    users
+  );
   const eligibleCountCache = new Map<string, number>();
 
   for (const dateStr of destroyedDates) {
@@ -1913,7 +1989,7 @@ const lnsRepair = (
 
       // Weekly cap filter
       if (options.limitOneDutyPerWeekWhenSevenPlus) {
-        const filtered = filterByWeeklyCap(pool, users, dateStr, schedule, options);
+        const filtered = filterByWeeklyCap(pool, users, dateStr, schedule);
         if (filtered.length > 0) pool = filtered;
       }
 
@@ -2027,9 +2103,10 @@ export const performMultiRestartOptimization = async (
   onProgress?: SchedulerProgressCallback,
   abortSignal?: AbortSignal,
   slotsPerDay = 1,
-  onVis?: SchedulerVisCallback
+  onVis?: SchedulerVisCallback,
+  ignoreHistoryInLogic = false
 ): Promise<void> => {
-  const participants = users.filter(isAutoParticipant);
+  const participants = users.filter((u) => isAutoParticipantInWindow(u, dates));
   const userIds = participants.map((u) => u.id!);
   const participantsMap = new Map<number, User>(participants.map((u) => [u.id!, u]));
   const daysActiveCache = new Map<number, number>();
@@ -2037,6 +2114,8 @@ export const performMultiRestartOptimization = async (
   for (const u of participants) {
     daysActiveCache.set(u.id!, computeDaysActive(u, todayStrMR, tempSchedule));
   }
+  // 'neutral' force-override accounting (constant for the run).
+  const fairnessExclusions = buildFairnessExclusionSet(tempSchedule, options);
   const minRest =
     options.dutyPattern?.mode === 'block-rotation'
       ? 0
@@ -2046,7 +2125,7 @@ export const performMultiRestartOptimization = async (
   const autoFilledDates = dates.filter((d) => autoFilledDateSet.has(d)).sort();
   const strategy = options.multiRestartStrategy ?? 'pair-swap';
   const isUnlimited = options.multiRestartTimeLimitMode === 'unlimited';
-  const fairnessUsers = users.filter(isAutoParticipant);
+  const fairnessUsers = participants;
 
   if (autoFilledDates.length < 2 || participants.length < 2) return;
 
@@ -2057,7 +2136,8 @@ export const performMultiRestartOptimization = async (
     dayWeights,
     users,
     options.prioritizeAfterWeekOff === true,
-    daysActiveCache
+    daysActiveCache,
+    fairnessExclusions
   );
   const bestAssignment = new Map<string, number | number[]>();
   for (const d of autoFilledDates) {
@@ -2154,7 +2234,16 @@ export const performMultiRestartOptimization = async (
     if (strategy === 'lns') {
       // LNS perturbation: destroy a window, then repair with greedy pipeline
       const destroyed = lnsDestroy(autoFilledDates, tempSchedule, lnsWindowSize);
-      lnsRepair(destroyed, users, tempSchedule, dayWeights, options, fairnessUsers, slotsPerDay);
+      lnsRepair(
+        destroyed,
+        users,
+        tempSchedule,
+        dayWeights,
+        options,
+        fairnessUsers,
+        slotsPerDay,
+        ignoreHistoryInLogic
+      );
     } else {
       // Classic perturbation: random pair swaps
       const shuffled = [...autoFilledDates].sort(() => Math.random() - 0.5);
@@ -2225,7 +2314,8 @@ export const performMultiRestartOptimization = async (
       minRest,
       miniOptIter,
       options,
-      daysActiveCache
+      daysActiveCache,
+      fairnessExclusions
     );
 
     // Stagnation detection: check if this solution was already seen
@@ -2281,7 +2371,8 @@ export const performMultiRestartOptimization = async (
         dayWeights,
         users,
         options.prioritizeAfterWeekOff === true,
-        daysActiveCache
+        daysActiveCache,
+        fairnessExclusions
       );
       if (newZ < bestZ - FLOAT_EPSILON) {
         bestZ = newZ;

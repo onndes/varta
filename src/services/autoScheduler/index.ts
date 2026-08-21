@@ -10,7 +10,8 @@ import type {
   SchedulerProgressCallback,
 } from '../../types';
 import { toLocalISO } from '../../utils/dateUtils';
-import { repayOwedDay, isUserAvailable } from '../userService';
+import { isUserAvailable } from '../userService';
+import { isExcludedFromAutoOnDate } from '../../utils/userExcludeFromAuto';
 import { toAssignedUserIds, isManualType, getLogicSchedule } from '../../utils/assignment';
 import { DEFAULT_AUTO_SCHEDULE_OPTIONS } from '../../utils/constants';
 import {
@@ -25,6 +26,7 @@ import {
   countEligibleUsersForDate,
   countEligibleUsersForWeek,
   MIN_USERS_FOR_WEEKLY_LIMIT,
+  applyForceOverrideAccounting,
 } from './helpers';
 import { autoFillSchedule } from './scheduler';
 
@@ -33,25 +35,12 @@ export { autoFillSchedule } from './scheduler';
 export { calculateUserFairnessIndex, computeUserLoadRate } from './helpers';
 
 /**
- * Зберегти авто-розклад та погасити борги (owedDays + карма).
+ * Зберегти авто-розклад.
  */
-export const saveAutoSchedule = async (
-  entries: ScheduleEntry[],
-  dayWeights: DayWeights
-): Promise<void> => {
-  await db.transaction('rw', db.schedule, db.users, async () => {
+export const saveAutoSchedule = async (entries: ScheduleEntry[]): Promise<void> => {
+  await db.transaction('rw', db.schedule, async () => {
     for (const entry of entries) {
       await db.schedule.put(entry);
-
-      if (entry.userId) {
-        const userIds = Array.isArray(entry.userId) ? entry.userId : [entry.userId];
-        const dayIdx = new Date(entry.date).getDay();
-        const weight = dayWeights[dayIdx] || 1.0;
-
-        for (const userId of userIds) {
-          await repayOwedDay(userId, dayIdx, weight);
-        }
-      }
     }
   });
 };
@@ -68,13 +57,17 @@ export const getFreeUsersForDate = (
   ignoreHistoryInLogic = false
 ): User[] => {
   const assignedOnDate = new Set(toAssignedUserIds(schedule[dateStr]?.userId));
-  const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
+  const fairnessSched = applyForceOverrideAccounting(
+    getLogicSchedule(schedule, ignoreHistoryInLogic),
+    options,
+    users
+  );
 
-  // Доступні бійці (не призначені, не Extra, не excludeFromAuto)
+  // Доступні бійці (не призначені, не Extra, не виключені з авто на цю дату)
   let candidatePool = users.filter(
     (u) =>
       !u.isExtra &&
-      !u.excludeFromAuto &&
+      !isExcludedFromAutoOnDate(u, dateStr) &&
       !assignedOnDate.has(u.id!) &&
       isUserAvailable(u, dateStr, schedule)
   );
@@ -82,7 +75,7 @@ export const getFreeUsersForDate = (
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule, options);
+    candidatePool = filterByWeeklyCap(candidatePool, users, dateStr, schedule);
   }
   candidatePool = filterByIncompatiblePairs(candidatePool, users, dateStr, schedule);
   candidatePool = filterBySameWeekdayLastWeek(
@@ -113,7 +106,9 @@ export const getFreeUsersForDate = (
       fairnessSched,
       totalEligibleCount,
       candidatePool,
-      users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto)
+      users.filter(
+        (u) => u.id && u.isActive && !u.isExtra && !isExcludedFromAutoOnDate(u, dateStr)
+      )
     )
   );
 };
@@ -176,7 +171,7 @@ export const recalculateScheduleFrom = async (
     onProgress,
     abortSignal
   );
-  await saveAutoSchedule(updates, dayWeights);
+  await saveAutoSchedule(updates);
 };
 
 /**
@@ -191,15 +186,23 @@ export const calculateOptimalAssignment = (
   ignoreHistoryInLogic = false
 ): User | null => {
   let available = users.filter(
-    (u) => u.isActive && !u.isExtra && !u.excludeFromAuto && isUserAvailable(u, dateStr, schedule)
+    (u) =>
+      u.isActive &&
+      !u.isExtra &&
+      !isExcludedFromAutoOnDate(u, dateStr) &&
+      isUserAvailable(u, dateStr, schedule)
   );
   if (available.length === 0) return null;
   const totalEligibleCount = countEligibleUsersForDate(users, schedule, dateStr);
-  const fairnessSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
+  const fairnessSched = applyForceOverrideAccounting(
+    getLogicSchedule(schedule, ignoreHistoryInLogic),
+    options,
+    users
+  );
 
   // Ліміт на тиждень
   if (options.limitOneDutyPerWeekWhenSevenPlus) {
-    available = filterByWeeklyCap(available, users, dateStr, schedule, options);
+    available = filterByWeeklyCap(available, users, dateStr, schedule);
   }
   available = filterByIncompatiblePairs(available, users, dateStr, schedule);
   available = filterBySameWeekdayLastWeek(
@@ -230,7 +233,9 @@ export const calculateOptimalAssignment = (
       fairnessSched,
       totalEligibleCount,
       available,
-      users.filter((u) => u.id && u.isActive && !u.isExtra && !u.excludeFromAuto)
+      users.filter(
+        (u) => u.id && u.isActive && !u.isExtra && !isExcludedFromAutoOnDate(u, dateStr)
+      )
     )
   );
   return available[0];

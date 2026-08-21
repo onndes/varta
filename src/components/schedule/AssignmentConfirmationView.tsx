@@ -44,7 +44,6 @@ export const ConfirmationView: React.FC<ConfirmationViewProps> = ({
               </span>
               <span>
                 Знімається: <strong>{assignedUser?.name}</strong>
-                {pending.penalize && <span className="text-danger ms-1">(−карма)</span>}
               </span>
             </div>
             <div className="d-flex align-items-center mb-1">
@@ -92,17 +91,6 @@ export const ConfirmationView: React.FC<ConfirmationViewProps> = ({
               <span>
                 Знімається: <strong>{assignedUser?.name}</strong>
               </span>
-            </div>
-            <div className="small mt-1">
-              {pending.reason === 'request' ? (
-                <span className="text-danger">
-                  <i className="fas fa-file-alt me-1"></i>За рапортом — Карма МІНУС
-                </span>
-              ) : (
-                <span className="text-muted">
-                  <i className="fas fa-briefcase me-1"></i>Службова — Карма 0
-                </span>
-              )}
             </div>
           </>
         )}

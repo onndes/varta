@@ -85,8 +85,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
         status: 'ACTIVE',
         isActive: true,
         note: '',
-        debt: 0.0,
-        owedDays: {},
       });
     }
 
@@ -147,56 +145,42 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Бондаренко Сергій Іванович',
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Ткаченко Андрій Миколайович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Кравченко Петро Сергійович',
           rank: 'Молодший сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Шевченко Тарас Іванович',
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Мельник Василь Петрович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Олійник Дмитро Андрійович',
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       await db.users.bulkAdd(base as User[]);
@@ -231,48 +215,36 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Бондаренко Сергій Іванович',
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Ткаченко Андрій Миколайович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Кравченко Петро Сергійович',
           rank: 'Молодший сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Шевченко Тарас Іванович',
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Мороз Олег Миколайович',
           rank: 'Солдат',
           status: 'VACATION',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           statusPeriods: [vacPeriod],
         },
         {
@@ -280,8 +252,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Старший солдат',
           status: 'TRIP',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           statusPeriods: [tripPeriod],
         },
         {
@@ -289,8 +259,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Сержант',
           status: 'SICK',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           statusPeriods: [sickPeriod],
         },
       ];
@@ -305,16 +273,12 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Бондаренко Сергій Іванович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [1, 2],
         },
         {
@@ -322,8 +286,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [6, 7],
         },
         {
@@ -331,8 +293,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Молодший сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
           blockedDays: [5],
         },
         {
@@ -340,16 +300,12 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Мельник Василь Петрович',
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       await db.users.bulkAdd(users3 as User[]);
@@ -364,48 +320,36 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Бондаренко Сергій Іванович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Ткаченко Андрій Миколайович',
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Кравченко Петро Сергійович',
           rank: 'Молодший сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Шевченко Тарас Іванович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Мельник Василь Петрович',
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       const insertedIds = (await db.users.bulkAdd(base4 as User[], { allKeys: true })) as number[];
@@ -425,82 +369,21 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           rank: 'Сержант',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Бондаренко Сергій Іванович',
           rank: 'Солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
         {
           name: 'Ткаченко Андрій Миколайович',
           rank: 'Старший солдат',
           status: 'ACTIVE',
           isActive: true,
-          debt: 0,
-          owedDays: {},
         },
       ];
       await db.users.bulkAdd(users5 as User[]);
-    });
-
-  const handleScenario6 = () =>
-    runScenario('Борги та карма (6 осіб)', async () => {
-      const users6: Omit<User, 'id'>[] = [
-        {
-          name: 'Коваленко Іван Петрович',
-          rank: 'Сержант',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: -3.0,
-          owedDays: { 5: 2 },
-        },
-        {
-          name: 'Бондаренко Сергій Іванович',
-          rank: 'Солдат',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: -1.5,
-          owedDays: { 1: 1 },
-        },
-        {
-          name: 'Ткаченко Андрій Миколайович',
-          rank: 'Старший солдат',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: 0,
-          owedDays: {},
-        },
-        {
-          name: 'Кравченко Петро Сергійович',
-          rank: 'Молодший сержант',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: 2.0,
-          owedDays: {},
-        },
-        {
-          name: 'Шевченко Тарас Іванович',
-          rank: 'Солдат',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: 0,
-          owedDays: {},
-        },
-        {
-          name: 'Мельник Василь Петрович',
-          rank: 'Сержант',
-          status: 'ACTIVE',
-          isActive: true,
-          debt: -0.5,
-          owedDays: { 3: 1 },
-        },
-      ];
-      await db.users.bulkAdd(users6 as User[]);
     });
 
   // ── Block 1: Schedule generator ─────────────────────────────────────────
@@ -533,7 +416,7 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
           DEFAULT_AUTO_SCHEDULE_OPTIONS,
           false
         );
-        await autoScheduler.saveAutoSchedule(updates, dayWeights);
+        await autoScheduler.saveAutoSchedule(updates);
         for (const e of updates) currentSchedule[e.date] = e;
       }
       const todayStr = toLocalISO(new Date());
@@ -698,11 +581,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
         patch.blockedDays = [...new Set(blocked)];
         log.push(`${user.name.split(' ')[0]}: заблоковано ${DOW_NAMES_UA[dow % 7]}`);
       }
-      if (r() < 0.1) {
-        const newDebt = -(Math.random() * 3);
-        patch.debt = parseFloat(newDebt.toFixed(1));
-        log.push(`${user.name.split(' ')[0]}: борг ${patch.debt}`);
-      }
       if (Object.keys(patch).length > 0) {
         await db.users.update(user.id!, patch);
       }
@@ -833,16 +711,6 @@ const DevTools: React.FC<DevToolsProps> = ({ refreshData }) => {
               <div className="small text-muted mt-1">
                 Тест граничних випадків: forceUseAll, look-ahead
               </div>
-            </div>
-            <div className="mb-2">
-              <button
-                className="btn btn-outline-danger btn-sm w-100"
-                onClick={handleScenario6}
-                disabled={isLoading}
-              >
-                Борги та карма (6 осіб)
-              </button>
-              <div className="small text-muted mt-1">6 осіб з різними боргами та owedDays</div>
             </div>
 
             <hr />

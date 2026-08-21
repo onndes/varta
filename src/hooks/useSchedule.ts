@@ -5,7 +5,6 @@ import type { ScheduleEntry, User, DayWeights } from '../types';
 import * as scheduleService from '../services/scheduleService';
 import * as auditService from '../services/auditService';
 import * as settingsService from '../services/settingsService';
-import * as userService from '../services/userService';
 import { toAssignedUserIds } from '../utils/assignment';
 
 /**
@@ -58,22 +57,9 @@ export const useSchedule = (users: User[]) => {
         if (typeof replaceUserId === 'number' && nextIds.includes(replaceUserId)) {
           nextIds = nextIds.filter((id) => id !== replaceUserId);
 
-          if (await settingsService.getKarmaOnManualChanges()) {
-            const dayIdx = new Date(date).getDay();
-            const weight = dayWeights[dayIdx] || 1.0;
-            await userService.updateUserDebt(replaceUserId, -weight);
-            const prevUser = users.find((u) => u.id === replaceUserId);
-            if (prevUser) {
-              await auditService.logAction(
-                'REMOVE',
-                `${prevUser.name} замінено на ${date} (Карма -${weight})`
-              );
-            }
-          } else {
-            const prevUser = users.find((u) => u.id === replaceUserId);
-            if (prevUser) {
-              await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
-            }
+          const prevUser = users.find((u) => u.id === replaceUserId);
+          if (prevUser) {
+            await auditService.logAction('REMOVE', `${prevUser.name} замінено на ${date}`);
           }
         }
 
@@ -92,16 +78,8 @@ export const useSchedule = (users: User[]) => {
 
         await scheduleService.saveScheduleEntry(entry);
 
-        // Погасити борг якщо boєць винен саме цей день тижня
         const user = users.find((u) => u.id === userId);
-        if (user && isManual) {
-          if (await settingsService.getKarmaOnManualChanges()) {
-            const dayIdx = new Date(date).getDay();
-            const weight = dayWeights[dayIdx] || 1.0;
-            await userService.repayOwedDay(userId, dayIdx, weight);
-          }
-          await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
-        } else if (user) {
+        if (user) {
           await auditService.logAction('ASSIGN', `${user.name} на ${date}`);
         }
 
@@ -111,12 +89,12 @@ export const useSchedule = (users: User[]) => {
         throw err;
       }
     },
-    [users, dayWeights, loadSchedule]
+    [users, loadSchedule]
   );
 
   // Remove assignment
   const removeAssignment = useCallback(
-    async (date: string, reason: 'request' | 'work' = 'work', targetUserId?: number) => {
+    async (date: string, targetUserId?: number) => {
       try {
         const entry = await scheduleService.getScheduleByDate(date);
         if (!entry || !entry.userId) return;
@@ -127,17 +105,10 @@ export const useSchedule = (users: User[]) => {
             : assignedIds[0];
         const user = users.find((u) => u.id === removedUserId);
 
-        await scheduleService.removeAssignmentWithDebt(date, reason, dayWeights, removedUserId);
+        await scheduleService.removeAssignment(date, removedUserId);
 
         if (user) {
-          const dayIdx = new Date(date).getDay();
-          const weight = dayWeights[dayIdx] || 1.0;
-
-          if (reason === 'request') {
-            await auditService.logAction('REMOVE', `${user.name} рапорт (Карма -${weight})`);
-          } else {
-            await auditService.logAction('REMOVE', `${user.name} службова (Карма 0)`);
-          }
+          await auditService.logAction('REMOVE', `${user.name} знято з ${date}`);
         }
 
         await loadSchedule();
@@ -146,7 +117,7 @@ export const useSchedule = (users: User[]) => {
         throw err;
       }
     },
-    [users, dayWeights, loadSchedule]
+    [users, loadSchedule]
   );
 
   // Get schedule for a user
@@ -199,10 +170,9 @@ export const useSchedule = (users: User[]) => {
     [schedule, dayWeights]
   );
 
-  // Calculate effective load (real + debt)
-  const calculateEffectiveLoad = useCallback(
+  const calculateLoad = useCallback(
     (user: User) => {
-      return scheduleService.calculateEffectiveLoad(user, schedule, dayWeights);
+      return scheduleService.calculateLoadForUser(user, schedule, dayWeights);
     },
     [schedule, dayWeights]
   );
@@ -259,7 +229,7 @@ export const useSchedule = (users: User[]) => {
     findConflicts,
     findGaps,
     calculateUserLoad,
-    calculateEffectiveLoad,
+    calculateLoad,
     getStats,
     toggleLock,
     bulkDelete,

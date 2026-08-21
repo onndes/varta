@@ -25,9 +25,9 @@ export interface UseSettingsFormProps {
   signatories: Signatories;
   dutiesPerDay: number;
   autoScheduleOptions: AutoScheduleOptions;
-  maxDebt: number;
   printMaxRows: number;
   printDutyTableShowAllUsers: boolean;
+  printSkipFullyAbsent: boolean;
   ignoreHistoryInLogic: boolean;
   uiScale: number;
   dowHistoryWeeks: number;
@@ -36,17 +36,15 @@ export interface UseSettingsFormProps {
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
-  onSaveMaxDebt: (value: number) => Promise<void>;
   onSavePrintMaxRows: (value: number) => Promise<void>;
   onSavePrintDutyTableShowAllUsers: (value: boolean) => Promise<void>;
+  onSavePrintSkipFullyAbsent: (value: boolean) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
   onSaveDowHistoryWeeks: (value: number) => Promise<void>;
   onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
   birthdayBlockOpts: BirthdayBlockOpts;
   onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
-  karmaOnManualChanges: boolean;
-  onSaveKarmaOnManualChanges: (value: boolean) => Promise<void>;
   refreshData: () => Promise<void>;
   updateCascadeTrigger: (date: string) => Promise<void>;
   logAction: (action: string, details: string) => Promise<void>;
@@ -64,9 +62,9 @@ export const useSettingsForm = ({
   signatories,
   dutiesPerDay,
   autoScheduleOptions,
-  maxDebt,
   printMaxRows,
   printDutyTableShowAllUsers,
+  printSkipFullyAbsent,
   ignoreHistoryInLogic,
   uiScale,
   dowHistoryWeeks,
@@ -76,16 +74,14 @@ export const useSettingsForm = ({
   onSaveSignatories,
   onSaveDutiesPerDay,
   onSaveAutoScheduleOptions,
-  onSaveMaxDebt,
   onSavePrintMaxRows,
   onSavePrintDutyTableShowAllUsers,
+  onSavePrintSkipFullyAbsent,
   onSaveIgnoreHistoryInLogic,
   onSaveUiScale,
   onSaveDowHistoryWeeks,
   onSaveDowHistoryMode,
   onSaveBirthdayBlockOpts,
-  karmaOnManualChanges,
-  onSaveKarmaOnManualChanges,
   refreshData,
   updateCascadeTrigger,
   logAction,
@@ -94,15 +90,14 @@ export const useSettingsForm = ({
   const [sigs, setSigs] = useState<Signatories>(signatories);
   const [perDay, setPerDay] = useState<number>(dutiesPerDay);
   const [autoOpts, setAutoOpts] = useState<AutoScheduleOptions>(autoScheduleOptions);
-  const [debt, setDebt] = useState<number>(maxDebt);
   const [maxRows, setMaxRows] = useState<number>(printMaxRows);
   const [printAllUsers, setPrintAllUsers] = useState<boolean>(printDutyTableShowAllUsers);
+  const [skipAbsent, setSkipAbsent] = useState<boolean>(printSkipFullyAbsent);
   const [ignoreHistory, setIgnoreHistory] = useState<boolean>(ignoreHistoryInLogic);
   const [scale, setScale] = useState<number>(uiScale);
   const [histWeeks, setHistWeeks] = useState<number>(dowHistoryWeeks);
   const [histMode, setHistMode] = useState<'numbers' | 'dots'>(dowHistoryMode);
   const [birthdayOpts, setBirthdayOpts] = useState<BirthdayBlockOpts>(birthdayBlockOpts);
-  const [karmaManual, setKarmaManual] = useState(karmaOnManualChanges);
   const [isSaving, setIsSaving] = useState(false);
   const [weightApplyMode, setWeightApplyMode] = useState<WeightApplyMode>('next-only');
   const [weightApplyDate, setWeightApplyDate] = useState(() => toLocalISO(new Date()));
@@ -126,14 +121,14 @@ export const useSettingsForm = ({
     setAutoOpts(autoScheduleOptions);
   }, [autoScheduleOptions]);
   useEffect(() => {
-    setDebt(maxDebt);
-  }, [maxDebt]);
-  useEffect(() => {
     setMaxRows(printMaxRows);
   }, [printMaxRows]);
   useEffect(() => {
     setPrintAllUsers(printDutyTableShowAllUsers);
   }, [printDutyTableShowAllUsers]);
+  useEffect(() => {
+    setSkipAbsent(printSkipFullyAbsent);
+  }, [printSkipFullyAbsent]);
   useEffect(() => {
     setIgnoreHistory(ignoreHistoryInLogic);
   }, [ignoreHistoryInLogic]);
@@ -149,9 +144,6 @@ export const useSettingsForm = ({
   useEffect(() => {
     setBirthdayOpts(birthdayBlockOpts);
   }, [birthdayBlockOpts]);
-  useEffect(() => {
-    setKarmaManual(karmaOnManualChanges);
-  }, [karmaOnManualChanges]);
 
   const { showAlert, showConfirm } = useDialog();
 
@@ -170,15 +162,10 @@ export const useSettingsForm = ({
   );
   const logicAutoOptionsChanged =
     autoOpts.avoidConsecutiveDays !== autoScheduleOptions.avoidConsecutiveDays ||
-    autoOpts.respectOwedDays !== autoScheduleOptions.respectOwedDays ||
     autoOpts.minRestDays !== autoScheduleOptions.minRestDays ||
     autoOpts.limitOneDutyPerWeekWhenSevenPlus !==
       autoScheduleOptions.limitOneDutyPerWeekWhenSevenPlus ||
-    autoOpts.forceUseAllWhenFew !== autoScheduleOptions.forceUseAllWhenFew ||
-    autoOpts.allowDebtUsersExtraWeeklyAssignments !==
-      autoScheduleOptions.allowDebtUsersExtraWeeklyAssignments ||
-    autoOpts.debtUsersWeeklyLimit !== autoScheduleOptions.debtUsersWeeklyLimit ||
-    autoOpts.prioritizeFasterDebtRepayment !== autoScheduleOptions.prioritizeFasterDebtRepayment;
+    autoOpts.forceUseAllWhenFew !== autoScheduleOptions.forceUseAllWhenFew;
   const experimentalAutoOptionsChanged =
     autoOpts.evenWeeklyDistribution !== autoScheduleOptions.evenWeeklyDistribution ||
     autoOpts.considerLoad !== autoScheduleOptions.considerLoad ||
@@ -187,38 +174,30 @@ export const useSettingsForm = ({
       autoScheduleOptions.aggressiveLoadBalancingThreshold ||
     !!autoOpts.useExperimentalStatsView !== !!autoScheduleOptions.useExperimentalStatsView;
   const dutiesChanged = perDay !== dutiesPerDay;
-  const debtChanged = debt !== maxDebt;
   const maxRowsChanged = maxRows !== printMaxRows;
   const printAllUsersChanged = printAllUsers !== printDutyTableShowAllUsers;
+  const skipAbsentChanged = skipAbsent !== printSkipFullyAbsent;
   const ignoreHistoryChanged = ignoreHistory !== ignoreHistoryInLogic;
   const scaleChanged = scale !== uiScale;
   const histWeeksChanged = histWeeks !== dowHistoryWeeks;
   const histModeChanged = histMode !== dowHistoryMode;
   const birthdayOptsChanged = JSON.stringify(birthdayOpts) !== JSON.stringify(birthdayBlockOpts);
-  const karmaManualChanged = karmaManual !== karmaOnManualChanges;
   const hasUnsavedChanges =
     weightsChanged ||
     signatoriesChanged ||
     dutiesChanged ||
     autoOptionsChanged ||
-    debtChanged ||
     maxRowsChanged ||
     printAllUsersChanged ||
+    skipAbsentChanged ||
     ignoreHistoryChanged ||
     scaleChanged ||
     histWeeksChanged ||
     histModeChanged ||
-    birthdayOptsChanged ||
-    karmaManualChanged;
+    birthdayOptsChanged;
   const dirtySections = {
-    logic:
-      weightsChanged ||
-      dutiesChanged ||
-      logicAutoOptionsChanged ||
-      debtChanged ||
-      ignoreHistoryChanged ||
-      karmaManualChanged,
-    print: signatoriesChanged || maxRowsChanged || printAllUsersChanged,
+    logic: weightsChanged || dutiesChanged || logicAutoOptionsChanged || ignoreHistoryChanged,
+    print: signatoriesChanged || maxRowsChanged || printAllUsersChanged || skipAbsentChanged,
     interface: scaleChanged || histWeeksChanged || histModeChanged || birthdayOptsChanged,
     experimental: experimentalAutoOptionsChanged,
   };
@@ -269,17 +248,9 @@ export const useSettingsForm = ({
         await onSaveAutoScheduleOptions(autoOpts);
         sections.push('алгоритм автозаповнення');
       }
-      if (debtChanged) {
-        await onSaveMaxDebt(debt);
-        sections.push('ліміт боргу');
-      }
       if (ignoreHistoryChanged) {
         await onSaveIgnoreHistoryInLogic(ignoreHistory);
         sections.push('режим історії');
-      }
-      if (karmaManualChanged) {
-        await onSaveKarmaOnManualChanges(karmaManual);
-        sections.push('карма при ручних змінах');
       }
       if (scaleChanged) {
         await onSaveUiScale(scale);
@@ -311,6 +282,12 @@ export const useSettingsForm = ({
           sections.push('параметри друку');
         }
       }
+      if (skipAbsentChanged) {
+        await onSavePrintSkipFullyAbsent(skipAbsent);
+        if (!maxRowsChanged && !printAllUsersChanged) {
+          sections.push('параметри друку');
+        }
+      }
       setWeightApplyMode('next-only');
       await refreshData();
       await logAction('SETTINGS', `Збережено налаштування: ${sections.join(', ')}`);
@@ -321,24 +298,21 @@ export const useSettingsForm = ({
   }, [
     autoOptionsChanged,
     autoOpts,
-    debt,
-    debtChanged,
     dutiesChanged,
     hasUnsavedChanges,
     ignoreHistory,
     ignoreHistoryChanged,
-    karmaManual,
-    karmaManualChanged,
     logAction,
     maxRows,
     maxRowsChanged,
     onSavePrintDutyTableShowAllUsers,
+    onSavePrintSkipFullyAbsent,
+    skipAbsent,
+    skipAbsentChanged,
     onSave,
     onSaveAutoScheduleOptions,
     onSaveDutiesPerDay,
     onSaveIgnoreHistoryInLogic,
-    onSaveKarmaOnManualChanges,
-    onSaveMaxDebt,
     onSavePrintMaxRows,
     onSaveSignatories,
     onSaveUiScale,
@@ -421,18 +395,6 @@ export const useSettingsForm = ({
     setMaintenanceNeeded(needs);
   }, [logAction, showAlert, showConfirm]);
 
-  /** Reset karma (debt + owedDays) for all users to zero. */
-  const handleResetAllKarma = useCallback(async () => {
-    const confirmed = await showConfirm(
-      'Скинути карму (борг та бонуси) та боргові дні для всіх осіб?\n\nЦю дію неможливо скасувати.'
-    );
-    if (!confirmed) return;
-    await userService.resetAllKarma();
-    await logAction('KARMA_RESET', 'Скинуто карму всіх осіб');
-    await refreshData();
-    await showAlert('Карму скинуто для всіх осіб');
-  }, [logAction, refreshData, showAlert, showConfirm]);
-
   return {
     weights,
     setWeights,
@@ -442,12 +404,12 @@ export const useSettingsForm = ({
     setPerDay,
     autoOpts,
     setAutoOpts,
-    debt,
-    setDebt,
     maxRows,
     setMaxRows,
     printAllUsers,
     setPrintAllUsers,
+    skipAbsent,
+    setSkipAbsent,
     ignoreHistory,
     setIgnoreHistory,
     scale,
@@ -458,8 +420,6 @@ export const useSettingsForm = ({
     setHistMode,
     birthdayOpts,
     setBirthdayOpts,
-    karmaManual,
-    setKarmaManual,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
@@ -471,7 +431,6 @@ export const useSettingsForm = ({
     maintenanceNeeded,
     handleOpenDbModal,
     handleMaintenance,
-    handleResetAllKarma,
     weightApplyMode,
     setWeightApplyMode,
     weightApplyDate,

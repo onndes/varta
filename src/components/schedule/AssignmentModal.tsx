@@ -21,12 +21,12 @@ interface AssignmentModalProps {
   weekDates: string[];
   swapMode: SwapMode;
   onSetSwapMode: (mode: SwapMode) => void;
-  onAssign: (userId: number, penalizeReplaced: boolean) => void;
+  onAssign: (userId: number) => void;
   onSwap: (userId: number, swapDate: string) => void;
-  onRemove: (reason: 'request' | 'work') => void;
+  onRemove: () => void;
   onClose: () => void;
   isOnRestDay: (userId: number, date: string) => boolean;
-  calculateEffectiveLoad: (user: User) => number;
+  calculateLoad: (user: User) => number;
   daysSinceLastDuty: (userId: number, date: string) => number;
   hasEntry: boolean;
   historyMode?: boolean;
@@ -54,13 +54,12 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   onRemove,
   onClose,
   isOnRestDay,
-  calculateEffectiveLoad,
+  calculateLoad,
   daysSinceLastDuty,
   hasEntry,
   historyMode = false,
 }) => {
   const assignedUser = users.find((u) => u.id === assignedUserId);
-  const [penalizeReplaced, setPenalizeReplaced] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [swapPickUserId, setSwapPickUserId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,9 +82,9 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
   const handleConfirm = () => {
     if (!pendingAction) return;
-    if (pendingAction.type === 'replace') onAssign(pendingAction.userId, pendingAction.penalize);
+    if (pendingAction.type === 'replace') onAssign(pendingAction.userId);
     else if (pendingAction.type === 'swap') onSwap(pendingAction.userId, pendingAction.swapDate);
-    else onRemove(pendingAction.reason);
+    else onRemove();
     setPendingAction(null);
     setSwapPickUserId(null);
   };
@@ -118,7 +117,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       isOnRestDay={isOnRestDay}
-      calculateEffectiveLoad={calculateEffectiveLoad}
+      calculateLoad={calculateLoad}
       daysSinceLastDuty={daysSinceLastDuty}
       onAction={action}
       emptyMessage={emptyMessage}
@@ -165,11 +164,11 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
               <i className="fas fa-clock-history me-2"></i>
               <strong>{assignedUser?.name}</strong>
             </div>
-            <button className="btn btn-outline-danger w-100 mb-3" onClick={() => onRemove('work')}>
+            <button className="btn btn-outline-danger w-100 mb-3" onClick={() => onRemove()}>
               <i className="fas fa-user-minus me-1"></i>Зняти з наряду
             </button>
             <div className="small text-muted mb-2">Або замінити на іншу особу:</div>
-            {renderUserList(freeUsers, (userId) => onAssign(userId, false), 'Немає доступних осіб')}
+            {renderUserList(freeUsers, (userId) => onAssign(userId), 'Немає доступних осіб')}
           </div>
         );
       }
@@ -203,25 +202,9 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
           {swapMode === 'replace' && (
             <>
               <div className="small text-muted mb-2">Замінити на іншу особу</div>
-              <div className="form-check mb-2">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="penalizeReplaced"
-                  checked={penalizeReplaced}
-                  onChange={(e) => setPenalizeReplaced(e.target.checked)}
-                />
-                <label
-                  className={`form-check-label small${penalizeReplaced ? ' text-danger fw-semibold' : ''}`}
-                  htmlFor="penalizeReplaced"
-                >
-                  Нарахувати &minus;карму тому, кого знімають
-                </label>
-              </div>
               {renderUserList(
                 freeUsers,
-                (userId) =>
-                  setPendingAction({ type: 'replace', userId, penalize: penalizeReplaced }),
+                (userId) => setPendingAction({ type: 'replace', userId }),
                 'Немає доступних осіб для заміни'
               )}
             </>
@@ -245,18 +228,9 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <div className="d-grid gap-2">
               <button
                 className="btn btn-outline-danger"
-                onClick={() => setPendingAction({ type: 'remove', reason: 'request' })}
+                onClick={() => setPendingAction({ type: 'remove' })}
               >
-                <i className="fas fa-file-alt me-1"></i>За рапортом (Карма МІНУС)
-              </button>
-              <div className="small text-muted text-center">
-                Особа буде &quot;винна&quot; системі.
-              </div>
-              <button
-                className="btn btn-outline-secondary"
-                onClick={() => setPendingAction({ type: 'remove', reason: 'work' })}
-              >
-                <i className="fas fa-briefcase me-1"></i>Службова (Карма 0)
+                <i className="fas fa-user-minus me-1"></i>Зняти з наряду
               </button>
             </div>
           )}
@@ -267,7 +241,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
     return (
       <>
         <div className="small text-muted mb-2">Призначити особу на цей день</div>
-        {renderUserList(freeUsers, (userId) => onAssign(userId, false), 'Немає доступних осіб')}
+        {renderUserList(freeUsers, (userId) => onAssign(userId), 'Немає доступних осіб')}
       </>
     );
   };

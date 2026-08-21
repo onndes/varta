@@ -4,6 +4,9 @@ import type { User, ScheduleEntry, DayWeights } from '../types';
 import { compareByRankAndName, sortUsersBy, type SortKey, type SortDir } from '../utils/helpers';
 import { toLocalISO } from '../utils/dateUtils';
 import { getUserAvailabilityStatus } from '../services/userService';
+import { isExcludedFromAutoOnDate } from '../utils/userExcludeFromAuto';
+import { isStaffDuty } from '../utils/staffDuty';
+import { applyStatsCutoffs, clampToStatsCutoff, getStatsCutoff } from '../utils/statsReset';
 import {
   isAssignedInEntry,
   getLogicSchedule,
@@ -12,7 +15,6 @@ import {
 } from '../utils/assignment';
 
 export interface UserStats extends User {
-  balance: number;
   trackingFrom: string;
   windowEnd: string;
   totalAllDuties: number;
@@ -85,7 +87,7 @@ export const useStatsData = ({
   }, [windowMode, todayStr, schedule, ignoreHistoryInLogic]);
 
   const allStats = useMemo((): UserStats[] => {
-    const logicSched = getLogicSchedule(schedule, ignoreHistoryInLogic);
+    const logicSched = applyStatsCutoffs(getLogicSchedule(schedule, ignoreHistoryInLogic), users);
     const nonHistoryDates = Object.entries(logicSched)
       .filter(([, e]) => !isHistoryType(e))
       .map(([d]) => d)
@@ -107,7 +109,7 @@ export const useStatsData = ({
         // not actual duty-unavailable days.
         if (
           isInPeriod(iso, user.inactivePeriods) ||
-          isInPeriod(iso, user.excludedFromAutoPeriods) ||
+          isExcludedFromAutoOnDate(user, iso) ||
           status === 'STATUS_BUSY' ||
           status === 'DAY_BLOCKED'
         )
@@ -120,7 +122,8 @@ export const useStatsData = ({
     return users
       .map((u): UserStats => {
         const allUserEntries = Object.values(logicSched).filter((s) => isAssignedInEntry(s, u.id!));
-        const rawFairnessFrom = u.dateAddedToAuto;
+        const rawFairnessFrom = clampToStatsCutoff(u, u.dateAddedToAuto);
+        const statsCutoff = getStatsCutoff(u);
         const fallbackFrom = earliestScheduleDate <= todayStr ? earliestScheduleDate : todayStr;
         const firstDuty = getFirstDutyDate(logicSched, u.id!);
         let trackingFrom: string;
@@ -132,6 +135,8 @@ export const useStatsData = ({
         const hasExplicitTracking = !!rawFairnessFrom || !!firstDuty;
 
         const comparableEntries = allUserEntries.filter((s) => {
+          // Наряди до дати обнулення не враховуються навіть як історія.
+          if (statsCutoff && s.date < statsCutoff) return false;
           if (s.date >= trackingFrom) return true;
           if (!ignoreHistoryInLogic && isHistoryType(s)) return true;
           if (!hasExplicitTracking && isHistoryType(s)) return true;
@@ -170,7 +175,6 @@ export const useStatsData = ({
           dayCountComparable[dayIdx] = (dayCountComparable[dayIdx] || 0) + 1;
         });
 
-        const balance = u.debt || 0;
         const availability = getUserAvailabilityStatus(u, todayStr);
         // Count duties within the same [trackingFrom, windowEnd] window as availableDaysForDuty
         // so numerator and denominator always cover the same period.
@@ -182,13 +186,12 @@ export const useStatsData = ({
 
         return {
           ...u,
-          balance,
           trackingFrom,
           windowEnd,
           totalAllDuties: allUserEntries.length,
           totalComparableDuties: comparableEntries.length,
           comparableLoad,
-          effectiveComparable: comparableLoad + balance,
+          effectiveComparable: comparableLoad,
           dayCountComparable,
           totalWindowDays,
           availableDaysForDuty,
@@ -224,7 +227,11 @@ export const useStatsData = ({
   }, [filteredStats, sortKey, sortDir]);
 
   const groupMeta = useMemo((): StatsGroupMeta => {
-    const rates = filteredStats.filter((u) => u.dutyRate > 0).map((u) => u.dutyRate);
+    // Штатні чергові мають власну тижневу норму — їхня інтенсивність не є
+    // частиною спільної планки, інакше середнє по підрозділу штучно завищується.
+    const rates = filteredStats
+      .filter((u) => u.dutyRate > 0 && !isStaffDuty(u))
+      .map((u) => u.dutyRate);
     const avgDutyRate = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
     const maxDutyRate = rates.length > 0 ? Math.max(...rates) : 0;
     return { avgDutyRate, maxDutyRate };

@@ -117,8 +117,6 @@ const PersonnelView: React.FC<PersonnelViewProps> = (props) => {
       isActive: false,
       isPersonnel: true,
       excludeFromAuto: false,
-      debt: 0,
-      owedDays: {},
       statusPeriods: [],
       restAfterStatus: false,
       dateAddedToAuto: undefined,

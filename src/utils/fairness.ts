@@ -1,4 +1,5 @@
 import type { User } from '../types';
+import { clampToStatsCutoff } from './statsReset';
 
 /**
  * Effective "from" date for fair comparison in auto-scheduler.
@@ -6,7 +7,7 @@ import type { User } from '../types';
  * Absences should be handled by availability-aware comparison, not by "reset to zero".
  */
 export const getUserFairnessFrom = (user: User, onDate: string): string | undefined => {
-  const from = user.dateAddedToAuto;
+  const from = clampToStatsCutoff(user, user.dateAddedToAuto);
   if (from && from > onDate) return undefined;
   return from;
 };

@@ -23,9 +23,9 @@ interface SettingsViewProps {
   signatories: Signatories;
   dutiesPerDay: number;
   autoScheduleOptions: AutoScheduleOptions;
-  maxDebt: number;
   printMaxRows: number;
   printDutyTableShowAllUsers: boolean;
+  printSkipFullyAbsent: boolean;
   ignoreHistoryInLogic: boolean;
   uiScale: number;
   dowHistoryWeeks: number;
@@ -34,17 +34,15 @@ interface SettingsViewProps {
   onSaveSignatories: (s: Signatories) => Promise<void>;
   onSaveDutiesPerDay: (count: number) => Promise<void>;
   onSaveAutoScheduleOptions: (opts: AutoScheduleOptions) => Promise<void>;
-  onSaveMaxDebt: (value: number) => Promise<void>;
   onSavePrintMaxRows: (value: number) => Promise<void>;
   onSavePrintDutyTableShowAllUsers: (value: boolean) => Promise<void>;
+  onSavePrintSkipFullyAbsent: (value: boolean) => Promise<void>;
   onSaveIgnoreHistoryInLogic: (value: boolean) => Promise<void>;
   onSaveUiScale: (value: number) => Promise<void>;
   onSaveDowHistoryWeeks: (value: number) => Promise<void>;
   onSaveDowHistoryMode: (value: 'numbers' | 'dots') => Promise<void>;
   birthdayBlockOpts: BirthdayBlockOpts;
   onSaveBirthdayBlockOpts: (opts: BirthdayBlockOpts) => Promise<void>;
-  karmaOnManualChanges: boolean;
-  onSaveKarmaOnManualChanges: (value: boolean) => Promise<void>;
   showDevBanner: boolean;
   onSaveShowDevBanner: (value: boolean) => Promise<void>;
   devBannerSnoozeUntil: string | null;
@@ -99,12 +97,12 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setPerDay,
     autoOpts,
     setAutoOpts,
-    debt,
-    setDebt,
     maxRows,
     setMaxRows,
     printAllUsers,
     setPrintAllUsers,
+    skipAbsent,
+    setSkipAbsent,
     ignoreHistory,
     setIgnoreHistory,
     scale,
@@ -115,8 +113,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     setHistMode,
     birthdayOpts,
     setBirthdayOpts,
-    karmaManual,
-    setKarmaManual,
     isSaving,
     hasUnsavedChanges,
     dirtySections,
@@ -128,7 +124,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     maintenanceNeeded,
     handleOpenDbModal,
     handleMaintenance,
-    handleResetAllKarma,
     weightApplyMode,
     setWeightApplyMode,
     weightApplyDate,
@@ -196,16 +191,11 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onPerDayChange={setPerDay}
           autoOpts={autoOpts}
           onAutoOptsChange={setAutoOpts}
-          debt={debt}
-          onDebtChange={setDebt}
           ignoreHistory={ignoreHistory}
           onIgnoreHistoryChange={setIgnoreHistory}
           onApplyFirstDutyDates={() => void applyFirstDutyDates()}
           birthdayOpts={birthdayOpts}
           onBirthdayOptsChange={setBirthdayOpts}
-          karmaManual={karmaManual}
-          onKarmaManualChange={setKarmaManual}
-          onResetAllKarma={handleResetAllKarma}
         />
       )}
       {currentSubTab === 'interface' && (
@@ -237,6 +227,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           onMaxRowsChange={setMaxRows}
           printAllUsers={printAllUsers}
           onPrintAllUsersChange={setPrintAllUsers}
+          skipAbsent={skipAbsent}
+          onSkipAbsentChange={setSkipAbsent}
           onExportExcel={props.onExportExcel}
         />
       )}

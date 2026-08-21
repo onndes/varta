@@ -142,7 +142,7 @@ export const COMPARATOR_CRITERIA: {
     priority: 6,
     key: 'loadBalance',
     name: 'Навантаження (бали)',
-    description: 'Загальне навантаження + борг (якщо увімкнено)',
+    description: 'Загальне зважене навантаження',
   },
   {
     priority: 7,
@@ -179,17 +179,9 @@ export const ELIMINATION_REASON: Record<string, string> = {
 
 // ─── Extra duty reason ───────────────────────────────────────────────────────
 
-export const getExtraDutyReason = (
-  poolSize: number,
-  totalPool: number,
-  hasDebt: boolean,
-  debtAmount: number
-): string => {
+export const getExtraDutyReason = (poolSize: number, totalPool: number): string => {
   if (poolSize <= 2) {
     return `Мало доступних кандидатів — лише ${poolSize} з ${totalPool}.`;
-  }
-  if (hasDebt) {
-    return `Є борг з попередніх місяців (${debtAmount} нарядів) — система відпрацьовує.`;
   }
   return `Серед доступних колег він мав найкращий загальний баланс.`;
 };

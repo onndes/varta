@@ -4,6 +4,7 @@ import { formatRank } from './helpers';
 import { getUserStatusPeriods } from './userStatus';
 import { getBlockedDaysPeriods } from './userBlockedDays';
 import { getExcludeFromAutoPeriods } from './userExcludeFromAuto';
+import { getWeeklyDutyTarget, isStaffDuty } from './staffDuty';
 
 export interface UserChangeItem {
   label: string;
@@ -19,7 +20,6 @@ export const cloneUserDraft = (user: User): User => ({
   ...user,
   blockedDays: user.blockedDays ? [...user.blockedDays] : undefined,
   incompatibleWith: user.incompatibleWith ? [...user.incompatibleWith] : undefined,
-  owedDays: user.owedDays ? { ...user.owedDays } : undefined,
   statusPeriods: user.statusPeriods ? user.statusPeriods.map(cloneStatusPeriod) : undefined,
   blockedDaysPeriods: user.blockedDaysPeriods ? user.blockedDaysPeriods.map((p) => ({ ...p, days: [...p.days] })) : undefined,
   excludeFromAutoPeriods2: user.excludeFromAutoPeriods2 ? user.excludeFromAutoPeriods2.map((p) => ({ ...p })) : undefined,
@@ -138,6 +138,12 @@ export const getUserChangeSummary = (
     'Присутній в підрозділі',
     formatFlag(original.isActive),
     formatFlag(draft.isActive)
+  );
+  pushChange(
+    changes,
+    'Штатний черговий',
+    isStaffDuty(original) ? `Так, ${getWeeklyDutyTarget(original)} на тиждень` : 'Ні',
+    isStaffDuty(draft) ? `Так, ${getWeeklyDutyTarget(draft)} на тиждень` : 'Ні'
   );
   pushChange(
     changes,
