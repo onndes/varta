@@ -17,7 +17,8 @@ const scheduleOf = (pairs: Array<[string, number]>): Record<string, ScheduleEntr
     pairs.map(([date, userId]) => [date, { date, userId, type: 'auto' as const }])
   );
 
-const week = ['2026-01-05', '2026-01-06', '2026-01-07'];
+// Показаний тиждень 12–14.01 (пн–ср): облік зупиняється 11.01.
+const week = ['2026-01-12', '2026-01-13', '2026-01-14'];
 
 describe('computeWorkload', () => {
   it('ділить наряди на доступні дні', () => {
@@ -27,10 +28,11 @@ describe('computeWorkload', () => {
       ['2026-01-06', 1],
     ]);
     const w = computeWorkload(users, schedule, week).byUser.get(1)!;
-    // 01-01 .. 01-07 = 7 днів, 2 наряди
-    expect(w.availableDays).toBe(7);
+    // 01-01 .. 01-11 = 11 днів, 2 наряди
+    expect(w.countedThrough).toBe('2026-01-11');
+    expect(w.availableDays).toBe(11);
     expect(w.duties).toBe(2);
-    expect(w.daysPerDuty).toBeCloseTo(3.5);
+    expect(w.daysPerDuty).toBeCloseTo(5.5);
   });
 
   it('відпустка не збільшує знаменник — показник не псується', () => {
@@ -45,19 +47,21 @@ describe('computeWorkload', () => {
     const data = computeWorkload(users, schedule, week);
     const a = data.byUser.get(1)!;
     const b = data.byUser.get(2)!;
-    expect(a.availableDays).toBe(7);
-    expect(b.availableDays).toBe(2); // 5 днів відпустки віднято
-    expect(b.rate).toBeGreaterThan(a.rate); // 1/2 проти 1/7
+    expect(a.availableDays).toBe(11);
+    expect(b.availableDays).toBe(6); // 5 днів відпустки віднято
+    expect(b.rate).toBeGreaterThan(a.rate); // 1/6 проти 1/11
   });
 
-  it('накопичує зріз на кожну дату тижня', () => {
+  it('не враховує наряди показаного тижня та планування наперед', () => {
     const users = [makeUser(1)];
-    const schedule = scheduleOf([['2026-01-06', 1]]);
+    const schedule = scheduleOf([
+      ['2026-01-06', 1], // минулий тиждень — рахується
+      ['2026-01-13', 1], // всередині показаного тижня — ні
+      ['2026-02-20', 1], // заплановано наперед — ні
+    ]);
     const w = computeWorkload(users, schedule, week).byUser.get(1)!;
-    expect(w.byDate['2026-01-05'].duties).toBe(0);
-    expect(w.byDate['2026-01-06'].duties).toBe(1);
-    expect(w.byDate['2026-01-07'].duties).toBe(1);
-    expect(w.byDate['2026-01-07'].availableDays).toBe(7);
+    expect(w.duties).toBe(1);
+    expect(w.availableDays).toBe(11);
   });
 
   it('індекс 100 = середнє по підрозділу', () => {

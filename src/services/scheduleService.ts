@@ -166,11 +166,16 @@ export const calculateUserLoad = (
 export const countUserDaysOfWeek = (
   userId: number,
   schedule: Record<string, ScheduleEntry>,
-  fromDate?: string
+  fromDate?: string,
+  toDate?: string
 ): Record<number, number> => {
   const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   Object.values(schedule).forEach((s) => {
-    if (isAssignedInEntry(s, userId) && (!fromDate || s.date >= fromDate)) {
+    if (
+      isAssignedInEntry(s, userId) &&
+      (!fromDate || s.date >= fromDate) &&
+      (!toDate || s.date <= toDate)
+    ) {
       const day = new Date(s.date).getDay();
       counts[day]++;
     }

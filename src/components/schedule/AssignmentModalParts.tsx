@@ -1,7 +1,7 @@
 // src/components/schedule/AssignmentModalParts.tsx — UserListItem, ConfirmationView, UserFilteredList, SwapDatePicker
 import React from 'react';
 import type { User, ScheduleEntry } from '../../types';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, getDayBeforeWeek } from '../../utils/dateUtils';
 import { formatRank, compareByRankAndName } from '../../utils/helpers';
 import { countUserDaysOfWeek } from '../../services/scheduleService';
 import { applyStatsCutoffs } from '../../utils/statsReset';
@@ -188,7 +188,13 @@ export const UserFilteredList: React.FC<UserFilteredListProps> = ({
                 .replace('.', '')
                 .toUpperCase()
             : undefined;
-          const weekdayCounts = countUserDaysOfWeek(u.id!, applyStatsCutoffs(schedule, [u]));
+          // Тільки минулі тижні — щоб лічильник не стрибав під час заповнення поточного.
+          const weekdayCounts = countUserDaysOfWeek(
+            u.id!,
+            applyStatsCutoffs(schedule, [u]),
+            undefined,
+            getDayBeforeWeek(date)
+          );
           return (
             <UserListItem
               key={u.id}

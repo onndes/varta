@@ -8,7 +8,7 @@ import { getUserAvailabilityStatus } from '../../services/userService';
 import { isAssignedInEntry } from '../../utils/assignment';
 import { countUserDaysOfWeek } from '../../services/scheduleService';
 import { getStatusPeriodAtDate } from '../../utils/userStatus';
-import { toLocalISO } from '../../utils/dateUtils';
+import { toLocalISO, getDayBeforeWeek } from '../../utils/dateUtils';
 import { buildStaticLog } from './scheduleTableUtils';
 import DecisionLogModal from './DecisionLogModal';
 import { DEFAULT_HELPER_DECORATIONS, type HelperDecorations } from './helperDecorations';
@@ -95,7 +95,8 @@ const describeWorkload = (point: WorkloadPoint, asOf: string): string => {
   const perDuty =
     point.daysPerDuty > 0 ? `1 наряд на ${point.daysPerDuty.toFixed(1)} дн.` : 'нарядів ще не було';
   return (
-    `Навантаження на ${asOf}: ${point.index}% від середнього по підрозділу\n` +
+    `Навантаження станом на ${asOf} (кінець попереднього тижня): ` +
+    `${point.index}% від середнього по підрозділу\n` +
     `${point.duties} нарядів / ${point.availableDays} доступних днів (${perDuty})\n` +
     'Доступні дні = усі дні обліку мінус відпустки, відрядження, лікарняні, блокування'
   );
@@ -161,8 +162,11 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
   const [activeLogDate, setActiveLogDate] = useState<string>('');
   const [activeLogEntry, setActiveLogEntry] = useState<ScheduleEntry | null>(null);
   const countedSchedule = statsSchedule || schedule;
+  // Рахуємо лише до початку показаного тижня: наряди цього тижня і планування
+  // наперед не повинні змінювати лічильники, поки тиждень заповнюється.
+  const countedThrough = weekDates.length > 0 ? getDayBeforeWeek(weekDates[0]) : undefined;
   const dowAssignmentCounts = user.id
-    ? countUserDaysOfWeek(user.id, countedSchedule)
+    ? countUserDaysOfWeek(user.id, countedSchedule, undefined, countedThrough)
     : { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
   // Штатний черговий: власна тижнева норма замість індексу навантаження
@@ -240,7 +244,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
             {helperDecorations.workload && staffTarget === null && workload && workload.availableDays > 0 && (
               <span
                 className={`workload-badge no-print band-${getWorkloadBand(workload)}`}
-                title={describeWorkload(workload, weekDates[weekDates.length - 1])}
+                title={describeWorkload(workload, workload.countedThrough)}
               >
                 <i className="fas fa-gauge-high" />
                 {workload.index}%
@@ -300,11 +304,9 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               ? null
               : weekDates.filter((d) => d <= date && isAssignedInEntry(schedule[d], user.id!))
                   .length;
-          const cellWorkloadPoint = workload?.byDate[date];
+          // Показник заморожений на початок тижня — той самий у кожній комірці.
           const cellWorkload =
-            cellWorkloadPoint && cellWorkloadPoint.availableDays > 0 && (available || isAssigned)
-              ? cellWorkloadPoint
-              : null;
+            workload && workload.availableDays > 0 && (available || isAssigned) ? workload : null;
 
           const statsCutoff = getStatsCutoff(user);
 
@@ -467,7 +469,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               {helperDecorations.workload && staffTarget === null && cellWorkload && (
                 <span
                   className={`workload-cell-badge no-print band-${getWorkloadBand(cellWorkload)}`}
-                  title={describeWorkload(cellWorkload, date)}
+                  title={describeWorkload(cellWorkload, countedThrough ?? date)}
                   aria-hidden="true"
                 >
                   {cellWorkload.index}
@@ -476,7 +478,7 @@ const ScheduleTableRow: React.FC<ScheduleTableRowProps> = ({
               {helperDecorations.dowDutyCounts && (
                 <span
                   className={`dow-duty-count-badge no-print${totalDutiesForDow === 0 ? ' is-zero' : ''}`}
-                  title={`Усього нарядів у цей день тижня: ${totalDutiesForDow}`}
+                  title={`Нарядів у цей день тижня до початку цього тижня: ${totalDutiesForDow}`}
                   aria-hidden="true"
                 >
                   {totalDutiesForDow}

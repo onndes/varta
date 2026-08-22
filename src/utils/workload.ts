@@ -3,13 +3,13 @@ import type { User, ScheduleEntry } from '../types';
 import { getUserAvailabilityStatus } from '../services/userService';
 import { isExcludedFromAutoOnDate } from '../utils/userExcludeFromAuto';
 import { isAssignedInEntry, getFirstDutyDate } from '../utils/assignment';
-import { toLocalISO } from '../utils/dateUtils';
+import { toLocalISO, getDayBeforeWeek } from '../utils/dateUtils';
 import { isStaffDuty } from './staffDuty';
 import { applyStatsCutoffs, clampToStatsCutoff } from './statsReset';
 
 /** Значення навантаження на конкретний момент часу. */
 export interface WorkloadPoint {
-  /** Кількість нарядів у вікні [trackingFrom .. дата]. */
+  /** Кількість нарядів у вікні обліку [trackingFrom .. напередодні тижня]. */
   duties: number;
   /** Дні, у які боєць реально міг заступити (без відпусток/відряджень/блокувань). */
   availableDays: number;
@@ -26,8 +26,8 @@ export interface UserWorkload extends WorkloadPoint {
   trackingFrom: string;
   /** Чому показник не рахується (коли доступних днів 0). */
   noDataReason?: 'not-started' | 'excluded' | 'all-blocked';
-  /** Зріз навантаження на кожну дату відображеного тижня. */
-  byDate: Record<string, WorkloadPoint>;
+  /** Остання дата, включена в облік (день перед початком показаного тижня). */
+  countedThrough: string;
 }
 
 export interface WorkloadData {
@@ -69,8 +69,11 @@ const makePoint = (duties: number, availableDays: number): WorkloadPoint => {
 };
 
 /**
- * Рахує навантаження для кожного бійця: підсумкове (на кінець `weekDates`)
- * і накопичувальний зріз на кожну дату тижня.
+ * Рахує навантаження для кожного бійця станом **на початок** показаного тижня:
+ * облік іде з `trackingFrom` до дня перед `weekDates[0]`.
+ *
+ * Тому наряди самого тижня — і будь-яке планування наперед — не зсувають
+ * відсотки, поки тиждень заповнюється: показник відображає лише минулі тижні.
  *
  * Знаменник росте лише в доступні дні, тому відпустка чи відрядження
  * ніколи не псують показник — вона просто «заморожує» його.
@@ -87,8 +90,9 @@ export const computeWorkload = (
   const countedSchedule = applyStatsCutoffs(logicSchedule, users);
   const scheduleDates = Object.keys(countedSchedule).sort();
   const earliest = scheduleDates[0] || weekDates[0];
-  const endDate = weekDates[weekDates.length - 1];
-  const weekDateSet = new Set(weekDates);
+  // Облік зупиняється напередодні показаного тижня: наряди самого тижня і будь-яке
+  // планування наперед не змінюють показник, поки тиждень заповнюється.
+  const endDate = getDayBeforeWeek(weekDates[0]);
 
   for (const user of users) {
     if (!user.id) continue;
@@ -98,7 +102,6 @@ export const computeWorkload = (
         user.dateAddedToAuto || getFirstDutyDate(countedSchedule, user.id) || earliest
       ) || earliest;
 
-    const byDate: Record<string, WorkloadPoint> = {};
     let duties = 0;
     let availableDays = 0;
 
@@ -108,7 +111,6 @@ export const computeWorkload = (
       const iso = toLocalISO(cursor);
       if (!isUnavailableDay(user, iso)) availableDays++;
       if (isAssignedInEntry(countedSchedule[iso], user.id)) duties++;
-      if (weekDateSet.has(iso)) byDate[iso] = makePoint(duties, availableDays);
       cursor.setDate(cursor.getDate() + 1);
     }
 
@@ -120,10 +122,10 @@ export const computeWorkload = (
     }
 
     byUser.set(user.id, {
-      ...(byDate[endDate] || makePoint(duties, availableDays)),
+      ...makePoint(duties, availableDays),
       trackingFrom,
       noDataReason,
-      byDate,
+      countedThrough: endDate,
     });
   }
 
@@ -141,17 +143,7 @@ export const computeWorkload = (
 
   if (teamAvgRate > 0) {
     for (const [id, w] of byUser) {
-      const withIndex: UserWorkload = {
-        ...w,
-        index: Math.round((w.rate / teamAvgRate) * 100),
-        byDate: Object.fromEntries(
-          Object.entries(w.byDate).map(([d, p]) => [
-            d,
-            { ...p, index: Math.round((p.rate / teamAvgRate) * 100) },
-          ])
-        ),
-      };
-      byUser.set(id, withIndex);
+      byUser.set(id, { ...w, index: Math.round((w.rate / teamAvgRate) * 100) });
     }
   }
 

@@ -4,7 +4,7 @@ import { formatRank, splitFormattedName, compareByRankAndName } from '../../util
 import { toAssignedUserIds, isAssignedInEntry } from '../../utils/assignment';
 import { getStatusPeriodAtDate } from '../../utils/userStatus';
 import { DAY_NAMES_FULL, DEFAULT_PRINT_MAX_ROWS, STATUSES } from '../../utils/constants';
-import { toLocalISO } from '../../utils/dateUtils';
+import { toLocalISO, getDayBeforeWeek } from '../../utils/dateUtils';
 import { countUserDaysOfWeek } from '../../services/scheduleService';
 import { applyStatsCutoffs } from '../../utils/statsReset';
 import {
@@ -113,6 +113,10 @@ const DutyTable: React.FC<TablePageProps> = ({
   showStats,
   dowHistoryWeeks,
 }) => {
+  // Статистика друкованого тижня рахується станом на його початок — наряди
+  // самого тижня і планування наперед у неї не потрапляють.
+  const countedThrough = getDayBeforeWeek(weekDates[0]);
+
   return (
     <table className="print-duty-table">
       <thead>
@@ -143,7 +147,12 @@ const DutyTable: React.FC<TablePageProps> = ({
           const fullName = [surname, firstName, middleName].filter(Boolean).join(' ');
           const dowAssignmentCounts =
             showStats && user.id
-              ? countUserDaysOfWeek(user.id, applyStatsCutoffs(schedule, [user]))
+              ? countUserDaysOfWeek(
+                  user.id,
+                  applyStatsCutoffs(schedule, [user]),
+                  undefined,
+                  countedThrough
+                )
               : null;
 
           return (

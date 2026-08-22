@@ -127,3 +127,15 @@ export const formatDateShort = (dateStr: string, locale = 'uk-UA'): string => {
 export const getDayOfWeek = (dateStr: string): number => {
   return new Date(dateStr).getDay();
 };
+
+/**
+ * ISO-дата дня, що передує понеділку тижня, у якому лежить `dateStr`.
+ *
+ * Це межа обліку статистики: показники тижня рахуються станом «до тижня»,
+ * тому заповнення самого тижня (і будь-яке планування далі) їх не змінює.
+ */
+export const getDayBeforeWeek = (dateStr: string): string => {
+  const dow = new Date(dateStr).getDay(); // 0 = неділя
+  const backToMonday = dow === 0 ? 6 : dow - 1;
+  return addDays(dateStr, -(backToMonday + 1));
+};
